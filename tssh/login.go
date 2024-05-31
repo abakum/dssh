@@ -326,12 +326,16 @@ func getHostKeyCallback(args *SshArgs, param *sshParam) (ssh.HostKeyCallback, kn
 	primaryPath := ""
 	var files []string
 	addKnownHostsFiles := func(key string, user bool) error {
-		knownHostsFiles := getOptionConfig(args, key)
-		if knownHostsFiles == "" || user && strings.ToLower(knownHostsFiles) == "none" {
-			debug("%s is empty or none", key)
+		knownHostsFiles := getOptionConfigSplits(args, key)
+		if len(knownHostsFiles) == 0 {
+			debug("%s is empty", key)
 			return nil
 		}
-		for _, path := range strings.Fields(knownHostsFiles) {
+		if len(knownHostsFiles) == 1 && strings.ToLower(knownHostsFiles[0]) == "none" {
+			debug("%s is none", key)
+			return nil
+		}
+		for _, path := range knownHostsFiles {
 			var resolvedPath string
 			if user {
 				path = expandEnv(path)
@@ -692,12 +696,12 @@ func NewStringSet(itmes ...string) *StringSet {
 func (s *StringSet) Add(item string) {
 	(*s)[item] = struct{}{}
 }
-func (s *StringSet) Contain(item string) bool {
+func (s *StringSet) Contains(item string) bool {
 	_, ok := (*s)[item]
 	return ok
 }
 func (s *StringSet) Delete(item string) {
-	if s.Contain(item) {
+	if s.Contains(item) {
 		delete(*s, item)
 	}
 }
@@ -724,41 +728,55 @@ func getPublicKeysAuthMethod(args *SshArgs, param *sshParam) ssh.AuthMethod {
 	}
 
 	var pubKeySigners []ssh.Signer
-	fingerprints := make(map[string]struct{})
+	fingerprints := NewStringSet()
 	addPubKeySigners := func(signers []*sshSigner) {
 		for _, signer := range signers {
 			fingerprint := ssh.FingerprintSHA256(signer.PublicKey())
-			if _, ok := fingerprints[fingerprint]; ok {
+			if fingerprints.Contains(fingerprint) {
 				continue
 			}
 			debug("will attempt key: %s %s %s", signer.path, signer.pubKey.Type(), ssh.FingerprintSHA256(signer.pubKey))
-			fingerprints[fingerprint] = struct{}{}
+			fingerprints.Add(fingerprint)
 			pubKeySigners = append(pubKeySigners, signer)
+			idKeyAlgorithms.Add(signer.PublicKey().Type())
 
-			fingerprints, pubKeySigners = addCertSigner(args, param, signer, fingerprints, pubKeySigners)
+			pubKeySigners = append(pubKeySigners, addCertSigner(args, param, signer, fingerprints)...)
 		}
 	}
 
-	// Приоритет 1) подписыватели в args.Config
+	// Ключи из args.Config
 	if args.Config != nil {
+		i := len(pubKeySigners)
 		for _, signer := range args.Config.GetAllSigner(args.Destination) {
 			addPubKeySigners([]*sshSigner{{path: "args-identity", pubKey: signer.PublicKey(), signer: signer}})
 		}
-	}
-
-	// Приоритет 2) подписыватели в IdentityAgent
-	if agentClient := getAgentClient(args, param, "IdentityAgent"); agentClient != nil {
-		signers, err := agentClient.Signers()
-		if err != nil {
-			warning("get ssh agent signers failed: %v", err)
-		} else {
-			for _, signer := range signers {
-				addPubKeySigners([]*sshSigner{{path: "ssh-agent", pubKey: signer.PublicKey(), signer: signer}})
+		for _, signer := range args.Config.GetAllCASigner(args.Destination) {
+			if signer.Signer != nil {
+				addPubKeySigners([]*sshSigner{{path: "args-certificate", pubKey: signer.Signer.PublicKey(), signer: signer.Signer}})
 			}
+		}
+		if i < len(pubKeySigners) { // Добавились ключи других не ищем
+			return ssh.PublicKeys(pubKeySigners...)
 		}
 	}
 
-	// Приоритет 3) подписыватели в IdentityFile
+	// Ключи из IdentityAgent
+	if strings.ToLower(getOptionConfig(args, "IdentitiesOnly")) == "no" {
+		if agentClient := getAgentClient(args, param, "IdentityAgent"); agentClient != nil {
+			signers, err := agentClient.Signers()
+			if err != nil {
+				warning("get ssh agent signers failed: %v", err)
+			} else {
+				for _, signer := range signers {
+					addPubKeySigners([]*sshSigner{{path: "ssh-agent", pubKey: signer.PublicKey(), signer: signer}})
+				}
+			}
+		}
+	} else {
+		debug("disable IdentityAgent by IdentitiesOnly")
+	}
+
+	// Ключи из IdentityFile
 	identities := args.Identity.values
 	for _, identity := range getAllOptionConfig(args, "IdentityFile") {
 		expandedIdentity, err := expandTokens(identity, args, param, "%CdhijkLlnpru")
@@ -769,8 +787,7 @@ func getPublicKeysAuthMethod(args *SshArgs, param *sshParam) ssh.AuthMethod {
 		identities = append(identities, expandedIdentity)
 	}
 
-	// Приоритет 4) подписыватели в ~/.ssh/id_*
-	if len(identities) == 0 {
+	if len(identities) == 0 { // Ключи из ~/.ssh/id_*
 		addPubKeySigners(getDefaultSigners())
 	} else {
 		for _, identity := range identities {
@@ -784,9 +801,6 @@ func getPublicKeysAuthMethod(args *SshArgs, param *sshParam) ssh.AuthMethod {
 		return nil
 	}
 
-	for _, pubKeySigner := range pubKeySigners {
-		idKeyAlgorithms.Add(pubKeySigner.PublicKey().Type())
-	}
 	return ssh.PublicKeys(pubKeySigners...)
 }
 

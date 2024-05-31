@@ -40,7 +40,7 @@ require (
 	github.com/trzsz/go-arg v1.5.3
 	github.com/trzsz/iterm2 v0.1.2
 	github.com/trzsz/promptui v0.10.7
-	github.com/trzsz/ssh_config v1.3.5
+	github.com/trzsz/ssh_config v1.3.6
 	github.com/trzsz/trzsz-go v1.1.8-0.20240303135018-b95b67671472
 	github.com/xlab/closer v1.1.0
 	golang.org/x/crypto v0.22.0

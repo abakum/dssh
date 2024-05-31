@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"io"
+	"io/fs"
 	"net"
 	"os"
 	"path/filepath"
@@ -90,8 +91,6 @@ func caKeysCallback(cb ssh.HostKeyCallback, hostCerts HostsCerts) ssh.HostKeyCal
 	return certCheck.CheckHostKey
 }
 
-type FPSet map[string]struct{}
-
 var KeyAlgo2id = map[string]string{
 	ssh.KeyAlgoRSA:        "id_rsa",
 	ssh.KeyAlgoDSA:        "id_dsa",
@@ -103,27 +102,31 @@ var KeyAlgo2id = map[string]string{
 	ssh.KeyAlgoSKED25519:  "id_ecdsa-sk",
 }
 
-// Добавляем в слайс pubKeySigners подписыватели сертификатами и в набор StringsSet отпечаток замка
+// Добавляем в слайс pubKeySigners ключи сертификатов
+// Добавляем в набор fingerprints отпечаток замка
+// Добавляем в набор idKeyAlgorithms тип ключа - СТОРОННИЙ ЭФФЕКТ
 //
 // IdentityFile + "-cert" or IdentityFile + "-cert.pub" or CertificateFile
 // Используем в addPubKeySigners
-func addCertSigner(args *SshArgs, param *sshParam, signer *sshSigner, fingerprints FPSet, pubKeySigners []ssh.Signer) (FPSet, []ssh.Signer) {
+func addCertSigner(args *SshArgs, param *sshParam, signer *sshSigner, fingerprints *StringSet) []ssh.Signer {
+	pubKeySigners := []ssh.Signer{}
 	pubKey := signer.PublicKey()
 	pref, ok := KeyAlgo2id[pubKey.Type()]
 	if !ok {
 		// Не поддерживается KeyAlgo
-		return fingerprints, pubKeySigners
+		return pubKeySigners
 	}
 	fpSigner := ssh.FingerprintSHA256(pubKey)
 	userHomeSsh := filepath.Join(userHomeDir, ".ssh")
 
 	if args.Config != nil {
 		// Сертификаты из args.Config подписываем signer
-		// если export то пишем в файлы для клиентов ssh и putty
+		// если IsInclude то пишем в файлы для клиентов ssh и putty
+		i := len(pubKeySigners)
 		for _, CASigner := range args.Config.GetAllCASigner(args.Destination) {
 			fpCA := ssh.FingerprintSHA256(CASigner.Signer.PublicKey())
 			fingerprint := fpSigner + "\t" + fpCA
-			if _, ok := fingerprints[fingerprint]; ok {
+			if fingerprints.Contains(fingerprint) {
 				warning("%v", fingerprint)
 				continue
 			}
@@ -138,33 +141,35 @@ func addCertSigner(args *SshArgs, param *sshParam, signer *sshSigner, fingerprin
 				continue
 			}
 			debug("will attempt key: %s %s %s", "args-certificate", pubKey.Type(), fingerprint)
-			fingerprints[fingerprint] = struct{}{}
+			fingerprints.Add(fingerprint)
 			pubKeySigners = append(pubKeySigners, certSigner)
+			idKeyAlgorithms.Add(certSigner.PublicKey().Type())
 
 			data := ssh.MarshalAuthorizedKey(pubKey)
-			if fpSigner == fpCA {
+			if fpSigner == fpCA { // Пишем авторизацию хоста для ssh и putty
 				pref = "ca"
 				bb := bytes.NewBufferString("@cert-authority * ")
 				bb.Write(data)
-				err = os.WriteFile(filepath.Join(userHomeSsh, CASigner.KeyId), bb.Bytes(), 0644)
+				err = writeFile(filepath.Join(userHomeSsh, CASigner.KeyId), bb.Bytes(), 0644)
 				if err != nil {
 					warning("%v", err)
-					continue
 				}
 			}
-			if args.Config.GetInclude(args.Destination) {
-				err := os.WriteFile(filepath.Join(userHomeSsh, pref+".pub"), data, 0644)
-				if err != nil {
-					warning("%v", err)
-					continue
-				}
-				err = os.WriteFile(filepath.Join(userHomeSsh, pref+"-cert.pub"),
+			if args.Config.IsInclude(args.Destination) { // Пишем авторизацию клиента для ssh и putty
+				err := writeFile(filepath.Join(userHomeSsh, pref+"-cert.pub"),
 					ssh.MarshalAuthorizedKey(&CASigner.Certificate), 0644)
 				if err != nil {
 					warning("%v", err)
-					continue
 				}
+				// А можно ли без этого обойтись?
+				// err = writeFile(filepath.Join(userHomeSsh, pref+".pub"), data, 0644)
+				// if err != nil {
+				// 	warning("%v", err)
+				// }
 			}
+		}
+		if i < len(pubKeySigners) { // Добавились ключи
+			return pubKeySigners
 		}
 	}
 	path := filepath.Join(userHomeSsh, pref+"-cert")
@@ -196,14 +201,14 @@ func addCertSigner(args *SshArgs, param *sshParam, signer *sshSigner, fingerprin
 			warning("%v", err)
 			continue
 		}
-		// todo Несколько замков
+		// Пока один замок. Надо несколько замков
 		pubKey, _, _, _, err := ssh.ParseAuthorizedKey(pubKeyBytes)
 		if err != nil {
 			warning("%v", err)
 			continue
 		}
 		fingerprint := ssh.FingerprintSHA256(pubKey)
-		if _, ok := fingerprints[fingerprint]; ok {
+		if fingerprints.Contains(fingerprint) {
 			continue
 		}
 		cert, ok := pubKey.(*ssh.Certificate)
@@ -222,10 +227,11 @@ func addCertSigner(args *SshArgs, param *sshParam, signer *sshSigner, fingerprin
 			continue
 		}
 		debug("will attempt key: %s %s %s", path, pubKey.Type(), fingerprint)
-		fingerprints[fingerprint] = struct{}{}
+		fingerprints.Add(fingerprint)
 		pubKeySigners = append(pubKeySigners, certSigner)
+		idKeyAlgorithms.Add(certSigner.PublicKey().Type())
 	}
-	return fingerprints, pubKeySigners
+	return pubKeySigners
 }
 
 // Если переменные окружения найдены тогда заменяем
@@ -307,7 +313,7 @@ type Config struct {
 	*ssh_config.Config
 	Signers  map[string][]ssh.Signer // id signer
 	CASigner map[string][]*CASigner  // CA signer
-	Include  map[string]bool         // Писать ли алиас в config и файлы id_x-cert.pub
+	Include  *StringSet              // Писать ли алиас в config и файлы id_x-cert.pub
 }
 
 func NewConfig(config *ssh_config.Config) *Config {
@@ -315,7 +321,7 @@ func NewConfig(config *ssh_config.Config) *Config {
 		Config:   config,
 		Signers:  make(map[string][]ssh.Signer),
 		CASigner: make(map[string][]*CASigner),
-		Include:  make(map[string]bool),
+		Include:  NewStringSet(),
 	}
 }
 
@@ -326,10 +332,19 @@ func (c *Config) GetAllSigner(alias string) []ssh.Signer {
 func (c *Config) GetAllCASigner(alias string) []*CASigner {
 	return c.CASigner[alias]
 }
-func (c *Config) GetInclude(alias string) bool {
-	return c.Include[alias]
+func (c *Config) IsInclude(alias string) bool {
+	return c.Include.Contains(alias)
 }
 
 func (f *Config) UnmarshalText(b []byte) error {
+	return nil
+}
+
+// Пишем файл name если его содержимое отличается от data
+func writeFile(name string, data []byte, perm fs.FileMode) error {
+	old, err := os.ReadFile(name)
+	if err != nil || !bytes.EqualFold(old, data) {
+		return os.WriteFile(name, data, perm)
+	}
 	return nil
 }

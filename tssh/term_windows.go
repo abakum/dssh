@@ -104,7 +104,7 @@ var sttyCommandExists *bool
 func sttyExecutable() bool {
 	if sttyCommandExists == nil {
 		_, err := exec.LookPath("stty")
-		exists := err == nil && isatty.IsCygwinTerminal(os.Stdin.Fd())
+		exists := err == nil && isatty.IsCygwinTerminal(os.Stdin.Fd()) // stty работает только если IsCygwinTerminal
 		sttyCommandExists = &exists
 	}
 	return *sttyCommandExists

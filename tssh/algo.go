@@ -35,7 +35,7 @@ import (
 
 // If hostkeys are known for the destination host then this default is modified to prefer their algorithms.
 
-var openHostKeyAlgos = []string{
+var _ = []string{
 	ssh.KeyAlgoED25519, ssh.CertAlgoED25519v01,
 	ssh.KeyAlgoSKED25519, ssh.CertAlgoSKED25519v01, // ?
 	ssh.KeyAlgoECDSA256, ssh.CertAlgoECDSA256v01,
@@ -73,42 +73,24 @@ rsa-sha2-512
 rsa-sha2-512-cert-v01@openssh.com
 */
 
-// certKeyAlgoNames is a mapping from known certificate algorithm names to the
-// corresponding public key signature algorithm.
-//
-// This map must be kept in sync with the one in certs.go.
-var certKeyAlgoNames = map[string]string{
-	ssh.CertAlgoRSAv01:        ssh.KeyAlgoRSA,
-	ssh.CertAlgoRSASHA256v01:  ssh.KeyAlgoRSASHA256,
-	ssh.CertAlgoRSASHA512v01:  ssh.KeyAlgoRSASHA512,
-	ssh.CertAlgoDSAv01:        ssh.KeyAlgoDSA,
-	ssh.CertAlgoECDSA256v01:   ssh.KeyAlgoECDSA256,
-	ssh.CertAlgoECDSA384v01:   ssh.KeyAlgoECDSA384,
-	ssh.CertAlgoECDSA521v01:   ssh.KeyAlgoECDSA521,
-	ssh.CertAlgoSKECDSA256v01: ssh.KeyAlgoSKECDSA256,
-	ssh.CertAlgoED25519v01:    ssh.KeyAlgoED25519,
-	ssh.CertAlgoSKED25519v01:  ssh.KeyAlgoSKED25519,
-}
-
 // supportedHostKeyAlgos specifies the supported host-key algorithms (i.e. methods
 // of authenticating servers)
-var supportedHostKeyAlgos = map[string]bool{
-	ssh.CertAlgoRSASHA256v01: true, ssh.CertAlgoRSASHA512v01: true,
-	ssh.CertAlgoRSAv01: true, ssh.CertAlgoDSAv01: true, ssh.CertAlgoECDSA256v01: true,
-	ssh.CertAlgoECDSA384v01: true, ssh.CertAlgoECDSA521v01: true, ssh.CertAlgoED25519v01: true,
+var supportedHostKeyAlgos = NewStringSet(
+	ssh.CertAlgoRSASHA256v01, ssh.CertAlgoRSASHA512v01,
+	ssh.CertAlgoRSAv01, ssh.CertAlgoDSAv01, ssh.CertAlgoECDSA256v01,
+	ssh.CertAlgoECDSA384v01, ssh.CertAlgoECDSA521v01, ssh.CertAlgoED25519v01,
 
-	ssh.KeyAlgoECDSA256: true, ssh.KeyAlgoECDSA384: true, ssh.KeyAlgoECDSA521: true,
-	ssh.KeyAlgoRSASHA256: true, ssh.KeyAlgoRSASHA512: true,
-	ssh.KeyAlgoRSA: true, ssh.KeyAlgoDSA: true,
+	ssh.KeyAlgoECDSA256, ssh.KeyAlgoECDSA384, ssh.KeyAlgoECDSA521,
+	ssh.KeyAlgoRSASHA256, ssh.KeyAlgoRSASHA512,
+	ssh.KeyAlgoRSA, ssh.KeyAlgoDSA,
 
-	ssh.KeyAlgoED25519: true,
-}
+	ssh.KeyAlgoED25519,
+)
 
-func SetSupported(config *ssh.ClientConfig) {
+func setSupported(config *ssh.ClientConfig) {
 	HostKeyAlgorithms := []string{}
 	for _, algo := range config.HostKeyAlgorithms {
-		_, ok := supportedHostKeyAlgos[algo]
-		if ok {
+		if supportedHostKeyAlgos.Contains(algo) {
 			HostKeyAlgorithms = append(HostKeyAlgorithms, algo)
 		}
 	}
@@ -117,14 +99,18 @@ func SetSupported(config *ssh.ClientConfig) {
 
 func debugHostKeyAlgorithmsConfig(config *ssh.ClientConfig) {
 	debug("user declared algorithms: %v", config.HostKeyAlgorithms)
-	SetSupported(config)
+	setSupported(config)
 	debug("client supported algorithms: %v", config.HostKeyAlgorithms)
 }
 
 func appendHostKeyAlgorithmsConfig(config *ssh.ClientConfig, algoSpec string) error {
+	// config.HostKeyAlgorithms==[a b]
+	// algoSpec==[a c]
+	// config.HostKeyAlgorithms==[a b c] not [b a c] not [a b a c]
+	algoSet := NewStringSet(config.HostKeyAlgorithms...)
 	for _, algo := range strings.Split(algoSpec, ",") {
 		algo = strings.TrimSpace(algo)
-		if algo != "" {
+		if algo != "" && !algoSet.Contains(algo) {
 			config.HostKeyAlgorithms = append(config.HostKeyAlgorithms, algo)
 		}
 	}
@@ -174,6 +160,9 @@ func removeHostKeyAlgorithmsConfig(config *ssh.ClientConfig, algoSpec string) er
 }
 
 func insertHostKeyAlgorithmsConfig(config *ssh.ClientConfig, algoSpec string) error {
+	// config.HostKeyAlgorithms==[a b]
+	// algoSpec==[a c]
+	// config.HostKeyAlgorithms==[a c b] not [a c a b]
 	var algorithms []string
 	for _, algo := range strings.Split(algoSpec, ",") {
 		algo = strings.TrimSpace(algo)
@@ -181,7 +170,13 @@ func insertHostKeyAlgorithmsConfig(config *ssh.ClientConfig, algoSpec string) er
 			algorithms = append(algorithms, algo)
 		}
 	}
-	config.HostKeyAlgorithms = append(algorithms, config.HostKeyAlgorithms...)
+	// config.HostKeyAlgorithms = append(algorithms, config.HostKeyAlgorithms...)
+	algoSet := NewStringSet(algorithms...)
+	for _, algo := range config.HostKeyAlgorithms {
+		if !algoSet.Contains(algo) {
+			algorithms = append(algorithms, algo)
+		}
+	}
 	debugHostKeyAlgorithmsConfig(config)
 	return nil
 }
@@ -201,11 +196,12 @@ func replaceHostKeyAlgorithmsConfig(config *ssh.ClientConfig, algoSpec string) e
 func setupHostKeyAlgorithmsConfig(args *SshArgs, config *ssh.ClientConfig) error {
 	algoSpec := getOptionConfig(args, "HostKeyAlgorithms")
 	if algoSpec == ssh_config.Default("HostKeyAlgorithms") {
-		// Не указан HostKeyAlgorithms
+		// Не указан HostKeyAlgorithms а в config.HostKeyAlgorithms уже есть список алгоритмов из known_hosts
 		if idKeyAlgorithms.Len() == 0 {
 			return nil
 		}
-		return insertHostKeyAlgorithmsConfig(config, strings.Join(idKeyAlgorithms.List(), ","))
+		// К списку алгоритмов из known_hosts добавим список алгоритмов имеющихся ключей
+		return appendHostKeyAlgorithmsConfig(config, strings.Join(idKeyAlgorithms.List(), ","))
 	}
 	switch algoSpec[0] {
 	case '+':

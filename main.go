@@ -16,6 +16,7 @@ import (
 	_ "embed"
 	"fmt"
 	"io"
+	"io/fs"
 	"net"
 	"os"
 	"path"
@@ -192,6 +193,7 @@ Host ` + SSHJ + `
  User _
  HostName ` + SSHJ2 + `
  UserKnownHostsFile ~/.ssh/` + repo + `
+ KbdInteractiveAuthentication no
  ProxyJump ` + repo + `@` + JumpHost
 	//+ `
 	//  HostKeyAlgorithms ` + signer.PublicKey().Type() + CertSuffix + `
@@ -305,9 +307,9 @@ func client(signer ssh.Signer, config string, hosts ...string) {
 	cert := NewCertificate(0, ssh.UserCert, repo, ssh.CertTimeInfinity, 0, repo)
 	caSigner := []*CASigner{NewCASigner(cert, signer)}
 	for i, alias := range hosts {
-		args.Config.Signers[alias] = []ssh.Signer{signer} //CA signer
+		// args.Config.Signers[alias] = []ssh.Signer{signer} //CA signer
 		args.Config.CASigner[alias] = caSigner
-		args.Config.Include[alias] = true
+		args.Config.Include.Add(alias)
 		//putty
 		if i == 0 {
 			Conf(filepath.Join(Sessions, "Default%20Settings"), EQ, newMap(Keys, Defs))
@@ -343,13 +345,21 @@ func client(signer ssh.Signer, config string, hosts ...string) {
 		Println("empty config")
 		return
 	}
-	err = os.WriteFile(Cfg, []byte(cfg.String()), 0664)
+	err = WriteFile(Cfg, []byte(cfg.String()), 0644)
 	if err != nil {
 		Println(err)
-		return
 	}
 	// putty
 	Println("SshToPutty", SshToPutty())
+}
+
+// Пишем файл name если его содержимое отличается от data
+func WriteFile(name string, data []byte, perm fs.FileMode) error {
+	old, err := os.ReadFile(name)
+	if err != nil || !bytes.EqualFold(old, data) {
+		return os.WriteFile(name, data, perm)
+	}
+	return nil
 }
 
 func mustParse(args *SshArgs, a []string) {
@@ -474,24 +484,24 @@ ssh-j.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIiyFQuTwegicQ+8w7dLA7A+4JMZkCk8TL
 	}
 	// Для ssh
 	name := path.Join(SshUserDir, SSHJ)
-	err := os.WriteFile(name, []byte(s), FILEMODE)
+	err := WriteFile(name, []byte(s), FILEMODE)
 	if err != nil {
+		Println(err)
 		return ""
 	}
 	return `
 Host ` + host + `
- UserKnownHostsFile ~/.ssh/` + SSHJ + `
  User ` + u + `
- ExitOnForwardFailure yes
+ UserKnownHostsFile ~/.ssh/` + SSHJ + `
  PubkeyAuthentication no
  KbdInteractiveAuthentication no
+ ExitOnForwardFailure yes
  StdinNull no
  RemoteForward ` + SSHJ2 + `:` + PORT + ` ` + h + `:` + p + `
 `
 }
 
 // Алиас для локального доступа. Попробовать sshd.
-
 func local(h, p, repo string) string {
 	return `
 Host ` + repo + `
@@ -499,6 +509,7 @@ Host ` + repo + `
  HostName ` + h + `
  Port ` + p + `
  UserKnownHostsFile ~/.ssh/` + repo + `
+ KbdInteractiveAuthentication no
 `
 }
 
@@ -601,7 +612,7 @@ func certHost(caSigner ssh.Signer, id string) (err error) {
 	old, err := os.ReadFile(TrustedUserCAKeys)
 	newCA := err != nil || !bytes.Equal(data, old)
 	if newCA {
-		err = os.WriteFile(TrustedUserCAKeys, data, FILEMODE)
+		err = WriteFile(TrustedUserCAKeys, data, FILEMODE)
 		Println(TrustedUserCAKeys, err)
 		if err != nil {
 			return
@@ -651,7 +662,7 @@ func certHost(caSigner ssh.Signer, id string) (err error) {
 		return
 	}
 	data = ssh.MarshalAuthorizedKey(&certificate)
-	err = os.WriteFile(HostCertificate, data, FILEMODE)
+	err = WriteFile(HostCertificate, data, FILEMODE)
 	Println(HostCertificate, err)
 	if err != nil {
 		return
@@ -662,7 +673,7 @@ func certHost(caSigner ssh.Signer, id string) (err error) {
 Match Group administrators
 AuthorizedKeysFile __PROGRAMDATA__/ssh/administrators_authorized_keys
 `)
-	err = os.WriteFile(include, []byte(s), FILEMODE)
+	err = WriteFile(include, []byte(s), FILEMODE)
 	Println(include, err)
 	if err != nil {
 		return
@@ -670,7 +681,7 @@ AuthorizedKeysFile __PROGRAMDATA__/ssh/administrators_authorized_keys
 	Println(programData2etc("Insert to __PROGRAMDATA__/ssh/sshd_config line `Include I_verify_them_by_key_they_verify_me_by_certificate`."))
 
 	include = filepath.Join(sshHostDir, "authorized_principals")
-	err = os.WriteFile(include, []byte(id), FILEMODE)
+	err = WriteFile(include, []byte(id), FILEMODE)
 	Println(include, err)
 	if err != nil {
 		return
@@ -681,7 +692,7 @@ AuthorizedKeysFile __PROGRAMDATA__/ssh/administrators_authorized_keys
 AuthorizedPrincipalsFile __PROGRAMDATA__/ssh/authorized_principals
 HostCertificate __PROGRAMDATA__/ssh/host_certificate
 `)
-	err = os.WriteFile(include, []byte(s), FILEMODE)
+	err = WriteFile(include, []byte(s), FILEMODE)
 	Println(include, err)
 	Println(programData2etc("Or insert to __PROGRAMDATA__/ssh/sshd_config line `I_verify_them_by_certificate_they_verify_me_by_certificate`."))
 	return
@@ -708,6 +719,7 @@ func programData2etc(s string) string {
 }
 
 func MergeConfigs(items ...*ssh_config.Config) (target *ssh_config.Config) {
+	const NN = "\n\n"
 	switch len(items) {
 	case 0:
 		return
@@ -716,30 +728,34 @@ func MergeConfigs(items ...*ssh_config.Config) (target *ssh_config.Config) {
 	}
 	clean := func(old string) string {
 		old = strings.TrimSpace(old)
-		old = strings.ReplaceAll(old, "\r\n", "\n")
-		for strings.Contains(old, "\n\n") {
-			old = strings.ReplaceAll(old, "\n\n", "\n")
+		old = strings.ReplaceAll(old, "\r\n", "\n") // windows->linux
+		old = strings.ReplaceAll(old, "\r", "\n")   // darwin->linux
+		for strings.Contains(old, NN) {             // Убираем пустые строки
+			old = strings.ReplaceAll(old, NN, "\n")
 		}
 		return old
 	}
 	run := func(src, rep *ssh_config.Config) (mid *ssh_config.Config) {
 		src, _ = ssh_config.Decode(strings.NewReader(clean(src.String())))
 		rep, _ = ssh_config.Decode(strings.NewReader(clean(rep.String())))
-		rPatterns := make(map[string]bool)
+		// rPatterns := make(map[string]bool)
+		rPatterns := NewStringSet()
 		for _, rh := range rep.Hosts {
 			for _, rp := range rh.Patterns {
 				if rp.String() == "*" {
 					continue
 				}
-				rPatterns[rp.String()] = true
+				// rPatterns[rp.String()] = true
+				rPatterns.Add(rp.String())
 			}
 		}
 		s := ""
 		for _, sh := range src.Hosts {
-			old := strings.TrimSpace(sh.String()) + "\n\n"
+			old := strings.TrimSpace(sh.String()) + NN
 			i := len(sh.Patterns)
 			for _, sp := range sh.Patterns {
-				if rPatterns[sp.String()] {
+				// if rPatterns[sp.String()] {
+				if rPatterns.Contains(sp.String()) {
 					i--
 					old = strings.Replace(old, sp.String(), "", 1)
 				}
@@ -757,7 +773,7 @@ func MergeConfigs(items ...*ssh_config.Config) (target *ssh_config.Config) {
 					continue
 				}
 			}
-			s += strings.TrimSpace(rh.String()) + "\n\n"
+			s += strings.TrimSpace(rh.String()) + NN
 		}
 		mid, _ = ssh_config.Decode(strings.NewReader(strings.TrimSpace(s)))
 		return
