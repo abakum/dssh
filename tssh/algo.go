@@ -164,19 +164,21 @@ func insertHostKeyAlgorithmsConfig(config *ssh.ClientConfig, algoSpec string) er
 	// algoSpec==[a c]
 	// config.HostKeyAlgorithms==[a c b] not [a c a b]
 	var algorithms []string
+	algoSet := NewStringSet()
 	for _, algo := range strings.Split(algoSpec, ",") {
 		algo = strings.TrimSpace(algo)
-		if algo != "" {
+		if algo != "" && !algoSet.Contains(algo) {
 			algorithms = append(algorithms, algo)
+			algoSet.Add(algo)
 		}
 	}
 	// config.HostKeyAlgorithms = append(algorithms, config.HostKeyAlgorithms...)
-	algoSet := NewStringSet(algorithms...)
 	for _, algo := range config.HostKeyAlgorithms {
 		if !algoSet.Contains(algo) {
 			algorithms = append(algorithms, algo)
 		}
 	}
+	config.HostKeyAlgorithms = algorithms
 	debugHostKeyAlgorithmsConfig(config)
 	return nil
 }
@@ -193,15 +195,16 @@ func replaceHostKeyAlgorithmsConfig(config *ssh.ClientConfig, algoSpec string) e
 	return nil
 }
 
-func setupHostKeyAlgorithmsConfig(args *SshArgs, config *ssh.ClientConfig) error {
+func setupHostKeyAlgorithmsConfig(args *SshArgs, config *ssh.ClientConfig, idKeyAlgorithms []string) error {
+	// В config.HostKeyAlgorithms список алгоритмов из known_hosts
 	algoSpec := getOptionConfig(args, "HostKeyAlgorithms")
 	if algoSpec == ssh_config.Default("HostKeyAlgorithms") {
-		// Не указан HostKeyAlgorithms а в config.HostKeyAlgorithms уже есть список алгоритмов из known_hosts
-		if idKeyAlgorithms.Len() == 0 {
+		// Не указан HostKeyAlgorithms
+		if len(idKeyAlgorithms) == 0 {
 			return nil
 		}
 		// К списку алгоритмов из known_hosts добавим список алгоритмов имеющихся ключей
-		return appendHostKeyAlgorithmsConfig(config, strings.Join(idKeyAlgorithms.List(), ","))
+		return appendHostKeyAlgorithmsConfig(config, strings.Join(idKeyAlgorithms, ","))
 	}
 	switch algoSpec[0] {
 	case '+':

@@ -716,47 +716,41 @@ func (s *StringSet) List() []string {
 	return l
 }
 
-// Типа HostKeyAlgorithms но для клиента
-var idKeyAlgorithms *StringSet
-
-func getPublicKeysAuthMethod(args *SshArgs, param *sshParam) ssh.AuthMethod {
-	idKeyAlgorithms = NewStringSet()
-
+func getPublicKeysAuthMethod(args *SshArgs, param *sshParam) (pubKeySigners []ssh.Signer) {
 	if strings.ToLower(getOptionConfig(args, "PubkeyAuthentication")) == "no" {
 		debug("disable auth method: public key authentication")
 		return nil
 	}
 
-	var pubKeySigners []ssh.Signer
 	fingerprints := NewStringSet()
 	addPubKeySigners := func(signers []*sshSigner) {
 		for _, signer := range signers {
-			fingerprint := ssh.FingerprintSHA256(signer.PublicKey())
+			fingerprint := ssh.FingerprintSHA256(signer.pubKey)
 			if fingerprints.Contains(fingerprint) {
 				continue
 			}
+			pubKeySigners = append(pubKeySigners, addCertSigner(args, param, signer.signer, fingerprints)...)
+
 			debug("will attempt key: %s %s %s", signer.path, signer.pubKey.Type(), ssh.FingerprintSHA256(signer.pubKey))
 			fingerprints.Add(fingerprint)
 			pubKeySigners = append(pubKeySigners, signer)
-			idKeyAlgorithms.Add(signer.PublicKey().Type())
-
-			pubKeySigners = append(pubKeySigners, addCertSigner(args, param, signer, fingerprints)...)
 		}
 	}
 
-	// Ключи из args.Config
+	// Ключи и сертификаты из args.Config
 	if args.Config != nil {
-		i := len(pubKeySigners)
 		for _, signer := range args.Config.GetAllSigner(args.Destination) {
 			addPubKeySigners([]*sshSigner{{path: "args-identity", pubKey: signer.PublicKey(), signer: signer}})
 		}
-		for _, signer := range args.Config.GetAllCASigner(args.Destination) {
-			if signer.Signer != nil {
-				addPubKeySigners([]*sshSigner{{path: "args-certificate", pubKey: signer.Signer.PublicKey(), signer: signer.Signer}})
-			}
+		if len(pubKeySigners) > 0 { // Указаны ключи в args.Config других не ищем
+			return
 		}
-		if i < len(pubKeySigners) { // Добавились ключи других не ищем
-			return ssh.PublicKeys(pubKeySigners...)
+
+		// А вот сертификаты из args.Config подписываем всеми доступными ключами для клиентов ssh и putty
+		for _, caSigner := range args.Config.GetAllCASigner(args.Destination) {
+			if caSigner.Signer != nil {
+				addPubKeySigners([]*sshSigner{{path: "args-certificate", pubKey: caSigner.Signer.PublicKey(), signer: caSigner.Signer}})
+			}
 		}
 	}
 
@@ -797,18 +791,23 @@ func getPublicKeysAuthMethod(args *SshArgs, param *sshParam) ssh.AuthMethod {
 		}
 	}
 
-	if len(pubKeySigners) == 0 {
-		return nil
-	}
-
-	return ssh.PublicKeys(pubKeySigners...)
+	return
 }
 
-func getAuthMethods(args *SshArgs, param *sshParam) []ssh.AuthMethod {
-	var authMethods []ssh.AuthMethod
-	if authMethod := getPublicKeysAuthMethod(args, param); authMethod != nil {
+func getAuthMethods(args *SshArgs, param *sshParam) (authMethods []ssh.AuthMethod, idKeyAlgorithms []string) {
+	if signers := getPublicKeysAuthMethod(args, param); len(signers) > 0 {
 		debug("add auth method: public key authentication")
-		authMethods = append(authMethods, authMethod)
+		authMethods = append(authMethods, ssh.PublicKeys(signers...))
+
+		idKeyAlgoSet := NewStringSet()
+		for _, signer := range signers {
+			publicKey := signer.PublicKey()
+			algo := publicKey.Type()
+			if !idKeyAlgoSet.Contains(algo) {
+				idKeyAlgorithms = append(idKeyAlgorithms, algo)
+				idKeyAlgoSet.Add(algo)
+			}
+		}
 	}
 	if authMethod := getKeyboardInteractiveAuthMethod(args, param.host, param.user); authMethod != nil {
 		debug("add auth method: keyboard interactive authentication")
@@ -818,7 +817,7 @@ func getAuthMethods(args *SshArgs, param *sshParam) []ssh.AuthMethod {
 		debug("add auth method: password authentication")
 		authMethods = append(authMethods, authMethod)
 	}
-	return authMethods
+	return
 }
 
 type cmdAddr struct {
@@ -1112,7 +1111,7 @@ func sshConnect(args *SshArgs, client *ssh.Client, proxy string) (*ssh.Client, *
 		return client, param, true, nil
 	}
 
-	authMethods := getAuthMethods(args, param) // Сторонний эффект в idKeyAlgorithms
+	authMethods, idKeyAlgorithms := getAuthMethods(args, param)
 	cb, kh, err := getHostKeyCallback(args, param)
 	if err != nil {
 		return nil, param, false, err
@@ -1130,7 +1129,8 @@ func sshConnect(args *SshArgs, client *ssh.Client, proxy string) (*ssh.Client, *
 	}
 	// Перед вызовом setupHostKeyAlgorithmsConfig должен быть установлен HostKeyAlgorithms.
 	// If hostkeys are known for the destination host then this default is modified to prefer their algorithms.
-	if err := setupHostKeyAlgorithmsConfig(args, config); err != nil {
+	// kh Не понимает пока @cert-authority поэтому добавим idKeyAlgorithms
+	if err := setupHostKeyAlgorithmsConfig(args, config, idKeyAlgorithms); err != nil {
 		return nil, param, false, err
 	}
 	if err := setupCiphersConfig(args, config); err != nil {
