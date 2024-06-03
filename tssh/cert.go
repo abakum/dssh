@@ -359,9 +359,6 @@ func (f *Config) UnmarshalText(b []byte) error {
 func writeFile(name string, data []byte, perm fs.FileMode) error {
 	old, err := os.ReadFile(name)
 	if err != nil || !bytes.EqualFold(old, data) {
-		if err == nil {
-			os.WriteFile(name+".old", old, perm)
-		}
 		return os.WriteFile(name, data, perm)
 	}
 	return nil

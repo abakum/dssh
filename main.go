@@ -1,21 +1,31 @@
 package main
 
 /*
-git clone https://github.com/abakum/dssh
-cd dssh
-Копируем dssh.zip в .
-unzip -a dssh.zip
-go run github.com/abakum/embed-encrypt
-go install
+Как собрать:
+`git clone https://github.com/abakum/dssh`
+`cd dssh`
+Копируем секретный dssh.zip в .
+В нём:
+	ключ шифрования вложений `key.enc`,
+	секретный алгоритм извлечения ключа шифрования вложений в `internal\tool\tool.go` (не показывай никому),
+	ключ Центра Сертификации `internal\ca`. Его можно обновлять запуском `go run cmd/main.go`
+`unzip -a dssh.zip`
+`go run github.com/abakum/embed-encrypt` этим генерируется код для вложений `encrypted_fs.go`
+`go install`
+
+Запускаем `dssh -vd` как сервис. Первый раз с `-v` чтоб зарезервировать `~/.ssh/config`.
+Пробно запускаем `dssh .` или `ssh dssh` как клиента на том же хосте что и сервис.
+Запускаем `dssh -v :` или `ssh ssh-j` как клиента через посредника `dssh@ssh-j.com` на хосте за NAT. Первый раз с `-v` чтоб зарезервировать `~/.ssh/config`.
 
 В файл ~/.ssh/config дописываются алиасы хостов dssh, ssh-j, ssh-j.com.
-На всякий случай создаются копии старых файлов .old
-Создаются файлы ~/.ssh/ssh-j  и ~/.ssh/dssh
+Если указан параметр `-v` или `--debug` то на всякий случай создаются копии старых файлов .old
+Создаются файлы `~/.ssh/ssh-j` и `~/.ssh/dssh`
 
-Если запускается dssh -P то:
-Создаются файлы сессий из ~/.ssh/config в ~/.putty/sessions
-Создаются файлы сертификатов хостов  в ~/.putty/sshhostcas
-Переписывается файл ~/.putty/sshhostkeys замками ssh-j.com
+Если указан параметр `-P` или `--putty` то:
+Создаются файлы сессий из `~/.ssh/config` в `~/.putty/sessions`
+Создаются файлы сертификатов хостов  в `~/.putty/sshhostcas`
+Дописывается файл `~/.putty/sshhostkeys` замками ssh-j.com
+Тоже самое и для Windows из %USERPROFILE%\.ssh\config в реестр CURRENT_USER\SOFTWARE\SimonTatham\PuTTY
 */
 
 import (
@@ -33,6 +43,7 @@ import (
 	"runtime"
 	rdebug "runtime/debug"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -119,19 +130,14 @@ var CA []byte // Ключ ЦС
 //go:embed VERSION
 var Ver string
 
-// `dssh` `dssh -d` `dssh :` - args.Daemon или args.Dest==`:` значит сервер если имя пустое пустое значит `dssh`
+// `dssh` `dssh -d` `foo -l dssh` Где foo это переименованный исполняемый файл dssh.
 //
-//	запустит сервер ssh на адресе `127.0.0.1:2222`
-//	подготовит алиас `ssh-j.com` и запустит его для переноса сессии с белого адреса `ssh-j.com:22` на серый `127.0.0.1:2222`
-//	подготовит алиас `dssh` для подключения к серверу локально
-//	подготовит алиас `ssh-j` для подключения к серверу через `dssh@ssh-j.com`
-//	`dssh dssh` подключится к серверу локально.
-//	`dssh @` подключится к серверу через посредника `dssh@ssh-j.com`.
-//
-//	`dssh -d foo@` - args.Daemon значит сервер а имя `foo`
-//	Можно переименовать `dssh` в `foo` и запустить `foo`
-//	`dssh foo@` подключится к нему через посредника `foo@ssh-j.com`.
-//	Можно переименовать `dssh` в `foo` и запустить `foo @`
+//	запустит сервер ssh на адресе `127.0.0.1:2222`.
+//	подготовит алиас `ssh-j.com` и запустит его для переноса сессии с белого адреса `ssh-j.com:22` на серый `127.0.0.1:2222`.
+//	подготовит алиас `dssh` для подключения к серверу локально.
+//	подготовит алиас `ssh-j` для подключения к серверу через `dssh@ssh-j.com`.
+//	`dssh .` `dssh dssh` `ssh dssh` подключится к серверу локально.
+//	`dssh :` `dssh ssh-j` `foo -l dssh :` `foo -l dssh ssh-j` `ssh ssh-j` подключится к серверу через посредника `dssh@ssh-j.com`.
 func main() {
 	SetColor()
 
@@ -203,14 +209,23 @@ Host ` + SSHJ + `
  UserKnownHostsFile ~/.ssh/` + repo + `
  KbdInteractiveAuthentication no
  PasswordAuthentication no
- ProxyJump ` + repo + `@` + JumpHost
+ ProxyJump ` + imag + `@` + JumpHost
 	u, h, p := ParseDestination(args.Destination) //tssh
-	if h == "" && p == "" && strings.Contains(args.Destination, ":") {
+	// `dssh` как `dssh -d`
+	// `foo` как `dssh -d foo@` как `dssh -dl foo`
+	switch args.Destination {
+	case "":
 		args.Daemon = true
+		fallthrough
+	case ".", ":", repo, SSHJ:
+		if u == "" {
+			u = imag // Имя для посредника ssh-j.com
+			if args.LoginName != "" {
+				u = args.LoginName
+			}
+		}
 	}
-	if u == "" {
-		u = imag // Имя для посредника ssh-j.com
-	}
+
 	if args.Daemon {
 		hh := ""
 		switch h {
@@ -226,6 +241,9 @@ Host ` + SSHJ + `
 		}
 		if p == "" {
 			p = "2222"
+			if args.Port != 0 {
+				p = strconv.Itoa(args.Port)
+			}
 		}
 
 		go func() {
@@ -246,7 +264,7 @@ Host ` + SSHJ + `
 		// mustParse(&args, strings.Fields(rc))
 		args.Destination = JumpHost
 		args.DisableTTY = true
-		client(signer, local(hh, p, repo)+sshj+sshJ(JumpHost, u, hh, p))
+		client(signer, local(hh, p, repo)+strings.ReplaceAll(sshj, imag+`@`, u+`@`)+sshJ(JumpHost, u, hh, p))
 		s := fmt.Sprintf("`tssh %s`", rc)
 		i := 0
 		for {
@@ -265,15 +283,16 @@ Host ` + SSHJ + `
 	} // Сервис
 
 	// Клиенты
-	if h == "" && p == "" {
-		// `dssh user@` or just `dssh`
-		args.Destination = SSHJ
-		client(signer, sshj, SSHJ)
-		Println(Errorf("tssh exit with code:%d", TsshMain(&args)))
-		return
-	}
 	switch args.Destination {
-	case repo, SSHJ:
+	case "@": // Меню tssh.
+		args.Destination = ""
+	case ":", SSHJ: // `dssh :` как `dssh ssh-j` как `foo -l dssh :`
+		args.Destination = SSHJ
+		args.LoginName = "_"
+		client(signer, strings.ReplaceAll(sshj, imag+`@`, u+`@`), args.Destination)
+	case ".", repo: // `dssh .` как `dssh dssh` или `foo -l dssh .` как `foo -l dssh dssh`
+		args.Destination = repo
+		args.LoginName = "_"
 		client(signer, sshj, args.Destination)
 	}
 	code := TsshMain(&args)
@@ -370,7 +389,7 @@ func client(signer ssh.Signer, config string, hosts ...string) {
 func WriteFile(name string, data []byte, perm fs.FileMode) error {
 	old, err := os.ReadFile(name)
 	if err != nil || !bytes.EqualFold(old, data) {
-		if err == nil {
+		if err == nil && args.Debug {
 			os.WriteFile(name+".old", old, perm)
 		}
 		return os.WriteFile(name, data, perm)
