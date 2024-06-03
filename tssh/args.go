@@ -86,8 +86,8 @@ type SshArgs struct {
 	InstallPath    string      `arg:"--install-path" placeholder:"path" help:"[tools] install path, default: '~/.local/bin/'"`
 	TrzszVersion   string      `arg:"--trzsz-version" placeholder:"x.x.x" help:"[tools] install the specified version of trzsz"`
 	TrzszBinPath   string      `arg:"--trzsz-bin-path" placeholder:"path" help:"[tools] trzsz binary installation package path"`
-	Daemon         bool        `arg:"-d,--" help:"run as ssh daemon, destination as [bind_addr][:port]\nif bind_addr is omit then 127.0.0.1\nif bind_addr is * then 0.0.0.0\nif bind_addr is _ then ip of first interface like 192.168.0.2\nif port is omit then 2222\nor just 'dssh :'"`
-	ForPutty       bool        `arg:"-P,--putty" help:"write ~/.putty or CURRENT_USER\\SOFTWARE\\SimonTatham\\PuTTY for run putty"`
+	Daemon         bool        `arg:"-d,--" help:"run as ssh daemon, destination as [bind_addr][:port]\nif bind_addr is omit then 127.0.0.1\nif bind_addr is * then 0.0.0.0\nif bind_addr is _ then ip of first interface like 192.168.0.2\nif port is omit then 2222\nor just 'dssh'"`
+	Putty          bool        `arg:"-P,--putty" help:"write ~/.putty or CURRENT_USER\\SOFTWARE\\SimonTatham\\PuTTY and run putty"`
 	originalDest   string
 	Config         *Config `arg:"-"`
 }

@@ -38,6 +38,7 @@ import (
 	"io/fs"
 	"net"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"runtime"
@@ -247,7 +248,7 @@ Host ` + SSHJ + `
 		}
 
 		go func() {
-			s := useLineShort(u, repo, imag)
+			s := useLineShort(repo, imag)
 			for {
 				server(h, p, repo, s, signer)
 				winssh.KidsDone(os.Getpid())
@@ -257,11 +258,9 @@ Host ` + SSHJ + `
 		}()
 		rc := "-T "
 		if args.Debug {
-			rc += "--debug "
+			rc += "-v "
 		}
 		rc += JumpHost
-		// var args SshArgs
-		// mustParse(&args, strings.Fields(rc))
 		args.Destination = JumpHost
 		args.DisableTTY = true
 		client(signer, local(hh, p, repo)+strings.ReplaceAll(sshj, imag+`@`, u+`@`)+sshJ(JumpHost, u, hh, p))
@@ -294,6 +293,22 @@ Host ` + SSHJ + `
 		args.Destination = repo
 		args.LoginName = "_"
 		client(signer, sshj, args.Destination)
+	}
+	if args.Putty {
+		bin := "putty"
+		opt := ""
+		if runtime.GOOS == "linux" {
+			bin = "plink"
+			opt = "-load " + args.Destination + " -no-antispoof"
+		} else {
+			opt = "@" + args.Destination
+		}
+		path, err := exec.LookPath(bin)
+		if err == nil {
+			Println(path, exec.Command(path, strings.Fields(opt)...).Run())
+			return
+		}
+		Println("not found - не найден", bin)
 	}
 	code := TsshMain(&args)
 	if args.Background {
@@ -339,7 +354,7 @@ func client(signer ssh.Signer, config string, hosts ...string) {
 		args.Config.CASigner[alias] = caSigner
 		args.Config.Include.Add(alias)
 
-		if args.ForPutty {
+		if args.Putty {
 			if i == 0 {
 				Conf(filepath.Join(Sessions, "Default%20Settings"), EQ, newMap(Keys, Defs))
 				data := ssh.MarshalAuthorizedKey(signer.PublicKey())
@@ -380,7 +395,7 @@ func client(signer ssh.Signer, config string, hosts ...string) {
 	if err != nil {
 		Println(err)
 	}
-	if args.ForPutty {
+	if args.Putty {
 		Println("SshToPutty", SshToPutty())
 	}
 }
@@ -395,13 +410,6 @@ func WriteFile(name string, data []byte, perm fs.FileMode) error {
 		return os.WriteFile(name, data, perm)
 	}
 	return nil
-}
-
-func mustParse(args *SshArgs, a []string) {
-	parser, err := NewParser(arg.Config{}, args)
-	Fatal(err)
-	err = parser.Parse(a)
-	Fatal(err)
 }
 
 func ints() (ips []string) {
@@ -436,17 +444,22 @@ func FingerprintSHA256(pubKey ssh.PublicKey) string {
 	return pubKey.Type() + " " + ssh.FingerprintSHA256(pubKey)
 }
 
-func useLineShort(u, repo, imag string) string {
-	return fmt.Sprintf(
-		"\n\tlocal - локально `%s %s` or over jump host - или через посредника `%s%s`"+
-			"\n\tlocal - локально `ssh %s` or over jump host - или через посредника и агента `ssh %s`"+
-			"\n\tlocal - локально `putty @%s` or over jump host - или через посредника и агента `putty @%s`"+
-			"\n\tlocal - локально `plink -load %s -no-antispoof` or over jump host - или через посредника и агента `plink -load %s -no-antispoof`",
-		imag, repo, imag, strings.TrimPrefix(" "+u+"@", " "+imag+"@"),
-		imag, SSHJ,
-		imag, SSHJ,
-		imag, SSHJ,
+func useLineShort(repo, imag string) string {
+	s := fmt.Sprintf(
+		"\n\tlocal - локально `%s .` or over jump host - или через посредника `%s :`"+
+			"\n\tlocal - локально `ssh %s` or over jump host - или через посредника `ssh %s`",
+		imag, imag,
+		repo, SSHJ,
 	)
+	if args.Putty {
+		s += fmt.Sprintf(
+			"\n\tlocal - локально `putty @%s` or over jump host - или через посредника `putty @%s`"+
+				"\n\tlocal - локально `plink -load %s -no-antispoof` or over jump host - или через посредника и агента `plink -load %s -no-antispoof`",
+			repo, SSHJ,
+			repo, SSHJ,
+		)
+	}
+	return s
 }
 
 func SshToPutty() (err error) {
@@ -504,7 +517,7 @@ func sshJ(host, u, h, p string) string {
 ssh-j.com ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBPXSkWZ8MqLVM68cMjm+YR4geDGfqKPEcIeC9aKVyUW32brmgUrFX2b0I+z4g6rHYRwGeqrnAqLmJ6JJY0Ufm80=
 ssh-j.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIiyFQuTwegicQ+8w7dLA7A+4JMZkCk8TLWrKPklWcRt
 `
-	if args.ForPutty {
+	if args.Putty {
 		for _, line := range strings.Split(s, "\n") {
 			if line == "" {
 				continue
