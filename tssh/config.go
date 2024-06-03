@@ -574,7 +574,10 @@ func getOptionConfig(args *SshArgs, option string) string {
 		return value
 	}
 	if args.Config != nil {
-		if value, _ := args.Config.Get(args.Destination, option); value != "" {
+		value, err := args.Config.Get(args.Destination, option)
+		if err != nil {
+			warning("get args config [%s] for [%s] failed: %v", option, args.Destination, err)
+		} else if value != "" {
 			return value
 		}
 	}
@@ -589,33 +592,75 @@ func getOptionConfigSplits(args *SshArgs, option string) []string {
 		}
 		return values
 	}
+	if args.Config != nil {
+		value, err := args.Config.Get(args.Destination, option)
+		if err != nil {
+			warning("get args config [%s] for [%s] failed: %v", option, args.Destination, err)
+		} else if value != "" {
+			values, err := shlex.Split(value)
+			if err != nil {
+				warning("split option [%s] value [%s] failed: %v", option, value, err)
+			}
+			return values
+		}
+	}
 	return getConfigSplits(args.Destination, option)
 }
 
 func getAllOptionConfig(args *SshArgs, option string) []string {
-	values := args.Option.getAll(option)
+	// values := args.Option.getAll(option)
+	values := NewStringSet(args.Option.getAll(option)...)
 	if args.Config != nil {
-		vals, _ := args.Config.GetAll(args.Destination, option)
-		values = append(values, vals...)
+		vals, err := args.Config.GetAll(args.Destination, option)
+		if err != nil {
+			warning("get all args config [%s] for [%s] failed: %v", option, args.Destination, err)
+		} else if len(vals) > 0 {
+			// values = append(values, vals...)
+			values.Add(vals...)
+		}
 	}
-	return append(values, getAllConfig(args.Destination, option)...)
+	values.Add(getAllConfig(args.Destination, option)...)
+	// return append(values, getAllConfig(args.Destination, option)...)
+	return values.List()
 }
 
 func getAllOptionConfigSplits(args *SshArgs, option string) []string {
-	var all []string
+	// var all []string
+	all := NewStringSet()
 	for _, value := range args.Option.getAll(option) {
 		values, err := shlex.Split(value)
 		if err != nil {
 			warning("split option [%s] value [%s] failed: %v", option, value, err)
 		} else if len(values) > 0 {
-			all = append(all, values...)
+			// all = append(all, values...)
+			all.Add(values...)
 		}
 	}
+
+	if args.Config != nil {
+		vals, err := args.Config.GetAll(args.Destination, option)
+		if err != nil {
+			warning("get all args config [%s] for [%s] failed: %v", option, args.Destination, err)
+		} else if len(vals) > 0 {
+			for _, value := range vals {
+				values, err := shlex.Split(value)
+				if err != nil {
+					warning("split option [%s] value [%s] failed: %v", option, value, err)
+				} else if len(values) > 0 {
+					// all = append(all, values...)
+					all.Add(values...)
+				}
+			}
+		}
+	}
+
 	values := getAllConfigSplits(args.Destination, option)
 	if len(values) > 0 {
-		all = append(all, values...)
+		// all = append(all, values...)
+		all.Add(values...)
 	}
-	return all
+	// return all
+	return all.List()
 }
 
 func getExOptionConfig(args *SshArgs, option string) string {

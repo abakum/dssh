@@ -2,11 +2,20 @@ package main
 
 /*
 git clone https://github.com/abakum/dssh
-go mod init github.com/abakum/dssh
+cd dssh
+Копируем dssh.zip в .
+unzip -a dssh.zip
+go run github.com/abakum/embed-encrypt
+go install
 
-Для VScode через ssh копируем internal и *.enc на хост с sshd
-go get internal/tool
-go mod tidy
+В файл ~/.ssh/config дописываются алиасы хостов dssh, ssh-j, ssh-j.com.
+На всякий случай создаются копии старых файлов .old
+Создаются файлы ~/.ssh/ssh-j  и ~/.ssh/dssh
+
+Если запускается dssh -P то:
+Создаются файлы сессий из ~/.ssh/config в ~/.putty/sessions
+Создаются файлы сертификатов хостов  в ~/.putty/sshhostcas
+Переписывается файл ~/.putty/sshhostkeys замками ssh-j.com
 */
 
 import (
@@ -58,22 +67,21 @@ func NewParser(config arg.Config, dests ...interface{}) (*Parser, error) {
 }
 
 const (
-	PORT       = "22"
-	ALL        = "0.0.0.0"
-	LH         = "127.0.0.1"
-	FILEMODE   = 0644
-	DIRMODE    = 0755
-	TOR        = time.Second * 15 //reconnect TO
-	TOW        = time.Second * 5  //watch TO
-	SSH2       = "SSH-2.0-"
-	OSSH       = "OpenSSH_for_Windows"
-	RESET      = "-r"
-	SSHJ       = "ssh-j"
-	SSHJ2      = "127.0.0.2"
-	JumpHost   = SSHJ + ".com"
-	EQ         = "="
-	TERM       = "xterm-256color"
-	CertSuffix = "-cert-v01@openssh.com"
+	PORT     = "22"
+	ALL      = "0.0.0.0"
+	LH       = "127.0.0.1"
+	FILEMODE = 0644
+	DIRMODE  = 0755
+	TOR      = time.Second * 15 //reconnect TO
+	TOW      = time.Second * 5  //watch TO
+	SSH2     = "SSH-2.0-"
+	OSSH     = "OpenSSH_for_Windows"
+	RESET    = "-r"
+	SSHJ     = "ssh-j"
+	SSHJ2    = "127.0.0.2"
+	JumpHost = SSHJ + ".com"
+	EQ       = "="
+	TERM     = "xterm-256color"
 )
 
 var (
@@ -194,10 +202,8 @@ Host ` + SSHJ + `
  HostName ` + SSHJ2 + `
  UserKnownHostsFile ~/.ssh/` + repo + `
  KbdInteractiveAuthentication no
+ PasswordAuthentication no
  ProxyJump ` + repo + `@` + JumpHost
-	//+ `
-	//  HostKeyAlgorithms ` + signer.PublicKey().Type() + CertSuffix + `
-	// `
 	u, h, p := ParseDestination(args.Destination) //tssh
 	if h == "" && p == "" && strings.Contains(args.Destination, ":") {
 		args.Daemon = true
@@ -236,8 +242,10 @@ Host ` + SSHJ + `
 			rc += "--debug "
 		}
 		rc += JumpHost
-		var args SshArgs
-		mustParse(&args, strings.Fields(rc))
+		// var args SshArgs
+		// mustParse(&args, strings.Fields(rc))
+		args.Destination = JumpHost
+		args.DisableTTY = true
 		client(signer, local(hh, p, repo)+sshj+sshJ(JumpHost, u, hh, p))
 		s := fmt.Sprintf("`tssh %s`", rc)
 		i := 0
@@ -304,59 +312,67 @@ func client(signer ssh.Signer, config string, hosts ...string) {
 	}
 	Println(config)
 	args.Config = NewConfig(cfg)
+
 	cert := NewCertificate(0, ssh.UserCert, repo, ssh.CertTimeInfinity, 0, repo)
 	caSigner := []*CASigner{NewCASigner(cert, signer)}
 	for i, alias := range hosts {
-		// args.Config.Signers[alias] = []ssh.Signer{signer} //CA signer
+		// args.Config.Signers[alias] = []ssh.Signer{signer} // Не буду использовать CA как ключ
 		args.Config.CASigner[alias] = caSigner
 		args.Config.Include.Add(alias)
-		//putty
-		if i == 0 {
-			Conf(filepath.Join(Sessions, "Default%20Settings"), EQ, newMap(Keys, Defs))
-			data := ssh.MarshalAuthorizedKey(signer.PublicKey())
-			Conf(filepath.Join(SshHostCAs, alias), EQ, map[string]string{
-				"PublicKey":       strings.TrimSpace(strings.TrimPrefix(string(data), signer.PublicKey().Type())),
-				"Validity":        "*",
-				"PermitRSASHA1":   "0",
-				"PermitRSASHA256": "1",
-				"PermitRSASHA512": "1",
-			})
-		}
-		for _, pref := range KeyAlgo2id {
-			name := filepath.Join(SshUserDir, pref+"-cert.pub")
-			if canReadFile(name) {
-				Conf(filepath.Join(Sessions, alias), EQ, map[string]string{"DetachedCertificate": name})
-				break
+
+		if args.ForPutty {
+			if i == 0 {
+				Conf(filepath.Join(Sessions, "Default%20Settings"), EQ, newMap(Keys, Defs))
+				data := ssh.MarshalAuthorizedKey(signer.PublicKey())
+				Conf(filepath.Join(SshHostCAs, alias), EQ, map[string]string{
+					"PublicKey":       strings.TrimSpace(strings.TrimPrefix(string(data), signer.PublicKey().Type())),
+					"Validity":        "*",
+					"PermitRSASHA1":   "0",
+					"PermitRSASHA256": "1",
+					"PermitRSASHA512": "1",
+				})
+			}
+			for _, pref := range KeyAlgo2id {
+				name := filepath.Join(SshUserDir, pref+"-cert.pub")
+				if canReadFile(name) {
+					Conf(filepath.Join(Sessions, alias), EQ, map[string]string{"DetachedCertificate": name})
+					break
+				}
 			}
 		}
 	}
-	bytes, err := os.ReadFile(Cfg)
+	b, err := os.ReadFile(Cfg)
 	if err != nil {
 		Println(err)
 		return
 	}
-	cfg, err = ssh_config.DecodeBytes(bytes)
+	old, err := ssh_config.DecodeBytes(b)
 	if err != nil {
 		Println(err)
 		return
 	}
-	cfg = MergeConfigs(cfg, args.Config.Config)
+
+	cfg = MergeConfigs(old, cfg)
 	if cfg == nil {
 		Println("empty config")
 		return
 	}
-	err = WriteFile(Cfg, []byte(cfg.String()), 0644)
+	err = WriteFile(Cfg, []byte(cfg.String()), FILEMODE)
 	if err != nil {
 		Println(err)
 	}
-	// putty
-	Println("SshToPutty", SshToPutty())
+	if args.ForPutty {
+		Println("SshToPutty", SshToPutty())
+	}
 }
 
 // Пишем файл name если его содержимое отличается от data
 func WriteFile(name string, data []byte, perm fs.FileMode) error {
 	old, err := os.ReadFile(name)
 	if err != nil || !bytes.EqualFold(old, data) {
+		if err == nil {
+			os.WriteFile(name+".old", old, perm)
+		}
 		return os.WriteFile(name, data, perm)
 	}
 	return nil
@@ -469,20 +485,21 @@ func sshJ(host, u, h, p string) string {
 ssh-j.com ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBPXSkWZ8MqLVM68cMjm+YR4geDGfqKPEcIeC9aKVyUW32brmgUrFX2b0I+z4g6rHYRwGeqrnAqLmJ6JJY0Ufm80=
 ssh-j.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIiyFQuTwegicQ+8w7dLA7A+4JMZkCk8TLWrKPklWcRt
 `
-	// Для putty
-	for _, line := range strings.Split(s, "\n") {
-		if line == "" {
-			continue
-		}
-		k, v, err := putty_hosts.ToPutty(line)
-		if err != nil {
-			Println(err)
-			return ""
-		} else {
-			Conf(SshHostKeys, " ", map[string]string{k: v})
+	if args.ForPutty {
+		for _, line := range strings.Split(s, "\n") {
+			if line == "" {
+				continue
+			}
+			k, v, err := putty_hosts.ToPutty(line)
+			if err != nil {
+				Println(err)
+				return ""
+			} else {
+				Conf(SshHostKeys, " ", map[string]string{k: v})
+			}
 		}
 	}
-	// Для ssh
+	// Для ssh и tssh
 	name := path.Join(SshUserDir, SSHJ)
 	err := WriteFile(name, []byte(s), FILEMODE)
 	if err != nil {
@@ -493,6 +510,7 @@ ssh-j.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIiyFQuTwegicQ+8w7dLA7A+4JMZkCk8TL
 Host ` + host + `
  User ` + u + `
  UserKnownHostsFile ~/.ssh/` + SSHJ + `
+ PasswordAuthentication no
  PubkeyAuthentication no
  KbdInteractiveAuthentication no
  ExitOnForwardFailure yes
@@ -510,6 +528,7 @@ Host ` + repo + `
  Port ` + p + `
  UserKnownHostsFile ~/.ssh/` + repo + `
  KbdInteractiveAuthentication no
+ PasswordAuthentication no
 `
 }
 

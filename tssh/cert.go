@@ -18,10 +18,11 @@ import (
 
 type HostsCerts map[string]string
 
+const markerCert = "@cert-authority"
+
 // Ищем сертификаты хостов в KnownHosts файлах
 func caKeys(files ...string) HostsCerts {
 	hostCerts := make(HostsCerts)
-	const CertAuthority = "cert-authority"
 	var (
 		marker string
 		hosts  []string
@@ -32,7 +33,7 @@ func caKeys(files ...string) HostsCerts {
 		if err != nil {
 			continue
 		}
-		if !bytes.Contains(rest, []byte("@"+CertAuthority+" ")) {
+		if !bytes.Contains(rest, []byte(markerCert+" ")) {
 			continue
 		}
 	parse:
@@ -44,7 +45,7 @@ func caKeys(files ...string) HostsCerts {
 				}
 				continue parse
 			}
-			if marker != CertAuthority {
+			if "@"+marker != markerCert {
 				continue parse
 			}
 			csHosts := strings.Join(hosts, ",")
@@ -128,14 +129,17 @@ func addCertSigner(args *SshArgs, param *sshParam, signer ssh.Signer, fingerprin
 				debug("has already %s", fingerprint)
 				continue
 			}
-			cert := NewCertificate(
-				CASigner.Certificate.Serial,
-				CASigner.Certificate.CertType,
-				CASigner.Certificate.KeyId,
-				CASigner.Certificate.ValidBefore,
-				CASigner.Certificate.ValidAfter,
-				CASigner.Certificate.ValidPrincipals...,
-			)
+			publicKeyWithCert, _ := ssh.ParsePublicKey(CASigner.Certificate.Marshal())
+			cert := *publicKeyWithCert.(*ssh.Certificate)
+			// То же что
+			// cert := NewCertificate(
+			// 	CASigner.Certificate.Serial,
+			// 	CASigner.Certificate.CertType,
+			// 	CASigner.Certificate.KeyId,
+			// 	CASigner.Certificate.ValidBefore,
+			// 	CASigner.Certificate.ValidAfter,
+			// 	CASigner.Certificate.ValidPrincipals...,
+			// )
 			cert.Key = pubKey
 			if err := cert.SignCert(rand.Reader, CASigner.Signer); err != nil {
 				warning("%v", err)
@@ -151,33 +155,33 @@ func addCertSigner(args *SshArgs, param *sshParam, signer ssh.Signer, fingerprin
 			fingerprints.Add(fingerprint)
 			pubKeySigners = append(pubKeySigners, certSigner)
 
-			// Пишем авторизацию хоста для ssh и putty
+			// Пишем авторизацию хоста для tssh, ssh и putty.
+			// Авторизация tssh через caKeys.
 			if fpSigner == fpCA {
 				pref = "ca"
-				bb := bytes.NewBufferString("@cert-authority * ")
+				bb := bytes.NewBufferString(markerCert + " * ")
 				bb.Write(ssh.MarshalAuthorizedKey(pubKey))
 				err = writeFile(filepath.Join(userHomeSsh, cert.KeyId), bb.Bytes(), 0644)
 				if err != nil {
 					warning("%v", err)
 				}
 			}
-			// Пишем авторизацию клиента для ssh и putty
-			if args.Config.IsInclude(args.Destination) {
-				err := writeFile(filepath.Join(userHomeSsh, pref+"-cert.pub"),
-					ssh.MarshalAuthorizedKey(&cert), 0644)
-				if err != nil {
-					warning("%v", err)
-				}
-				// А можно ли без этого обойтись?
-				// err = writeFile(filepath.Join(userHomeSsh, pref+".pub"), data, 0644)
-				// if err != nil {
-				// 	warning("%v", err)
-				// }
+
+			// Пишем авторизацию клиентов ssh и putty по сертификатам
+			// Авторизация tssh в args.Config
+			if !args.Config.Include.Contains(args.Destination) {
+				continue
+			}
+
+			err = writeFile(filepath.Join(userHomeSsh, pref+"-cert.pub"),
+				ssh.MarshalAuthorizedKey(&cert), 0644)
+			if err != nil {
+				warning("%v", err)
 			}
 		}
 	}
-	path := filepath.Join(userHomeSsh, pref+"-cert")
 
+	path := filepath.Join(userHomeSsh, pref+"-cert")
 	paths := []string{}
 	certificateFiles := getAllOptionConfig(args, "CertificateFile")
 	if len(certificateFiles) == 0 {
@@ -279,10 +283,12 @@ type CASigner struct {
 	ssh.Signer      // CA signer
 }
 
-func NewCASigner(Certificate ssh.Certificate, Signer ssh.Signer) *CASigner {
+func NewCASigner(certificate ssh.Certificate, signer ssh.Signer) *CASigner {
+	certificate.Key = signer.PublicKey()      // Только для Marshal
+	certificate.SignCert(rand.Reader, signer) // Только для Marshal
 	return &CASigner{
-		Certificate: Certificate,
-		Signer:      Signer,
+		Certificate: certificate,
+		Signer:      signer,
 	}
 }
 
@@ -332,26 +338,71 @@ func NewConfig(config *ssh_config.Config) *Config {
 	}
 }
 
+// Возвращаем все ключи для alias
 func (c *Config) GetAllSigner(alias string) []ssh.Signer {
 	return c.Signers[alias]
 }
 
+// Возвращаем все сертификаты для alias
 func (c *Config) GetAllCASigner(alias string) []*CASigner {
 	return c.CASigner[alias]
 }
-func (c *Config) IsInclude(alias string) bool {
-	return c.Include.Contains(alias)
-}
 
+// Заглушка для go-arg
 func (f *Config) UnmarshalText(b []byte) error {
 	return nil
 }
 
-// Пишем файл name если его содержимое отличается от data
+// Пишем файл name если его содержимое отличается от data.
+// Дата и время файла меняется только если меняется его содержимое.
+// На всякий случай старое содержимое пишем в .old
 func writeFile(name string, data []byte, perm fs.FileMode) error {
 	old, err := os.ReadFile(name)
 	if err != nil || !bytes.EqualFold(old, data) {
+		if err == nil {
+			os.WriteFile(name+".old", old, perm)
+		}
 		return os.WriteFile(name, data, perm)
 	}
 	return nil
+}
+
+// Набор уникальных не пустых строк с сохранением порядка добавки
+type StringSet struct {
+	ms map[string]struct{}
+	ss []string
+}
+
+// Аналог NewStringSet().Add(itmes...)
+func NewStringSet(itmes ...string) *StringSet {
+	stringSet := StringSet{
+		ms: make(map[string]struct{}),
+		ss: make([]string, 0),
+	}
+	stringSet.Add(itmes...)
+	return &stringSet
+}
+
+// Добавим уникальные не пустые строки items в набор с сохранением порядка добавки.
+func (s *StringSet) Add(items ...string) {
+	for _, item := range items {
+		if item != "" && !s.Contains(item) {
+			s.ms[item] = struct{}{}
+			s.ss = append(s.ss, item)
+		}
+	}
+}
+
+// Содержится ли строка item в наборе.
+func (s *StringSet) Contains(item string) bool {
+	_, ok := s.ms[item]
+	return ok
+}
+func (s *StringSet) Len() int {
+	return len(s.ms)
+}
+
+// Слайс уникальных не пустых строк из набора.
+func (s *StringSet) List() []string {
+	return s.ss
 }

@@ -88,13 +88,17 @@ var supportedHostKeyAlgos = NewStringSet(
 )
 
 func setSupported(config *ssh.ClientConfig) {
-	HostKeyAlgorithms := []string{}
+	// HostKeyAlgorithms := []string{}
+	HostKeyAlgorithms := NewStringSet()
 	for _, algo := range config.HostKeyAlgorithms {
 		if supportedHostKeyAlgos.Contains(algo) {
-			HostKeyAlgorithms = append(HostKeyAlgorithms, algo)
+			HostKeyAlgorithms.Add(algo)
+
+			// HostKeyAlgorithms = append(HostKeyAlgorithms, algo)
 		}
 	}
-	config.HostKeyAlgorithms = HostKeyAlgorithms
+	// config.HostKeyAlgorithms = HostKeyAlgorithms
+	config.HostKeyAlgorithms = HostKeyAlgorithms.List()
 }
 
 func debugHostKeyAlgorithmsConfig(config *ssh.ClientConfig) {
@@ -105,15 +109,13 @@ func debugHostKeyAlgorithmsConfig(config *ssh.ClientConfig) {
 
 func appendHostKeyAlgorithmsConfig(config *ssh.ClientConfig, algoSpec string) error {
 	// config.HostKeyAlgorithms==[a b]
-	// algoSpec==[a c]
+	// algoSpec=="a,c"
 	// config.HostKeyAlgorithms==[a b c] not [b a c] not [a b a c]
 	algoSet := NewStringSet(config.HostKeyAlgorithms...)
 	for _, algo := range strings.Split(algoSpec, ",") {
-		algo = strings.TrimSpace(algo)
-		if algo != "" && !algoSet.Contains(algo) {
-			config.HostKeyAlgorithms = append(config.HostKeyAlgorithms, algo)
-		}
+		algoSet.Add(strings.TrimSpace(algo))
 	}
+	config.HostKeyAlgorithms = algoSet.List()
 	debugHostKeyAlgorithmsConfig(config)
 	return nil
 }
@@ -161,50 +163,34 @@ func removeHostKeyAlgorithmsConfig(config *ssh.ClientConfig, algoSpec string) er
 
 func insertHostKeyAlgorithmsConfig(config *ssh.ClientConfig, algoSpec string) error {
 	// config.HostKeyAlgorithms==[a b]
-	// algoSpec==[a c]
+	// algoSpec=="a,c"
 	// config.HostKeyAlgorithms==[a c b] not [a c a b]
-	var algorithms []string
 	algoSet := NewStringSet()
 	for _, algo := range strings.Split(algoSpec, ",") {
-		algo = strings.TrimSpace(algo)
-		if algo != "" && !algoSet.Contains(algo) {
-			algorithms = append(algorithms, algo)
-			algoSet.Add(algo)
-		}
+		algoSet.Add(strings.TrimSpace(algo))
 	}
-	// config.HostKeyAlgorithms = append(algorithms, config.HostKeyAlgorithms...)
-	for _, algo := range config.HostKeyAlgorithms {
-		if !algoSet.Contains(algo) {
-			algorithms = append(algorithms, algo)
-		}
-	}
-	config.HostKeyAlgorithms = algorithms
+	algoSet.Add(config.HostKeyAlgorithms...)
+	config.HostKeyAlgorithms = algoSet.List()
 	debugHostKeyAlgorithmsConfig(config)
 	return nil
 }
 
 func replaceHostKeyAlgorithmsConfig(config *ssh.ClientConfig, algoSpec string) error {
-	config.HostKeyAlgorithms = nil
+	algoSet := NewStringSet()
 	for _, algo := range strings.Split(algoSpec, ",") {
-		algo = strings.TrimSpace(algo)
-		if algo != "" {
-			config.HostKeyAlgorithms = append(config.HostKeyAlgorithms, algo)
-		}
+		algoSet.Add(strings.TrimSpace(algo))
 	}
+	config.HostKeyAlgorithms = algoSet.List()
 	debugHostKeyAlgorithmsConfig(config)
 	return nil
 }
 
-func setupHostKeyAlgorithmsConfig(args *SshArgs, config *ssh.ClientConfig, idKeyAlgorithms []string) error {
+func setupHostKeyAlgorithmsConfig(args *SshArgs, config *ssh.ClientConfig) error {
 	// В config.HostKeyAlgorithms список алгоритмов из known_hosts
 	algoSpec := getOptionConfig(args, "HostKeyAlgorithms")
 	if algoSpec == ssh_config.Default("HostKeyAlgorithms") {
 		// Не указан HostKeyAlgorithms
-		if len(idKeyAlgorithms) == 0 {
-			return nil
-		}
-		// К списку алгоритмов из known_hosts добавим список алгоритмов имеющихся ключей
-		return appendHostKeyAlgorithmsConfig(config, strings.Join(idKeyAlgorithms, ","))
+		return nil
 	}
 	switch algoSpec[0] {
 	case '+':

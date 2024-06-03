@@ -683,39 +683,6 @@ var getDefaultSigners = func() func() []*sshSigner {
 	}
 }()
 
-type StringSet map[string]struct{}
-
-func NewStringSet(itmes ...string) *StringSet {
-	s := make(StringSet, len(itmes))
-	for _, item := range itmes {
-		s.Add(item)
-	}
-	return &s
-}
-
-func (s *StringSet) Add(item string) {
-	(*s)[item] = struct{}{}
-}
-func (s *StringSet) Contains(item string) bool {
-	_, ok := (*s)[item]
-	return ok
-}
-func (s *StringSet) Delete(item string) {
-	if s.Contains(item) {
-		delete(*s, item)
-	}
-}
-func (s *StringSet) Len() int {
-	return len(*s)
-}
-func (s *StringSet) List() []string {
-	l := make([]string, 0, len(*s))
-	for item := range *s {
-		l = append(l, item)
-	}
-	return l
-}
-
 func getPublicKeysAuthMethod(args *SshArgs, param *sshParam) (pubKeySigners []ssh.Signer) {
 	if strings.ToLower(getOptionConfig(args, "PubkeyAuthentication")) == "no" {
 		debug("disable auth method: public key authentication")
@@ -801,13 +768,16 @@ func getAuthMethods(args *SshArgs, param *sshParam) (authMethods []ssh.AuthMetho
 
 		idKeyAlgoSet := NewStringSet()
 		for _, signer := range signers {
-			publicKey := signer.PublicKey()
-			algo := publicKey.Type()
-			if !idKeyAlgoSet.Contains(algo) {
-				idKeyAlgorithms = append(idKeyAlgorithms, algo)
-				idKeyAlgoSet.Add(algo)
-			}
+			idKeyAlgoSet.Add(signer.PublicKey().Type())
+
+			// publicKey := signer.PublicKey()
+			// algo := publicKey.Type()
+			// if !idKeyAlgoSet.Contains(algo) {
+			// 	idKeyAlgorithms = append(idKeyAlgorithms, algo)
+			// 	idKeyAlgoSet.Add(algo)
+			// }
 		}
+		idKeyAlgorithms = idKeyAlgoSet.List()
 	}
 	if authMethod := getKeyboardInteractiveAuthMethod(args, param.host, param.user); authMethod != nil {
 		debug("add auth method: keyboard interactive authentication")
@@ -1128,9 +1098,12 @@ func sshConnect(args *SshArgs, client *ssh.Client, proxy string) (*ssh.Client, *
 		},
 	}
 	// Перед вызовом setupHostKeyAlgorithmsConfig должен быть установлен HostKeyAlgorithms.
-	// If hostkeys are known for the destination host then this default is modified to prefer their algorithms.
+	// >If hostkeys are known for the destination host then this default is modified to prefer their algorithms.
+	debug("HostKeyAlgorithms %v", config.HostKeyAlgorithms)
+	debug("IdKeyAlgorithms %v", idKeyAlgorithms)
 	// kh Не понимает пока @cert-authority поэтому добавим idKeyAlgorithms
-	if err := setupHostKeyAlgorithmsConfig(args, config, idKeyAlgorithms); err != nil {
+	config.HostKeyAlgorithms = NewStringSet(append(config.HostKeyAlgorithms, idKeyAlgorithms...)...).List()
+	if err := setupHostKeyAlgorithmsConfig(args, config); err != nil {
 		return nil, param, false, err
 	}
 	if err := setupCiphersConfig(args, config); err != nil {
