@@ -299,13 +299,18 @@ Host ` + SSHJ + `
 		opt := ""
 		if runtime.GOOS == "linux" {
 			bin = "plink"
-			opt = "-load " + args.Destination + " -no-antispoof"
+			opt = "-no-antispoof -load " + args.Destination
 		} else {
 			opt = "@" + args.Destination
 		}
 		path, err := exec.LookPath(bin)
 		if err == nil {
-			Println(path, exec.Command(path, strings.Fields(opt)...).Run())
+			cmd := exec.Command(path, strings.Fields(opt)...)
+			cmd.Stdin = os.Stdin
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stdout
+			Println(cmd)
+			cmd.Run()
 			return
 		}
 		Println("not found - не найден", bin)
@@ -454,7 +459,7 @@ func useLineShort(repo, imag string) string {
 	if args.Putty {
 		s += fmt.Sprintf(
 			"\n\tlocal - локально `putty @%s` or over jump host - или через посредника `putty @%s`"+
-				"\n\tlocal - локально `plink -load %s -no-antispoof` or over jump host - или через посредника и агента `plink -load %s -no-antispoof`",
+				"\n\tlocal - локально `plink -no-antispoof -load %s` or over jump host - или через посредника и агента `plink -no-antispoof -load %s`",
 			repo, SSHJ,
 			repo, SSHJ,
 		)
