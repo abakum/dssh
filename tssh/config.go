@@ -670,10 +670,10 @@ func getExOptionConfig(args *SshArgs, option string) string {
 	return getExConfig(args.Destination, option)
 }
 
-var secretEncodeKey = []byte("THE_UNSAFE_KEY_FOR_ENCODING_ONLY")
+var SecretEncodeKey = []byte("THE_UNSAFE_KEY_FOR_ENCODING_ONLY")
 
 func encodeSecret(secret []byte) (string, error) {
-	aesCipher, err := aes.NewCipher(secretEncodeKey)
+	aesCipher, err := aes.NewCipher(SecretEncodeKey)
 	if err != nil {
 		return "", err
 	}
@@ -693,7 +693,7 @@ func decodeSecret(secret string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	aesCipher, err := aes.NewCipher(secretEncodeKey)
+	aesCipher, err := aes.NewCipher(SecretEncodeKey)
 	if err != nil {
 		return "", err
 	}

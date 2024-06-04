@@ -159,11 +159,11 @@ func main() {
 	Println(runtime.GOARCH, runtime.GOOS, GoVer(), repo, Ver, ips)
 	FatalOr("not connected - нет сети", len(ips) == 0)
 
-	key, err := x509.ParsePKCS8PrivateKey(CA)
+	anyKey, err := x509.ParsePKCS8PrivateKey(CA)
 	Fatal(err)
 
 	// CA signer
-	signer, err := ssh.NewSignerFromKey(key)
+	signer, err := ssh.NewSignerFromKey(anyKey)
 	Fatal(err)
 
 	defer closer.Close()
@@ -175,7 +175,14 @@ func main() {
 
 	a2s := make([]string, 0) // without built in option
 	deb := false
+	cli := false
 	for _, arg := range os.Args[1:] {
+		if strings.HasPrefix(arg, "-") {
+			switch arg[len(arg)-1:] {
+			case "i", "o", "D", "L", "R":
+				cli = true
+			}
+		}
 		switch arg {
 		case "-help", "--help":
 			parser.WriteHelp(Std)
@@ -203,6 +210,19 @@ func main() {
 	}
 	args.Debug = args.Debug || deb
 
+	// tools
+	SecretEncodeKey = key
+	if args.NewHost ||
+		args.EncSecret ||
+		args.InstallTrzsz ||
+		args.InstallPath != "" ||
+		args.TrzszVersion != "" ||
+		args.TrzszBinPath != "" ||
+		false {
+		TsshMain(&args)
+		return
+	}
+
 	u, h, p := ParseDestination(args.Destination) //tssh
 	// `dssh` как `dssh -d`
 	// `foo` как `dssh foo@` как `dssh -dl foo` как `dssh -dl bar foo@` Где foo переименованный dssh
@@ -221,6 +241,33 @@ Host ` + SSHJ + `
  PasswordAuthentication no
  ProxyJump ` + u + `@` + JumpHost + `
  `
+	cli = cli ||
+		args.Command != "" ||
+		args.ForwardAgent ||
+		args.NoForwardAgent ||
+		args.DisableTTY ||
+		args.ForceTTY ||
+		args.IPv4Only ||
+		args.IPv6Only ||
+		args.Gateway ||
+		args.Background ||
+		args.NoCommand ||
+		args.CipherSpec != "" ||
+		args.ConfigFile != "" ||
+		args.StdioForward != "" ||
+		args.X11Untrusted ||
+		args.NoX11Forward ||
+		args.X11Trusted ||
+		args.Reconnect ||
+		args.DragFile ||
+		args.TraceLog ||
+		args.Relay ||
+		args.Zmodem ||
+		args.Putty ||
+		false
+	if cli && args.Destination == "" {
+		args.Destination = "@"
+	}
 	daemon := false
 	switch args.Destination {
 	case "@": // Меню tssh.
@@ -234,7 +281,7 @@ Host ` + SSHJ + `
 	default:
 		daemon = h+p == ""
 	}
-	if args.Daemon || daemon {
+	if args.Daemon || !cli && daemon {
 		args.Daemon = true
 		hh := ""
 		switch h {

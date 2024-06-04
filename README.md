@@ -14,3 +14,5 @@ dssh:=(tssh from trzsz)+(CA key with embed-encrypt)+(sshd from gliderlabs)
     8. Чтение ExitOnForwardFailure - dynamicForward, localForward, remoteForward, sshForward из forward.go 
     9. Запуск в Windows7 без Cygwin и MSYS2 через `-T` - setupVirtualTerminal, sttyExecutable из term_windows.go.
     10. Чтение IdentitiesOnly в getPublicKeysAuthMethod из login.go.
+    11. Уникальный SecretEncodeKey и подсказка `encPassword bar` при указании `-o Password=foo`
+    12. Возможность прервать по Ctr-C dynamicForward, localForward, remoteForward

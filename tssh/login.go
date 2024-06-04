@@ -564,6 +564,11 @@ func getPasswordAuthMethod(args *SshArgs, host, user string) ssh.AuthMethod {
 			password := args.Option.get("Password")
 			if password == "" {
 				password = getSecretConfig(args.Destination, "Password")
+			} else {
+				encoded, err := encodeSecret([]byte(password))
+				if err == nil {
+					warning("insert to the beginning of the file [~/.ssh/config] line [IgnoreUnknown encPassword] and append after [Host %s] line [encPassword %s]", args.Destination, encoded)
+				}
 			}
 			if password != "" {
 				rememberPassword = true
