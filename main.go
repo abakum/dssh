@@ -221,7 +221,20 @@ Host ` + SSHJ + `
  PasswordAuthentication no
  ProxyJump ` + u + `@` + JumpHost + `
  `
-	if args.Daemon || h+p == "" {
+	daemon := false
+	switch args.Destination {
+	case "@": // Меню tssh.
+		args.Destination = ""
+	case ":", SSHJ: // `dssh :` как `dssh ssh-j` как `foo -l dssh :`
+		args.Destination = SSHJ
+		args.LoginName = "_"
+	case ".", repo: // `dssh .` как `dssh dssh` или `foo -l dssh .` как `foo -l dssh dssh`
+		args.Destination = repo
+		args.LoginName = "_"
+	default:
+		daemon = h+p == ""
+	}
+	if args.Daemon || daemon {
 		args.Daemon = true
 		hh := ""
 		switch h {
@@ -279,16 +292,6 @@ Host ` + SSHJ + `
 
 	// Клиенты
 	client(signer, sshj, repo, SSHJ)
-	switch args.Destination {
-	case "@": // Меню tssh.
-		args.Destination = ""
-	case ":", SSHJ: // `dssh :` как `dssh ssh-j` как `foo -l dssh :`
-		args.Destination = SSHJ
-		args.LoginName = "_"
-	case ".", repo: // `dssh .` как `dssh dssh` или `foo -l dssh .` как `foo -l dssh dssh`
-		args.Destination = repo
-		args.LoginName = "_"
-	}
 	if args.Putty {
 		bin := "putty"
 		opt := ""
