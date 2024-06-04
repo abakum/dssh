@@ -203,6 +203,15 @@ func main() {
 	}
 	args.Debug = args.Debug || deb
 
+	u, h, p := ParseDestination(args.Destination) //tssh
+	// `dssh` как `dssh -d`
+	// `foo` как `dssh foo@` как `dssh -dl foo` как `dssh -dl bar foo@` Где foo переименованный dssh
+	if u == "" {
+		u = imag // Имя для посредника ssh-j.com
+		if args.LoginName != "" {
+			u = args.LoginName
+		}
+	}
 	sshj := `
 Host ` + SSHJ + `
  User _
@@ -210,34 +219,21 @@ Host ` + SSHJ + `
  UserKnownHostsFile ~/.ssh/` + repo + `
  KbdInteractiveAuthentication no
  PasswordAuthentication no
- ProxyJump ` + imag + `@` + JumpHost
-	u, h, p := ParseDestination(args.Destination) //tssh
-	// `dssh` как `dssh -d`
-	// `foo` как `dssh -d foo@` как `dssh -dl foo`
-	switch args.Destination {
-	case "":
+ ProxyJump ` + u + `@` + JumpHost + `
+ `
+	if args.Daemon || h+p == "" {
 		args.Daemon = true
-		fallthrough
-	case ".", ":", repo, SSHJ:
-		if u == "" {
-			u = imag // Имя для посредника ssh-j.com
-			if args.LoginName != "" {
-				u = args.LoginName
-			}
-		}
-	}
-
-	if args.Daemon {
 		hh := ""
 		switch h {
 		case "":
 			h = LH
-			hh = h
 		case "*":
 			h = ALL
 			hh = ips[len(ips)-1]
 		case "_":
 			h = ips[0]
+		}
+		if hh == "" {
 			hh = h
 		}
 		if p == "" {
@@ -248,7 +244,7 @@ Host ` + SSHJ + `
 		}
 
 		go func() {
-			s := useLineShort(repo, imag)
+			s := usage(repo, imag)
 			for {
 				server(h, p, repo, s, signer)
 				winssh.KidsDone(os.Getpid())
@@ -256,14 +252,14 @@ Host ` + SSHJ + `
 				time.Sleep(TOR)
 			}
 		}()
-		rc := "-T "
+		rc := ""
 		if args.Debug {
 			rc += "-v "
 		}
 		rc += JumpHost
 		args.Destination = JumpHost
 		args.DisableTTY = true
-		client(signer, local(hh, p, repo)+strings.ReplaceAll(sshj, imag+`@`, u+`@`)+sshJ(JumpHost, u, hh, p))
+		client(signer, local(hh, p, repo)+sshj+sshJ(JumpHost, u, hh, p))
 		s := fmt.Sprintf("`tssh %s`", rc)
 		i := 0
 		for {
@@ -282,26 +278,27 @@ Host ` + SSHJ + `
 	} // Сервис
 
 	// Клиенты
+	client(signer, sshj, repo, SSHJ)
 	switch args.Destination {
 	case "@": // Меню tssh.
 		args.Destination = ""
 	case ":", SSHJ: // `dssh :` как `dssh ssh-j` как `foo -l dssh :`
 		args.Destination = SSHJ
 		args.LoginName = "_"
-		client(signer, strings.ReplaceAll(sshj, imag+`@`, u+`@`), args.Destination)
 	case ".", repo: // `dssh .` как `dssh dssh` или `foo -l dssh .` как `foo -l dssh dssh`
 		args.Destination = repo
 		args.LoginName = "_"
-		client(signer, sshj, args.Destination)
 	}
 	if args.Putty {
 		bin := "putty"
 		opt := ""
-		if runtime.GOOS == "linux" {
-			bin = "plink"
-			opt = "-no-antispoof -load " + args.Destination
-		} else {
-			opt = "@" + args.Destination
+		if args.Destination != "" {
+			if runtime.GOOS == "linux" {
+				bin = "plink"
+				opt = "-no-antispoof -load " + args.Destination
+			} else {
+				opt = "@" + args.Destination
+			}
 		}
 		path, err := exec.LookPath(bin)
 		if err == nil {
@@ -449,7 +446,7 @@ func FingerprintSHA256(pubKey ssh.PublicKey) string {
 	return pubKey.Type() + " " + ssh.FingerprintSHA256(pubKey)
 }
 
-func useLineShort(repo, imag string) string {
+func usage(repo, imag string) string {
 	s := fmt.Sprintf(
 		"\n\tlocal - локально `%s .` or over jump host - или через посредника `%s :`"+
 			"\n\tlocal - локально `ssh %s` or over jump host - или через посредника `ssh %s`",
@@ -550,6 +547,7 @@ Host ` + host + `
  PasswordAuthentication no
  PubkeyAuthentication no
  KbdInteractiveAuthentication no
+ SessionType none
  ExitOnForwardFailure yes
  StdinNull no
  RemoteForward ` + SSHJ2 + `:` + PORT + ` ` + h + `:` + p + `

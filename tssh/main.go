@@ -233,6 +233,11 @@ func sshStart(args *SshArgs) error {
 	defer func() {
 		onExitFuncs.Cleanup()
 	}()
+
+	if strings.ToLower(getOptionConfig(args, "SessionType")) == "none" {
+		args.NoCommand = true
+	}
+
 	// ssh login
 	ss, err := sshLogin(args)
 	if err != nil {
@@ -249,16 +254,16 @@ func sshStart(args *SshArgs) error {
 		if err != nil {
 			return err
 		}
-		// cleanupAfterLogin()
 		afterLoginFuncs.Cleanup()
+		restoreStdFuncs.Cleanup()
 		wg.Wait()
 		return nil
 	}
 
 	// no command
 	if args.NoCommand {
-		// cleanupAfterLogin()
 		afterLoginFuncs.Cleanup()
+		restoreStdFuncs.Cleanup()
 		_ = ss.client.Wait()
 		return nil
 	}

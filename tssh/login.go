@@ -1277,6 +1277,11 @@ func sshLogin(args *SshArgs) (ss *sshSession, err error) {
 		return
 	}
 
+	// ssh forward
+	if !control {
+		sshForward(ss.client, args, param)
+	}
+
 	// no command
 	if args.NoCommand {
 		return
@@ -1314,10 +1319,7 @@ func sshLogin(args *SshArgs) (ss *sshSession, err error) {
 	}
 
 	if !control {
-		// Let's postpone forwarding - maybe we won't have to do it.
 		afterLoginFuncs.Add(func() {
-			// ssh forward
-			sshForward(ss.client, args, param)
 
 			// x11 forward
 			sshX11Forward(args, ss.client, ss.session)
