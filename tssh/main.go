@@ -255,7 +255,6 @@ func sshStart(args *SshArgs) error {
 			return err
 		}
 		afterLoginFuncs.Cleanup()
-		restoreStdFuncs.Cleanup()
 		wg.Wait()
 		return nil
 	}
