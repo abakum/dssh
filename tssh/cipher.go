@@ -29,6 +29,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/trzsz/ssh_config"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -47,16 +48,17 @@ chacha20-poly1305@openssh.com
 */
 
 // preferredCiphers specifies the default preference for ciphers.
-var preferredCiphers = []string{
+var _ = []string{
 	"aes128-gcm@openssh.com", "aes256-gcm@openssh.com",
 	"chacha20-poly1305@openssh.com",
 	"aes128-ctr", "aes192-ctr", "aes256-ctr",
 }
 
 func debugCiphersConfig(config *ssh.ClientConfig) {
-	if !enableDebugLogging {
-		return
-	}
+	// if !enableDebugLogging {
+	// 	return
+	// }
+	// replaceCiphersConfig must be filtered by config.SetDefaults
 	debug("user declared ciphers: %v", config.Ciphers)
 	config.SetDefaults()
 	debug("client supported ciphers: %v", config.Ciphers)
@@ -150,8 +152,11 @@ func getCiphersConfig(args *SshArgs) string {
 }
 
 func setupCiphersConfig(args *SshArgs, config *ssh.ClientConfig) error {
+	// Вместо того чтоб сначала добавить больше чем может
+	// а потом отфильровать мы сразу установим что можем.
+	config.SetDefaults()
 	cipherSpec := getCiphersConfig(args)
-	if cipherSpec == "" {
+	if cipherSpec == ssh_config.Default("Ciphers") {
 		return nil
 	}
 	switch cipherSpec[0] {

@@ -88,16 +88,12 @@ var supportedHostKeyAlgos = NewStringSet(
 )
 
 func setSupported(config *ssh.ClientConfig) {
-	// HostKeyAlgorithms := []string{}
 	HostKeyAlgorithms := NewStringSet()
 	for _, algo := range config.HostKeyAlgorithms {
 		if supportedHostKeyAlgos.Contains(algo) {
 			HostKeyAlgorithms.Add(algo)
-
-			// HostKeyAlgorithms = append(HostKeyAlgorithms, algo)
 		}
 	}
-	// config.HostKeyAlgorithms = HostKeyAlgorithms
 	config.HostKeyAlgorithms = HostKeyAlgorithms.List()
 }
 
@@ -110,7 +106,7 @@ func debugHostKeyAlgorithmsConfig(config *ssh.ClientConfig) {
 func appendHostKeyAlgorithmsConfig(config *ssh.ClientConfig, algoSpec string) error {
 	// config.HostKeyAlgorithms==[a b]
 	// algoSpec=="a,c"
-	// config.HostKeyAlgorithms==[a b c] not [b a c] not [a b a c]
+	// config.HostKeyAlgorithms= [b a c] not [a b c] not [a b a c]
 	algoSet := NewStringSet(config.HostKeyAlgorithms...)
 	for _, algo := range strings.Split(algoSpec, ",") {
 		algoSet.Add(strings.TrimSpace(algo))
@@ -194,6 +190,7 @@ func setupHostKeyAlgorithmsConfig(args *SshArgs, config *ssh.ClientConfig) error
 	}
 	switch algoSpec[0] {
 	case '+':
+		removeHostKeyAlgorithmsConfig(config, algoSpec[1:])
 		return appendHostKeyAlgorithmsConfig(config, algoSpec[1:])
 	case '-':
 		return removeHostKeyAlgorithmsConfig(config, algoSpec[1:])
