@@ -97,25 +97,6 @@ func setSupported(config *ssh.ClientConfig) {
 	config.HostKeyAlgorithms = HostKeyAlgorithms.List()
 }
 
-func debugHostKeyAlgorithmsConfig(config *ssh.ClientConfig) {
-	debug("user declared algorithms: %v", config.HostKeyAlgorithms)
-	setSupported(config)
-	debug("client supported algorithms: %v", config.HostKeyAlgorithms)
-}
-
-func appendHostKeyAlgorithmsConfig(config *ssh.ClientConfig, algoSpec string) error {
-	// config.HostKeyAlgorithms==[a b]
-	// algoSpec=="a,c"
-	// config.HostKeyAlgorithms= [b a c] not [a b c] not [a b a c]
-	algoSet := NewStringSet(config.HostKeyAlgorithms...)
-	for _, algo := range strings.Split(algoSpec, ",") {
-		algoSet.Add(strings.TrimSpace(algo))
-	}
-	config.HostKeyAlgorithms = algoSet.List()
-	debugHostKeyAlgorithmsConfig(config)
-	return nil
-}
-
 func removeHostKeyAlgorithmsConfig(config *ssh.ClientConfig, algoSpec string) error {
 	var buf strings.Builder
 	for _, algo := range strings.Split(algoSpec, ",") {
@@ -153,50 +134,42 @@ func removeHostKeyAlgorithmsConfig(config *ssh.ClientConfig, algoSpec string) er
 		algorithms = append(algorithms, algo)
 	}
 	config.HostKeyAlgorithms = algorithms
-	debugHostKeyAlgorithmsConfig(config)
-	return nil
-}
-
-func insertHostKeyAlgorithmsConfig(config *ssh.ClientConfig, algoSpec string) error {
-	// config.HostKeyAlgorithms==[a b]
-	// algoSpec=="a,c"
-	// config.HostKeyAlgorithms==[a c b] not [a c a b]
-	algoSet := NewStringSet()
-	for _, algo := range strings.Split(algoSpec, ",") {
-		algoSet.Add(strings.TrimSpace(algo))
-	}
-	algoSet.Add(config.HostKeyAlgorithms...)
-	config.HostKeyAlgorithms = algoSet.List()
-	debugHostKeyAlgorithmsConfig(config)
-	return nil
-}
-
-func replaceHostKeyAlgorithmsConfig(config *ssh.ClientConfig, algoSpec string) error {
-	algoSet := NewStringSet()
-	for _, algo := range strings.Split(algoSpec, ",") {
-		algoSet.Add(strings.TrimSpace(algo))
-	}
-	config.HostKeyAlgorithms = algoSet.List()
-	debugHostKeyAlgorithmsConfig(config)
 	return nil
 }
 
 func setupHostKeyAlgorithmsConfig(args *SshArgs, config *ssh.ClientConfig) error {
-	// В config.HostKeyAlgorithms список алгоритмов из known_hosts
+	// debug("host key algorithms: %v", config.HostKeyAlgorithms)
+	defer func() {
+		setSupported(config)
+		debug("client supported algorithms: %v", config.HostKeyAlgorithms)
+	}()
 	algoSpec := getOptionConfig(args, "HostKeyAlgorithms")
 	if algoSpec == ssh_config.Default("HostKeyAlgorithms") {
 		// Не указан HostKeyAlgorithms
+		debug("default algorithms: %v", config.HostKeyAlgorithms)
 		return nil
 	}
+	defer func() {
+		debug("user declared algorithms: %v", config.HostKeyAlgorithms)
+	}()
 	switch algoSpec[0] {
 	case '+':
+		// If the specified list begins with a ‘+’ character, then the specified items will be appended to the default set instead of replacing them.
+		// a,b + a,c -> b,a,c
 		removeHostKeyAlgorithmsConfig(config, algoSpec[1:])
-		return appendHostKeyAlgorithmsConfig(config, algoSpec[1:])
+		config.HostKeyAlgorithms = NewStringSet(config.HostKeyAlgorithms...).Add(strings.Split(algoSpec[1:], ",")...).List()
+		return nil
 	case '-':
+		// If the specified list begins with a ‘-’ character, then the specified items (including wildcards) will be removed from the default set instead of replacing them.
+		// a,b -a,c -> b
 		return removeHostKeyAlgorithmsConfig(config, algoSpec[1:])
 	case '^':
-		return insertHostKeyAlgorithmsConfig(config, algoSpec[1:])
+		// If the specified list begins with a ‘^’ character, then the specified items will be placed at the head of the default set.
+		// a,b ^a,c -> a,c,b
+		config.HostKeyAlgorithms = NewStringSet(strings.Split(algoSpec[1:], ",")...).Add(config.HostKeyAlgorithms...).List()
+		return nil
 	default:
-		return replaceHostKeyAlgorithmsConfig(config, algoSpec)
+		config.HostKeyAlgorithms = NewStringSet(strings.Split(algoSpec, ",")...).List()
+		return nil
 	}
 }

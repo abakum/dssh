@@ -370,6 +370,24 @@ type StringSet struct {
 	ss []string
 }
 
+// Содержится ли строка item в наборе.
+func (s *StringSet) Contains(item string) bool {
+	_, ok := s.ms[item]
+	return ok
+}
+
+// Добавим уникальные не пустые строки items в набор с сохранением порядка добавки.
+func (s *StringSet) Add(items ...string) *StringSet {
+	for _, item := range items {
+		item = strings.TrimSpace(item)
+		if item != "" && !s.Contains(item) {
+			s.ms[item] = struct{}{}
+			s.ss = append(s.ss, item)
+		}
+	}
+	return s
+}
+
 // Аналог NewStringSet().Add(itmes...)
 func NewStringSet(itmes ...string) *StringSet {
 	stringSet := StringSet{
@@ -380,26 +398,28 @@ func NewStringSet(itmes ...string) *StringSet {
 	return &stringSet
 }
 
-// Добавим уникальные не пустые строки items в набор с сохранением порядка добавки.
-func (s *StringSet) Add(items ...string) {
-	for _, item := range items {
-		if item != "" && !s.Contains(item) {
-			s.ms[item] = struct{}{}
-			s.ss = append(s.ss, item)
-		}
-	}
-}
-
-// Содержится ли строка item в наборе.
-func (s *StringSet) Contains(item string) bool {
-	_, ok := s.ms[item]
-	return ok
-}
-func (s *StringSet) Len() int {
-	return len(s.ms)
-}
-
 // Слайс уникальных не пустых строк из набора.
 func (s *StringSet) List() []string {
 	return s.ss
+}
+
+// Удалим уникальные не пустые строки items из набора с сохранением порядка.
+// a,b - a,c = b
+func (s *StringSet) Del(items ...string) *StringSet {
+	delSet := NewStringSet(items...)
+	newSet := NewStringSet()
+	for _, item := range s.ss {
+		if delSet.Contains(item) {
+			delete(s.ms, item)
+		} else {
+			newSet.Add(item)
+		}
+	}
+	s.ss = newSet.List()
+	return s
+}
+
+// Количество строк в наборе.
+func (s *StringSet) Len() int {
+	return len(s.ms)
 }
