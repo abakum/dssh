@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -422,4 +423,47 @@ func (s *StringSet) Del(items ...string) *StringSet {
 // Количество строк в наборе.
 func (s *StringSet) Len() int {
 	return len(s.ms)
+}
+
+// Удалим уникальные не пустые строки items c подстановочными знаками из набора с сохранением порядка.
+func (s *StringSet) DelRegExp(items ...string) *StringSet {
+	var buf strings.Builder
+	for _, item := range NewStringSet(items...).List() {
+		if buf.Len() > 0 {
+			buf.WriteRune('|')
+		}
+		buf.WriteString("(^")
+		for _, c := range item {
+			switch c {
+			case '*':
+				buf.WriteString(".*")
+			case '?':
+				buf.WriteRune('.')
+			case '(', ')', '[', ']', '{', '}', '.', '+', ',', '-', '^', '$', '|', '\\':
+				buf.WriteRune('\\')
+				buf.WriteRune(c)
+			default:
+				buf.WriteRune(c)
+			}
+		}
+		buf.WriteString("$)")
+	}
+	expr := buf.String()
+	// debug("regexp: %s", expr)
+	re, err := regexp.Compile(expr)
+	if err != nil {
+		// При ошибке просто удаляем без подстановочных знаков
+		// warning("compile regexp failed: %v", err)
+		s.Del(items...)
+		return s
+	}
+	newSet := NewStringSet()
+	for _, item := range s.ss {
+		if re.MatchString(item) {
+			continue
+		}
+		newSet.Add(item)
+	}
+	s = newSet
+	return s
 }

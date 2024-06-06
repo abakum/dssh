@@ -1107,10 +1107,9 @@ func sshConnect(args *SshArgs, client *ssh.Client, proxy string) (*ssh.Client, *
 	debug("HostKeyAlgorithms %v", config.HostKeyAlgorithms)
 	debug("IdKeyAlgorithms %v", idKeyAlgorithms)
 	// kh Не понимает пока @cert-authority поэтому добавим idKeyAlgorithms
-	config.HostKeyAlgorithms = NewStringSet(append(config.HostKeyAlgorithms, idKeyAlgorithms...)...).List()
-	if err := setupHostKeyAlgorithmsConfig(args, config); err != nil {
-		return nil, param, false, err
-	}
+	config.HostKeyAlgorithms = NewStringSet(config.HostKeyAlgorithms...).Add(idKeyAlgorithms...).List()
+	setupHostKeyAlgorithmsConfig(args, config)
+
 	if err := setupCiphersConfig(args, config); err != nil {
 		return nil, param, false, err
 	}

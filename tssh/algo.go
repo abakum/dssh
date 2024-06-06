@@ -25,8 +25,6 @@ SOFTWARE.
 package tssh
 
 import (
-	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/trzsz/ssh_config"
@@ -88,88 +86,45 @@ var supportedHostKeyAlgos = NewStringSet(
 )
 
 func setSupported(config *ssh.ClientConfig) {
-	HostKeyAlgorithms := NewStringSet()
+	newSet := NewStringSet()
 	for _, algo := range config.HostKeyAlgorithms {
 		if supportedHostKeyAlgos.Contains(algo) {
-			HostKeyAlgorithms.Add(algo)
+			newSet.Add(algo)
 		}
 	}
-	config.HostKeyAlgorithms = HostKeyAlgorithms.List()
+	config.HostKeyAlgorithms = newSet.List()
 }
 
-func removeHostKeyAlgorithmsConfig(config *ssh.ClientConfig, algoSpec string) error {
-	var buf strings.Builder
-	for _, algo := range strings.Split(algoSpec, ",") {
-		if buf.Len() > 0 {
-			buf.WriteRune('|')
-		}
-		buf.WriteString("(^")
-		for _, c := range algo {
-			switch c {
-			case '*':
-				buf.WriteString(".*")
-			case '?':
-				buf.WriteRune('.')
-			case '(', ')', '[', ']', '{', '}', '.', '+', ',', '-', '^', '$', '|', '\\':
-				buf.WriteRune('\\')
-				buf.WriteRune(c)
-			default:
-				buf.WriteRune(c)
-			}
-		}
-		buf.WriteString("$)")
-	}
-	expr := buf.String()
-	debug("algorithms regexp: %s", expr)
-	re, err := regexp.Compile(expr)
-	if err != nil {
-		return fmt.Errorf("compile algorithms regexp failed: %v", err)
-	}
-
-	algorithms := make([]string, 0)
-	for _, algo := range config.HostKeyAlgorithms {
-		if re.MatchString(algo) {
-			continue
-		}
-		algorithms = append(algorithms, algo)
-	}
-	config.HostKeyAlgorithms = algorithms
-	return nil
-}
-
-func setupHostKeyAlgorithmsConfig(args *SshArgs, config *ssh.ClientConfig) error {
+func setupHostKeyAlgorithmsConfig(args *SshArgs, config *ssh.ClientConfig) {
 	// debug("host key algorithms: %v", config.HostKeyAlgorithms)
 	defer func() {
 		setSupported(config)
 		debug("client supported algorithms: %v", config.HostKeyAlgorithms)
 	}()
 	algoSpec := getOptionConfig(args, "HostKeyAlgorithms")
-	if algoSpec == ssh_config.Default("HostKeyAlgorithms") {
+	if algoSpec == ssh_config.Default("HostKeyAlgorithms") || algoSpec == "" {
 		// Не указан HostKeyAlgorithms
 		debug("default algorithms: %v", config.HostKeyAlgorithms)
-		return nil
+		return
 	}
 	defer func() {
 		debug("user declared algorithms: %v", config.HostKeyAlgorithms)
 	}()
+	algos := strings.Split(algoSpec[1:], ",")
 	switch algoSpec[0] {
 	case '+':
 		// If the specified list begins with a ‘+’ character, then the specified items will be appended to the default set instead of replacing them.
 		// a,b + a,c -> b,a,c
-		removeHostKeyAlgorithmsConfig(config, algoSpec[1:])
-		config.HostKeyAlgorithms = NewStringSet(config.HostKeyAlgorithms...).Add(strings.Split(algoSpec[1:], ",")...).List()
-		return nil
+		config.HostKeyAlgorithms = NewStringSet(config.HostKeyAlgorithms...).DelRegExp(algos...).Add(algos...).List()
 	case '-':
 		// If the specified list begins with a ‘-’ character, then the specified items (including wildcards) will be removed from the default set instead of replacing them.
 		// a,b -a,c -> b
-		return removeHostKeyAlgorithmsConfig(config, algoSpec[1:])
+		config.HostKeyAlgorithms = NewStringSet(config.HostKeyAlgorithms...).DelRegExp(algos...).List()
 	case '^':
 		// If the specified list begins with a ‘^’ character, then the specified items will be placed at the head of the default set.
 		// a,b ^a,c -> a,c,b
-		config.HostKeyAlgorithms = NewStringSet(strings.Split(algoSpec[1:], ",")...).Add(config.HostKeyAlgorithms...).List()
-		return nil
+		config.HostKeyAlgorithms = NewStringSet(algos...).Add(config.HostKeyAlgorithms...).List()
 	default:
 		config.HostKeyAlgorithms = NewStringSet(strings.Split(algoSpec, ",")...).List()
-		return nil
 	}
 }
