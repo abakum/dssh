@@ -50,7 +50,8 @@ func writeAll(dst io.Writer, data []byte) error {
 	return nil
 }
 
-func wrapStdIO(serverIn io.WriteCloser, serverOut io.Reader, serverErr io.Reader, tty bool) {
+// Заменяем разделители строк для Windows
+func wrapStdIO(serverIn io.WriteCloser, serverOut io.Reader, serverErr io.Reader, tty bool, escapeChar string) {
 	win := runtime.GOOS == "windows"
 	forwardIO := func(reader io.Reader, writer io.WriteCloser, input bool) {
 		defer writer.Close()
@@ -85,7 +86,13 @@ func wrapStdIO(serverIn io.WriteCloser, serverOut io.Reader, serverErr io.Reader
 		}
 	}
 	if serverIn != nil {
-		go forwardIO(os.Stdin, serverIn, true)
+		switch strings.ToLower(escapeChar) {
+		case "none", "":
+			go forwardIO(os.Stdin, serverIn, true)
+		default:
+			go forwardIO(newTildaReader(os.Stdin, escapeChar), serverIn, true)
+		}
+
 	}
 	if serverOut != nil {
 		go forwardIO(serverOut, os.Stdout, false)
@@ -98,7 +105,7 @@ func wrapStdIO(serverIn io.WriteCloser, serverOut io.Reader, serverErr io.Reader
 func enableTrzsz(args *SshArgs, ss *sshSession) error {
 	// not terminal or not tty
 	if !isTerminal || !ss.tty {
-		wrapStdIO(ss.serverIn, ss.serverOut, ss.serverErr, ss.tty)
+		wrapStdIO(ss.serverIn, ss.serverOut, ss.serverErr, ss.tty, "")
 		return nil
 	}
 
@@ -108,14 +115,15 @@ func enableTrzsz(args *SshArgs, ss *sshSession) error {
 
 	// disable trzsz ( trz / tsz )
 	if disableTrzsz && !enableZmodem && !enableDragFile {
-		wrapStdIO(ss.serverIn, ss.serverOut, ss.serverErr, ss.tty)
+		escapeChar := getOptionConfig(args, "EscapeChar")
+		wrapStdIO(ss.serverIn, ss.serverOut, ss.serverErr, ss.tty, escapeChar)
 		onTerminalResize(func(width, height int) { _ = ss.session.WindowChange(height, width) })
 		return nil
 	}
 
 	// support trzsz ( trz / tsz )
 
-	wrapStdIO(nil, nil, ss.serverErr, ss.tty)
+	wrapStdIO(nil, nil, ss.serverErr, ss.tty, "")
 
 	trzsz.SetAffectedByWindows(false)
 
@@ -172,4 +180,65 @@ func enableTrzsz(args *SshArgs, ss *sshSession) error {
 	})
 
 	return nil
+}
+
+type tildaReader struct {
+	io.Reader
+	l []byte // last 2 bytes
+	t byte   // EscapeChar
+}
+
+func newTildaReader(r io.Reader, escapeChar string) *tildaReader {
+	var t byte
+	switch strings.ToLower(escapeChar) {
+	case "none", "":
+		t = 0
+	default:
+		t = escapeChar[0]
+	}
+	return &tildaReader{
+		r,
+		[]byte{'\r', '\r'},
+		t,
+	}
+}
+
+// Заменяем `<Enter><EscapeChar><EscapeChar>` на `<Enter><EscapeChar>`.
+// Реагируем на `<Enter><EscapeChar>^Z` и `<Enter><EscapeChar>.`
+func (r *tildaReader) Read(pp []byte) (int, error) {
+	if r.t == 0 {
+		return r.Reader.Read(pp)
+	}
+	p := make([]byte, len(pp))
+	n, err := r.Reader.Read(p)
+	if err != nil {
+		return n, err
+	}
+	const (
+		Return = '\r'
+		CtrlZ  = 0x1A
+		Dot    = '.'
+	)
+
+	p = append(r.l, p[:n]...) //+2
+	switch {
+	case bytes.Contains(p, []byte{Return, r.t, CtrlZ}):
+		return 0, fmt.Errorf(`<Enter>%c^Z was pressed`, r.t)
+	case bytes.Contains(p, []byte{Return, r.t, Dot}):
+		return 0, fmt.Errorf(`<Enter>%c. was pressed`, r.t)
+	case bytes.Contains(p, []byte{Return, r.t, r.t}):
+		p = bytes.ReplaceAll(p, []byte{Return, r.t, r.t}, []byte{Return, r.t})
+	}
+	p = p[2:] //-2
+	n = copy(pp, p)
+
+	switch n {
+	case 0:
+		r.l = []byte{r.l[1], 0}
+	case 1:
+		r.l = []byte{r.l[1], p[0]}
+	default:
+		r.l = []byte{p[n-2], p[n-1]}
+	}
+	return n, nil
 }

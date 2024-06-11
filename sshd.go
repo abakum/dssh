@@ -7,6 +7,8 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -114,9 +116,35 @@ func server(h, p, repo, use string, signer ssh.Signer) { //, authorizedKeys []gl
 	gl.Handle(func(s gl.Session) {
 		defer s.Exit(0)
 		clientVersion := s.Context().ClientVersion()
-		lf.Println(clientVersion)
-		if len(s.Command()) == 2 && s.Command()[0] == repo && s.Command()[1] == RESET {
-			caRW()
+		Println(clientVersion)
+		i := 1
+		if len(s.Command()) > i && s.Command()[0] == repo {
+			switch s.Command()[i] {
+			case RESET:
+				caRW()
+			case "-b", "--baud":
+				baud := 9600
+				i++
+				if len(s.Command()) > i {
+					b, err := strconv.Atoi(s.Command()[i])
+					if err != nil {
+						baud = b
+					}
+				}
+				devPath := "COM3"
+				i++
+				if len(s.Command()) > i {
+					switch s.Command()[i] {
+					case "-s", "--serial":
+						i++
+						if len(s.Command()) > i {
+							devPath = s.Command()[i]
+						}
+					}
+				}
+				ser(s, devPath, baud)
+				return
+			}
 		}
 		winssh.ShellOrExec(s)
 	})
@@ -124,12 +152,15 @@ func server(h, p, repo, use string, signer ssh.Signer) { //, authorizedKeys []gl
 	lt.Printf("%s daemon waiting on - сервер ожидает на %s\n", repo, server.Addr)
 	lt.Println("to connect use - чтоб подключится используй", use)
 
-	go func() {
-		watch(ctxRWE, caRW, server.Addr)
-		lf.Println("local done")
-		server.Close()
-	}()
-	go established(ctxRWE, server.Addr)
+	switch runtime.GOOS {
+	case "windows", "linux":
+		go func() {
+			watch(ctxRWE, caRW, server.Addr)
+			lf.Println("local done")
+			server.Close()
+		}()
+		go established(ctxRWE, server.Addr)
+	}
 	Println("ListenAndServe", server.ListenAndServe())
 }
 

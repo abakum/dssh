@@ -8,7 +8,7 @@ replace internal/tool => ./internal/tool
 
 // replace github.com/abakum/go-sshlib => ../go-sshlib
 
-// replace github.com/abakum/putty_hosts => ../putty_hosts
+// replace github.com/abakum/go-ser2net => ../go-ser2net
 
 replace github.com/ThalesIgnite/crypto11 v1.2.5 => github.com/blacknon/crypto11 v1.2.6
 
@@ -50,21 +50,31 @@ require (
 )
 
 require (
+	github.com/NYTimes/gziphandler v1.1.1 // indirect
+	github.com/PatrickRudolph/telnet v0.0.0-20210301083732-6a03c1f7971f // indirect
 	github.com/UserExistsError/conpty v0.1.2 // indirect
 	github.com/abakum/go-console v0.0.0-20240420142043-eda1cdf92473 // indirect
+	github.com/abakum/go-ser2net v0.0.0-20240608112307-30b826290803 // indirect
 	github.com/akavel/rsrc v0.10.2 // indirect
+	github.com/albenik/go-serial/v2 v2.6.1 // indirect
 	github.com/alexflint/go-scalar v1.2.0 // indirect
 	github.com/andybrewer/mack v0.0.0-20220307193339-22e922cc18af // indirect
 	github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/boombuler/barcode v1.0.1 // indirect
+	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
+	github.com/creack/goselect v0.1.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dchest/jsmin v0.0.0-20220218165748-59f39799265f // indirect
 	github.com/eiannone/keyboard v0.0.0-20220611211555-0d226195f203 // indirect
+	github.com/elazarl/go-bindata-assetfs v1.0.1 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/fatih/color v1.16.0 // indirect
+	github.com/fatih/structs v1.1.0 // indirect
 	github.com/gorilla/websocket v1.5.1 // indirect
+	github.com/hashicorp/errwrap v1.1.0 // indirect
+	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/iamacarpet/go-winpty v1.0.4 // indirect
 	github.com/josephspurrier/goversioninfo v1.4.0 // indirect
 	github.com/klauspost/compress v1.17.7 // indirect
@@ -79,10 +89,20 @@ require (
 	github.com/muesli/reflow v0.3.0 // indirect
 	github.com/muesli/termenv v0.15.2 // indirect
 	github.com/ncruces/zenity v0.10.12 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pkg/sftp v1.13.6 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/randall77/makefat v0.0.0-20210315173500-7ddd0e42c844 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
+	github.com/russross/blackfriday/v2 v2.1.0 // indirect
+	github.com/sorenisanerd/gotty v1.3.1-0.20210604044157-f61763f7160b // indirect
+	github.com/urfave/cli/v2 v2.24.2 // indirect
+	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
+	github.com/yudai/hcl v0.0.0-20151013225006-5fa2393b3552 // indirect
+	go.bug.st/serial v1.6.2 // indirect
+	go.bug.st/serial.v1 v0.0.0-20191202182710-24a6610f0541 // indirect
+	go.uber.org/atomic v1.10.0 // indirect
+	go.uber.org/multierr v1.9.0 // indirect
 	golang.org/x/image v0.15.0 // indirect
 	golang.org/x/net v0.22.0 // indirect
 	golang.org/x/sync v0.7.0 // indirect

@@ -92,6 +92,28 @@ type sshSession struct {
 	tty       bool
 }
 
+// Закрываем сессию и клиента при закрытии ввода
+type serverWriteCloser struct {
+	io.WriteCloser
+	session *ssh.Session
+}
+
+func (s *serverWriteCloser) Close() error {
+	s.session.Close()
+	return nil
+}
+
+func newServerWriteCloser(session *ssh.Session) (*serverWriteCloser, error) {
+	wc, err := session.StdinPipe()
+	if err != nil {
+		return nil, err
+	}
+	return &serverWriteCloser{
+		wc,
+		session,
+	}, nil
+}
+
 func (s *sshSession) Close() {
 	if s.serverIn != nil {
 		s.serverIn.Close()
@@ -1306,7 +1328,7 @@ func sshLogin(args *SshArgs) (ss *sshSession, err error) {
 	}
 
 	// session input and output
-	ss.serverIn, err = ss.session.StdinPipe()
+	ss.serverIn, err = newServerWriteCloser(ss.session) //ss.session.StdinPipe()
 	if err != nil {
 		err = fmt.Errorf("stdin pipe failed: %v", err)
 		return

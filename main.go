@@ -33,6 +33,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	_ "embed"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -88,12 +89,13 @@ const (
 	TOW      = time.Second * 5  //watch TO
 	SSH2     = "SSH-2.0-"
 	OSSH     = "OpenSSH_for_Windows"
-	RESET    = "-r"
+	RESET    = "--restart"
 	SSHJ     = "ssh-j"
 	SSHJ2    = "127.0.0.2"
 	JumpHost = SSHJ + ".com"
 	EQ       = "="
 	TERM     = "xterm-256color"
+	XTTY     = "putty" // signed https://www.chiark.greenend.org.uk/~sgtatham/putty/latest.html
 )
 
 var (
@@ -239,8 +241,12 @@ Host ` + SSHJ + `
  UserKnownHostsFile ~/.ssh/` + repo + `
  KbdInteractiveAuthentication no
  PasswordAuthentication no
- ProxyJump ` + u + `@` + JumpHost + `
- `
+ ProxyJump ` + u + `@` + JumpHost
+	if args.Baud != "" || args.Serial != "" {
+		sshj += `
+EnableTrzsz no
+`
+	}
 	cli = cli ||
 		args.Command != "" ||
 		args.ForwardAgent ||
@@ -338,9 +344,9 @@ Host ` + SSHJ + `
 	} // Сервис
 
 	// Клиенты
-	client(signer, sshj, repo, SSHJ)
+	client(signer, sshj+sshJ(JumpHost, u, "", p), repo, SSHJ)
 	if args.Putty {
-		bin := "putty"
+		bin := XTTY
 		opt := ""
 		if args.Destination != "" {
 			if runtime.GOOS == "linux" {
@@ -378,14 +384,6 @@ func canReadFile(path string) bool {
 		return false
 	}
 	file.Close()
-	return true
-}
-
-// tssh
-func isFileExist(path string) bool {
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return false
-	}
 	return true
 }
 
@@ -428,9 +426,8 @@ func client(signer ssh.Signer, config string, hosts ...string) {
 		}
 	}
 	b, err := os.ReadFile(Cfg)
-	if err != nil {
-		Println(err)
-		return
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		Fatal(err)
 	}
 	old, err := ssh_config.DecodeBytes(b)
 	if err != nil {
@@ -590,31 +587,40 @@ ssh-j.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIiyFQuTwegicQ+8w7dLA7A+4JMZkCk8TL
 		Println(err)
 		return ""
 	}
-	return `
+	alias := `
 Host ` + host + `
  User ` + u + `
  UserKnownHostsFile ~/.ssh/` + SSHJ + `
  PasswordAuthentication no
  PubkeyAuthentication no
- KbdInteractiveAuthentication no
+ KbdInteractiveAuthentication no`
+	if h != "" {
+		alias += `
  SessionType none
  ExitOnForwardFailure yes
  StdinNull no
  RemoteForward ` + SSHJ2 + `:` + PORT + ` ` + h + `:` + p + `
 `
+	}
+	return alias
 }
 
 // Алиас для локального доступа. Попробовать sshd.
 func local(h, p, repo string) string {
-	return `
+	alias := `
 Host ` + repo + `
  User _
  HostName ` + h + `
  Port ` + p + `
  UserKnownHostsFile ~/.ssh/` + repo + `
  KbdInteractiveAuthentication no
- PasswordAuthentication no
+ PasswordAuthentication no`
+	if args.Baud != "" || args.Serial != "" {
+		alias += `
+ EnableTrzsz no
 `
+	}
+	return alias
 }
 
 // Разбивает ProxyHost на части для putty
@@ -842,14 +848,12 @@ func MergeConfigs(items ...*ssh_config.Config) (target *ssh_config.Config) {
 	run := func(src, rep *ssh_config.Config) (mid *ssh_config.Config) {
 		src, _ = ssh_config.Decode(strings.NewReader(clean(src.String())))
 		rep, _ = ssh_config.Decode(strings.NewReader(clean(rep.String())))
-		// rPatterns := make(map[string]bool)
 		rPatterns := NewStringSet()
 		for _, rh := range rep.Hosts {
 			for _, rp := range rh.Patterns {
 				if rp.String() == "*" {
 					continue
 				}
-				// rPatterns[rp.String()] = true
 				rPatterns.Add(rp.String())
 			}
 		}

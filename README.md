@@ -15,4 +15,5 @@ dssh:=(tssh from trzsz)+(CA key with embed-encrypt)+(sshd from gliderlabs)
     9. Запуск в Windows7 без Cygwin и MSYS2 через `-T` - setupVirtualTerminal, sttyExecutable из term_windows.go.
     10. Чтение IdentitiesOnly в getPublicKeysAuthMethod из login.go.
     11. Уникальный SecretEncodeKey и подсказка `encPassword bar` при указании `-o Password=foo` в getPasswordAuthMethod из login.go.
-    12. Возможность прервать по Ctr-C dynamicForward, localForward, remoteForward используя restoreStdFuncs.Cleanup перед ss.client.Wait в sshStart из main.go.
+    12. Возможность прервать dynamicForward, localForward, remoteForward  по Ctr-C используя restoreStdFuncs.Cleanup перед ss.client.Wait в sshStart из main.go.
+    13. Возможность прервать сессию по `<Enter><EscapeChar>.` newTildaReader в wrapStdIO из trzsz.go и newServerWriteCloser в sshLogin из login.go.
