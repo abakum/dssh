@@ -10,13 +10,16 @@ replace internal/tool => ./internal/tool
 
 // replace github.com/abakum/go-ser2net => ../go-ser2net
 
-replace github.com/ThalesIgnite/crypto11 v1.2.5 => github.com/blacknon/crypto11 v1.2.6
+// replace github.com/skeema/knownhosts => ../knownhosts
+
+// replace github.com/ThalesIgnite/crypto11 v1.2.5 => github.com/blacknon/crypto11 v1.2.6
 
 require (
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/abakum/embed-encrypt v0.0.0-20240419131915-ba2ccee1a359
 	github.com/abakum/go-ansiterm v0.0.0-20240209124652-4fc46d492442
 	github.com/abakum/go-netstat v0.0.0-20240426061934-05d15dfd4d6c
+	github.com/abakum/go-ser2net v0.0.0-20240608112307-30b826290803
 	github.com/abakum/menu v0.0.0-20240516123901-df323673a8dd
 	github.com/abakum/pageant v0.0.0-20240419114114-01633e0d85e4
 	github.com/abakum/putty_hosts v0.0.0-20240522125805-7fdec7195277
@@ -43,6 +46,7 @@ require (
 	github.com/trzsz/ssh_config v1.3.6
 	github.com/trzsz/trzsz-go v1.1.8-0.20240303135018-b95b67671472
 	github.com/xlab/closer v1.1.0
+	go.bug.st/serial v1.6.2
 	golang.org/x/crypto v0.22.0
 	golang.org/x/sys v0.20.0
 	golang.org/x/term v0.20.0
@@ -54,9 +58,7 @@ require (
 	github.com/PatrickRudolph/telnet v0.0.0-20210301083732-6a03c1f7971f // indirect
 	github.com/UserExistsError/conpty v0.1.2 // indirect
 	github.com/abakum/go-console v0.0.0-20240420142043-eda1cdf92473 // indirect
-	github.com/abakum/go-ser2net v0.0.0-20240608112307-30b826290803 // indirect
 	github.com/akavel/rsrc v0.10.2 // indirect
-	github.com/albenik/go-serial/v2 v2.6.1 // indirect
 	github.com/alexflint/go-scalar v1.2.0 // indirect
 	github.com/andybrewer/mack v0.0.0-20220307193339-22e922cc18af // indirect
 	github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be // indirect
@@ -99,10 +101,6 @@ require (
 	github.com/urfave/cli/v2 v2.24.2 // indirect
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 	github.com/yudai/hcl v0.0.0-20151013225006-5fa2393b3552 // indirect
-	go.bug.st/serial v1.6.2 // indirect
-	go.bug.st/serial.v1 v0.0.0-20191202182710-24a6610f0541 // indirect
-	go.uber.org/atomic v1.10.0 // indirect
-	go.uber.org/multierr v1.9.0 // indirect
 	golang.org/x/image v0.15.0 // indirect
 	golang.org/x/net v0.22.0 // indirect
 	golang.org/x/sync v0.7.0 // indirect

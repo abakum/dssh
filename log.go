@@ -68,7 +68,8 @@ func PrintOk(s string, err error) (ok bool) {
 
 // Вывод ошибки если она есть
 func Println(v ...any) (ok bool) {
-	anys := []any{src(8)}
+	// anys := []any{src(8)}
+	anys := []any{}
 	ok = true
 	for _, a := range v {
 		switch t := a.(type) {
@@ -86,10 +87,12 @@ func Println(v ...any) (ok bool) {
 		}
 	}
 	if ok {
-		l.Println(anys...)
+		lf.Output(2, fmt.Sprintln(anys...))
+		// l.Println(anys...)
 		fmt.Fprint(l.Writer(), "\r")
 	} else {
-		le.Println(anys...)
+		lef.Output(2, fmt.Sprintln(anys...))
+		// le.Println(anys...)
 		fmt.Fprint(le.Writer(), "\r")
 	}
 	return ok

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -16,6 +17,7 @@ import (
 	"github.com/abakum/go-netstat/netstat"
 	"github.com/abakum/winssh"
 	gl "github.com/gliderlabs/ssh"
+	"github.com/trzsz/go-arg"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -117,36 +119,69 @@ func server(h, p, repo, use string, signer ssh.Signer) { //, authorizedKeys []gl
 		defer s.Exit(0)
 		clientVersion := s.Context().ClientVersion()
 		Println(clientVersion)
-		i := 1
-		if len(s.Command()) > i && s.Command()[0] == repo {
-			switch s.Command()[i] {
-			case RESET:
-				caRW()
-			case "-b", "--baud":
-				baud := 9600
-				i++
-				if len(s.Command()) > i {
-					b, err := strconv.Atoi(s.Command()[i])
-					if err != nil {
-						baud = b
-					}
+		if !(len(s.Command()) > 1 && s.Command()[0] == repo) {
+			winssh.ShellOrExec(s)
+			return
+		}
+		var cgi cgiArgs
+		parser, err := NewParser(arg.Config{}, &cgi)
+		Println("CGI", s.Command(), err)
+		if err != nil {
+			return
+		}
+		err = parser.Parse(s.Command()[1:])
+		if err != nil {
+			return
+		}
+		switch {
+		case cgi.Restart:
+			caRW()
+		case cgi.Baud != "" || cgi.Serial != "" || cgi.Ser2net > 0:
+			log.SetFlags(log.Lshortfile)
+			log.SetPrefix(">")
+			log.SetOutput(s.Stderr())
+			baud := baudRate(strconv.Atoi(cgi.Baud))
+			if cgi.Serial == "" {
+				var list string
+				cgi.Serial, list = getFirstSerial(true, baud)
+				log.Print(list)
+				if cgi.Serial == "" {
+					log.Print("Not found free serial USB port - Не найден свободный последовательный порт USB")
+					return
 				}
-				devPath := "COM3"
-				i++
-				if len(s.Command()) > i {
-					switch s.Command()[i] {
-					case "-s", "--serial":
-						i++
-						if len(s.Command()) > i {
-							devPath = s.Command()[i]
-						}
-					}
-				}
-				ser(s, devPath, baud)
+			}
+			if !(cgi.Putty || cgi.Ser2net > 0) {
+				ser(s, &cgi, baud, log.Println)
 				return
 			}
+			bind := "127.0.0.1"
+			closed := fmt.Sprintf("%s@%d, %s:%d  closed - закрыт ", cgi.Serial, baud, bind, cgi.Ser2net)
+			press := mess("")
+			ctx, cancel := context.WithCancel(s.Context())
+			s2n(ctx, &cgi, baud, log.Println, bind, closed, press)
+			buffer := make([]byte, 100)
+			for {
+				n, _ := s.Read(buffer)
+				buf := buffer[:n]
+				if n > 0 {
+					switch buf[0] {
+					case '.', 3:
+						cancel()
+						log.Println(closed + "\r")
+						return
+					case '0', '1', '2', '3', '4', '5', '9':
+						cancel()
+						time.Sleep(time.Second)
+						ctx, cancel = context.WithCancel(s.Context())
+						baud = baudRate(int(buf[0]-'0'), nil)
+						closed = fmt.Sprintf("%s@%d, %s:%d  closed - закрыт ", cgi.Serial, baud, bind, cgi.Ser2net)
+						s2n(ctx, &cgi, baud, log.Println, bind, closed, press)
+					default:
+						log.Println(press)
+					}
+				}
+			}
 		}
-		winssh.ShellOrExec(s)
 	})
 
 	lt.Printf("%s daemon waiting on - сервер ожидает на %s\n", repo, server.Addr)
@@ -159,7 +194,7 @@ func server(h, p, repo, use string, signer ssh.Signer) { //, authorizedKeys []gl
 			lf.Println("local done")
 			server.Close()
 		}()
-		go established(ctxRWE, server.Addr)
+		go established(ctxRWE, server.Addr, false)
 	}
 	Println("ListenAndServe", server.ListenAndServe())
 }
@@ -258,7 +293,7 @@ func watch(ctx context.Context, ca context.CancelFunc, dest string) {
 }
 
 // Что там с подключениями к dest
-func established(ctx context.Context, dest string) {
+func established(ctx context.Context, dest string, exit bool) {
 	old := 0
 	ste_ := ""
 	t := time.NewTicker(TOW)
@@ -273,6 +308,9 @@ func established(ctx context.Context, dest string) {
 				switch {
 				case new == 0:
 					lf.Println(dest, "There are no connections - Нет подключений")
+					if exit {
+						return
+					}
 				case old > new:
 					lf.Print(dest, " Connections have decreased - Подключений уменьшилось\n", ste)
 				default:

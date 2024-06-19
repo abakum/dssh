@@ -89,7 +89,7 @@ const (
 	TOW      = time.Second * 5  //watch TO
 	SSH2     = "SSH-2.0-"
 	OSSH     = "OpenSSH_for_Windows"
-	RESET    = "--restart"
+	RESTART  = "--restart"
 	SSHJ     = "ssh-j"
 	SSHJ2    = "127.0.0.2"
 	JumpHost = SSHJ + ".com"
@@ -178,6 +178,7 @@ func main() {
 	a2s := make([]string, 0) // without built in option
 	deb := false
 	cli := false
+	enableTrzsz := "yes"
 	for _, arg := range os.Args[1:] {
 		if strings.HasPrefix(arg, "-") {
 			switch arg[len(arg)-1:] {
@@ -185,7 +186,7 @@ func main() {
 				cli = true
 			}
 		}
-		switch arg {
+		switch strings.ToLower(arg) {
 		case "-help", "--help":
 			parser.WriteHelp(Std)
 			return
@@ -202,9 +203,56 @@ func main() {
 		}
 	}
 
+	Println(a2s)
 	if err := parser.Parse(a2s); err != nil {
 		parser.WriteUsage(Std)
 		Fatal(err)
+	}
+
+	if args.Ser2net > -1 {
+		if args.Ser2net == 0 {
+			args.Ser2net = 22170
+		}
+		if args.Destination != "." && args.Destination != repo {
+			a2s = append(a2s, "-L", fmt.Sprintf("%d:127.0.0.1:%d", args.Ser2net, args.Ser2net))
+			if err := parser.Parse(a2s); err != nil {
+				Fatal(err)
+			}
+			if args.Ser2net == 0 {
+				args.Ser2net = 22170
+			}
+		}
+	}
+	Println(a2s)
+
+	if args.Restart || args.Baud != "" || args.Serial != "" || args.Ser2net > 0 {
+		Println(args.Restart, args.Baud, args.Serial, args.Ser2net)
+		cli = true
+		enableTrzsz = "no"
+		args.Command = repo
+		args.ForceTTY = true
+		args.DisableTTY = false
+		args.Argument = nil
+		if args.Destination == "" {
+			args.Destination = ":"
+		}
+		if args.Restart {
+			args.Argument = append(args.Argument, "--restart")
+		} else {
+			if args.Putty {
+				args.Argument = append(args.Argument, "--putty")
+			}
+			if args.Baud != "" {
+				args.Argument = append(args.Argument, "--baud", args.Baud)
+			}
+			if args.Serial != "" {
+				args.Argument = append(args.Argument, "--serial", args.Serial)
+			}
+			if args.Ser2net > 0 {
+				args.Argument = append(args.Argument, "--2217", strconv.Itoa(args.Ser2net))
+			}
+		}
+
 	}
 	if args.Ver {
 		Println(args.Version())
@@ -241,12 +289,8 @@ Host ` + SSHJ + `
  UserKnownHostsFile ~/.ssh/` + repo + `
  KbdInteractiveAuthentication no
  PasswordAuthentication no
- ProxyJump ` + u + `@` + JumpHost
-	if args.Baud != "" || args.Serial != "" {
-		sshj += `
-EnableTrzsz no
-`
-	}
+ ProxyJump ` + u + `@` + JumpHost + `
+ EnableTrzsz ` + enableTrzsz
 	cli = cli ||
 		args.Command != "" ||
 		args.ForwardAgent ||
@@ -325,7 +369,7 @@ EnableTrzsz no
 		rc += JumpHost
 		args.Destination = JumpHost
 		args.DisableTTY = true
-		client(signer, local(hh, p, repo)+sshj+sshJ(JumpHost, u, hh, p))
+		client(signer, local(hh, p, repo, enableTrzsz)+sshj+sshJ(JumpHost, u, hh, p))
 		s := fmt.Sprintf("`tssh %s`", rc)
 		i := 0
 		for {
@@ -355,6 +399,9 @@ EnableTrzsz no
 			} else {
 				opt = "@" + args.Destination
 			}
+			if args.Ser2net > 0 {
+				opt = fmt.Sprintf("telnet://127.0.0.1:%d", args.Ser2net)
+			}
 		}
 		path, err := exec.LookPath(bin)
 		if err == nil {
@@ -363,10 +410,18 @@ EnableTrzsz no
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stdout
 			Println(cmd)
-			cmd.Run()
-			return
+			if args.Ser2net > 0 {
+				time.AfterFunc(time.Second*3, func() {
+					cmd.Start()
+				})
+
+			} else {
+				cmd.Run()
+				return
+			}
+		} else {
+			Println("not found - не найден", bin)
 		}
-		Println("not found - не найден", bin)
 	}
 	code := TsshMain(&args)
 	if args.Background {
@@ -606,7 +661,7 @@ Host ` + host + `
 }
 
 // Алиас для локального доступа. Попробовать sshd.
-func local(h, p, repo string) string {
+func local(h, p, repo, enableTrzsz string) string {
 	alias := `
 Host ` + repo + `
  User _
@@ -614,12 +669,8 @@ Host ` + repo + `
  Port ` + p + `
  UserKnownHostsFile ~/.ssh/` + repo + `
  KbdInteractiveAuthentication no
- PasswordAuthentication no`
-	if args.Baud != "" || args.Serial != "" {
-		alias += `
- EnableTrzsz no
-`
-	}
+ PasswordAuthentication no
+ EnableTrzsz ` + enableTrzsz
 	return alias
 }
 
