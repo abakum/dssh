@@ -168,24 +168,14 @@ func main() {
 	signer, err := ssh.NewSignerFromKey(anyKey)
 	Fatal(err)
 
-	defer closer.Close()
-	closer.Bind(cleanup)
-
 	// Like `parser := arg.MustParse(&args)` but override built in option `-v, --version` of package `arg`
 	parser, err := NewParser(arg.Config{}, &args)
 	Fatal(err)
 
 	a2s := make([]string, 0) // without built in option
-	deb := false
 	cli := false
 	enableTrzsz := "yes"
 	for _, arg := range os.Args[1:] {
-		if strings.HasPrefix(arg, "-") {
-			switch arg[len(arg)-1:] {
-			case "i", "o", "D", "L", "R":
-				cli = true
-			}
-		}
 		switch strings.ToLower(arg) {
 		case "-help", "--help":
 			parser.WriteHelp(Std)
@@ -197,8 +187,14 @@ func main() {
 			Println(args.Version())
 			return
 		case "-v":
-			deb = true
+			a2s = append(a2s, "--debug")
 		default:
+			if strings.HasPrefix(arg, "-") {
+				switch arg[len(arg)-1:] {
+				case "i", "c", "F", "J", "o", "W", "D", "L", "R":
+					cli = true
+				}
+			}
 			a2s = append(a2s, arg)
 		}
 	}
@@ -206,6 +202,10 @@ func main() {
 	if err := parser.Parse(a2s); err != nil {
 		parser.WriteUsage(Std)
 		Fatal(err)
+	}
+	if args.Ver {
+		Println(args.Version())
+		return
 	}
 
 	if args.Ser2net > -1 {
@@ -223,7 +223,13 @@ func main() {
 		}
 	}
 
+	Println(a2s)
+
+	defer closer.Close()
+	closer.Bind(cleanup)
+
 	if args.Restart || args.Baud != "" || args.Serial != "" || args.Ser2net > 0 {
+		// CGI
 		Println(args.Restart, args.Baud, args.Serial, args.Ser2net)
 		cli = true
 		enableTrzsz = "no"
@@ -237,9 +243,6 @@ func main() {
 		if args.Restart {
 			args.Argument = append(args.Argument, "--restart")
 		} else {
-			if args.Putty {
-				args.Argument = append(args.Argument, "--putty")
-			}
 			if args.Baud != "" {
 				args.Argument = append(args.Argument, "--baud", args.Baud)
 			}
@@ -252,11 +255,6 @@ func main() {
 		}
 
 	}
-	if args.Ver {
-		Println(args.Version())
-		return
-	}
-	args.Debug = args.Debug || deb
 
 	// tools
 	SecretEncodeKey = key

@@ -36,10 +36,9 @@ func (r *CtxReader) Read(p []byte) (int, error) {
 }
 
 type cgiArgs struct {
-	Putty   bool   `arg:"-P,--putty" help:"use ser2net for access to serial port for console"`
 	Baud    string `arg:"-b,--baud" placeholder:"baud" help:"set serial console baud rate"`
 	Serial  string `arg:"-s,--serial" placeholder:"serial" help:"serial port for console"`
-	Ser2net int    `arg:"-2,--2217" placeholder:"port" help:"RFC2217 telnet port for serial port console over telnet" default:"-1"`
+	Ser2net int    `arg:"-2,--2217" placeholder:"port" help:"RFC2217 telnet port for serial port console over telnet"`
 	Restart bool   `arg:"-r,--restart" help:"restart daemon"`
 }
 

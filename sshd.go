@@ -118,11 +118,12 @@ func server(h, p, repo, use string, signer ssh.Signer) { //, authorizedKeys []gl
 	gl.Handle(func(s gl.Session) {
 		defer s.Exit(0)
 		clientVersion := s.Context().ClientVersion()
-		Println(clientVersion)
-		if !(len(s.Command()) > 1 && s.Command()[0] == repo) {
+		Println(clientVersion, s.Command(), s.RawCommand(), repo, imag)
+		if len(s.Command()) < 2 || s.Command()[0] != repo {
 			winssh.ShellOrExec(s)
 			return
 		}
+		//len(s.Command()) > 1 && s.Command()[0] == repo
 		var cgi cgiArgs
 		parser, err := NewParser(arg.Config{}, &cgi)
 		Println("CGI", s.Command(), err)
@@ -150,7 +151,7 @@ func server(h, p, repo, use string, signer ssh.Signer) { //, authorizedKeys []gl
 					return
 				}
 			}
-			if !(cgi.Putty || cgi.Ser2net > 0) {
+			if cgi.Ser2net < 0 {
 				ser(s, &cgi, baud, log.Println)
 				return
 			}
