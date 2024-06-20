@@ -590,6 +590,8 @@ func getPasswordAuthMethod(args *SshArgs, host, user string) ssh.AuthMethod {
 				encoded, err := encodeSecret([]byte(password))
 				if err == nil {
 					warning("insert next line\r\nIgnoreUnknown *\r\nto the beginning of the file [~/.ssh/config] and append after [Host %s] next line\r\n encPassword %s", args.Destination, encoded)
+				} else {
+					warning("%v", err)
 				}
 			}
 			if password != "" {
@@ -1101,8 +1103,8 @@ func sshConnect(args *SshArgs, client *ssh.Client, proxy string) (*ssh.Client, *
 		return nil, nil, false, err
 	}
 
-	resetLogLevel := setupLogLevel(args)
-	defer resetLogLevel()
+	// resetLogLevel := setupLogLevel(args)
+	// defer resetLogLevel()
 
 	if client := connectViaControl(args, param); client != nil {
 		return client, param, true, nil

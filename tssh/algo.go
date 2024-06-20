@@ -99,11 +99,15 @@ func setupHostKeyAlgorithmsConfig(args *SshArgs, config *ssh.ClientConfig) {
 	// debug("host key algorithms: %v", config.HostKeyAlgorithms)
 	defer func() {
 		setSupported(config)
+		if len(config.HostKeyAlgorithms) == 0 {
+			// Нет алгоритмов из know_host и authorized_keys тогда пусть x/crypto/ssh присвоит дефолтные
+			config.HostKeyAlgorithms = nil
+		}
 		debug("client supported algorithms: %v", config.HostKeyAlgorithms)
 	}()
 	algoSpec := getOptionConfig(args, "HostKeyAlgorithms")
 	if algoSpec == ssh_config.Default("HostKeyAlgorithms") || algoSpec == "" {
-		// Не указан HostKeyAlgorithms
+		// Нет  -o HostKeyAlgorithms=a,b,...
 		debug("default algorithms: %v", config.HostKeyAlgorithms)
 		return
 	}

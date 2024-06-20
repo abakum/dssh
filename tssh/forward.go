@@ -37,9 +37,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/armon/go-socks5"
+	"github.com/smeinecke/go-socks5" // для системного прокси Windows нужен socks4
 	"golang.org/x/crypto/ssh"
 )
+
+//	"github.com/armon/go-socks5" только socks5
 
 type bindCfg struct {
 	argument string
@@ -308,7 +310,8 @@ func dynamicForward(client *ssh.Client, b *bindCfg, args *SshArgs) {
 		Dial: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			return dialWithTimeout(client, network, addr, 10*time.Second)
 		},
-		Logger: log.New(io.Discard, "", log.LstdFlags),
+		Logger:        log.New(io.Discard, "", log.LstdFlags),
+		Socks4Support: true,
 	})
 	if err != nil {
 		warning("dynamic forward failed: %v", err)

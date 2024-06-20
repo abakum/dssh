@@ -203,7 +203,6 @@ func main() {
 		}
 	}
 
-	Println(a2s)
 	if err := parser.Parse(a2s); err != nil {
 		parser.WriteUsage(Std)
 		Fatal(err)
@@ -223,7 +222,6 @@ func main() {
 			}
 		}
 	}
-	Println(a2s)
 
 	if args.Restart || args.Baud != "" || args.Serial != "" || args.Ser2net > 0 {
 		Println(args.Restart, args.Baud, args.Serial, args.Ser2net)

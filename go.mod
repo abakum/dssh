@@ -14,7 +14,6 @@ require (
 	github.com/abakum/version v0.1.3-lw
 	github.com/abakum/winssh v0.0.0-20240506170933-67061329cb4d
 	github.com/alessio/shellescape v1.4.2
-	github.com/armon/go-socks5 v0.0.0-20160902184237-e75332964ef5
 	github.com/charmbracelet/bubbles v0.18.0
 	github.com/charmbracelet/bubbletea v0.26.4
 	github.com/charmbracelet/lipgloss v0.11.0
@@ -27,6 +26,7 @@ require (
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/pquerna/otp v1.4.0
 	github.com/skeema/knownhosts v1.2.2
+	github.com/smeinecke/go-socks5 v0.0.0-20180316091040-4880db608f18
 	github.com/stretchr/testify v1.9.0
 	github.com/trzsz/go-arg v1.5.3
 	github.com/trzsz/iterm2 v0.1.2

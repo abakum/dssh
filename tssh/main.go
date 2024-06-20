@@ -221,6 +221,9 @@ func TsshMain(args *SshArgs) int {
 	args.Destination = dest
 	args.originalDest = dest
 
+	resetLogLevel := setupLogLevel(args)
+	defer resetLogLevel()
+
 	// start ssh program
 	if err = sshStart(args); err != nil {
 		warning("sshStart failed: %v", err)
