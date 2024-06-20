@@ -1125,6 +1125,7 @@ func sshConnect(args *SshArgs, client *ssh.Client, proxy string) (*ssh.Client, *
 			_, err := fmt.Fprint(os.Stderr, strings.ReplaceAll(banner, "\n", "\r\n"))
 			return err
 		},
+		ClientVersion: "SSH-2.0-" + "tssh_" + kTsshVersion,
 	}
 	// Перед вызовом setupHostKeyAlgorithmsConfig должен быть установлен HostKeyAlgorithms.
 	// >If hostkeys are known for the destination host then this default is modified to prefer their algorithms.

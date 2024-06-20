@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"runtime"
 	"strings"
 
 	"github.com/abakum/go-ser2net/pkg/ser2net"
+	"github.com/abakum/winssh"
 	gl "github.com/gliderlabs/ssh"
 	"go.bug.st/serial"
 	"go.bug.st/serial/enumerator"
@@ -122,6 +124,9 @@ func getFirstSerial(isUSB bool, baud int) (name, list string) {
 			sp, err := serial.Open(port.Name, &serial.Mode{BaudRate: baud})
 			if err != nil {
 				list += fmt.Sprintf(" %s", err)
+				if strings.HasSuffix(err.Error(), "Permission denied") && runtime.GOOS != "windows" {
+					list += fmt.Sprintf(" try run `sudo usermod -a -G dialout %s` then reboot", winssh.UserName())
+				}
 				continue
 			}
 			_, err = sp.GetModemStatusBits()

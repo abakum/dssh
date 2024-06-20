@@ -117,8 +117,7 @@ func server(h, p, repo, use string, signer ssh.Signer) { //, authorizedKeys []gl
 
 	gl.Handle(func(s gl.Session) {
 		defer s.Exit(0)
-		clientVersion := s.Context().ClientVersion()
-		Println(clientVersion, s.Command(), s.RawCommand(), repo, imag)
+		Println(s.Context().ClientVersion())
 		if len(s.Command()) < 2 || s.Command()[0] != repo {
 			winssh.ShellOrExec(s)
 			return
