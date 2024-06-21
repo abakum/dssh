@@ -10,7 +10,6 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/abakum/go-ser2net/pkg/ser2net"
 	"github.com/abakum/winssh"
 	gl "github.com/gliderlabs/ssh"
 	"go.bug.st/serial"
@@ -197,7 +196,7 @@ func (w *baudWriter) Write(pp []byte) (int, error) {
 		if bytes.Contains(p, []byte{Return, w.t, key}) {
 			baud := baudRate(int(key-'0'), nil)
 			err := w.port.SetMode(&serial.Mode{BaudRate: baud})
-			msg := fmt.Sprintf("%s@%d %v\r", w.name, baud, err)
+			msg := fmt.Sprintf("%s@%d set baud - установлена скорость %v\r", w.name, baud, err)
 			w.println(msg)
 			Println(msg)
 			p = bytes.ReplaceAll(p, []byte{Return, w.t, key}, []byte{Return, w.t, BackSpace})
@@ -246,25 +245,4 @@ func baudRate(b int, err error) (baud int) {
 		baud = 57600
 	}
 	return
-}
-
-func s2n(ctx context.Context, cgi *cgiArgs, baud int, println func(v ...any), bind, closed, press string) {
-	w, err := ser2net.NewSerialWorker(ctx, cgi.Serial, baud)
-	msg := fmt.Sprintf("%s@%d opened - открыт, %s:%d listen - ожидает подключения\r", cgi.Serial, baud, bind, cgi.Ser2net)
-	if err != nil {
-		msg = fmt.Sprintf("%s@%d opened fail - не был открыт: %v\r", cgi.Serial, baud, err)
-		println(msg)
-		Println(msg)
-		return
-	}
-	println(msg)
-	Println(msg)
-	println(press)
-
-	go w.Worker()
-	go func() {
-		err = w.StartTelnet(bind, cgi.Ser2net)
-		println(closed, err, "\r")
-		Println(closed, err, "\r")
-	}()
 }

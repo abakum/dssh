@@ -18,6 +18,8 @@ github.com/abakum/go-netstat v0.0.0-20240426061934-05d15dfd4d6c h1:WUPr59hkbQerf
 github.com/abakum/go-netstat v0.0.0-20240426061934-05d15dfd4d6c/go.mod h1:VDmPFexMx7WdPUz+8/esyAIL4VIT13CSUmbQQZV420c=
 github.com/abakum/go-ser2net v0.0.1 h1:BU0ZTka7L47f0AAO8wCd60b7sukxnIpMFf0dCUeAydI=
 github.com/abakum/go-ser2net v0.0.1/go.mod h1:8eMO10aza1oDF/8/1qEJwseNHJi/J8LYuiWt1619DZM=
+github.com/abakum/go-ser2net v0.0.2-0.20240621141651-42d2aa479cd9 h1:BpGM0BsMnBK1Bc3ubQcfTaiFuFftSwDw+/uLHbShegY=
+github.com/abakum/go-ser2net v0.0.2-0.20240621141651-42d2aa479cd9/go.mod h1:blpje2Dzabia7l3p4eh/isSpa1LALV983wEFPprpaUM=
 github.com/abakum/menu v0.0.0-20240516124926-41dfbe5ce154 h1:9elWTMnGPe4QSe/aUIhKnc4LeJWaanoEwgahjrafyms=
 github.com/abakum/menu v0.0.0-20240516124926-41dfbe5ce154/go.mod h1:Y6wORMaK0ZgPPADgorFUrY48jlS5uX+FD9mJQHGTusU=
 github.com/abakum/pageant v0.0.0-20240419114114-01633e0d85e4 h1:m9Hw8phO6pkDg6qvWovQ8PPkXeHd2TLl390Xdm/FtKo=

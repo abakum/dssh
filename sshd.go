@@ -15,9 +15,11 @@ import (
 
 	"github.com/abakum/go-ansiterm"
 	"github.com/abakum/go-netstat/netstat"
+	"github.com/abakum/go-ser2net/pkg/ser2net"
 	"github.com/abakum/winssh"
 	gl "github.com/gliderlabs/ssh"
 	"github.com/trzsz/go-arg"
+	"go.bug.st/serial"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -150,36 +152,56 @@ func server(h, p, repo, use string, signer ssh.Signer) { //, authorizedKeys []gl
 					return
 				}
 			}
-			if cgi.Ser2net < 0 {
+			if cgi.Ser2net < 1 {
 				ser(s, &cgi, baud, log.Println)
 				return
 			}
 			bind := "127.0.0.1"
-			closed := fmt.Sprintf("%s@%d, %s:%d  closed - закрыт ", cgi.Serial, baud, bind, cgi.Ser2net)
 			press := mess("")
-			ctx, cancel := context.WithCancel(s.Context())
-			s2n(ctx, &cgi, baud, log.Println, bind, closed, press)
-			buffer := make([]byte, 100)
-			for {
-				n, _ := s.Read(buffer)
-				buf := buffer[:n]
-				if n > 0 {
-					switch buf[0] {
-					case '.', 3:
-						cancel()
-						log.Println(closed + "\r")
+			w, _ := ser2net.NewSerialWorker(s.Context(), cgi.Serial, baud)
+			go w.Worker()
+			go func() {
+				defer func() {
+					w.Stop()
+					w.SerialClose()
+					Println(w)
+				}()
+				log.Println(press)
+				buffer := make([]byte, 100)
+				for {
+					select {
+					case <-s.Context().Done():
 						return
-					case '0', '1', '2', '3', '4', '5', '9':
-						cancel()
-						time.Sleep(time.Second)
-						ctx, cancel = context.WithCancel(s.Context())
-						baud = baudRate(int(buf[0]-'0'), nil)
-						closed = fmt.Sprintf("%s@%d, %s:%d  closed - закрыт ", cgi.Serial, baud, bind, cgi.Ser2net)
-						s2n(ctx, &cgi, baud, log.Println, bind, closed, press)
 					default:
-						log.Println(press)
+						n, _ := s.Read(buffer)
+						buf := buffer[:n]
+						if n > 0 {
+							switch buf[0] {
+							case '.', 3:
+								return
+							case '0', '1', '2', '3', '4', '5', '9':
+								baud = baudRate(int(buf[0]-'0'), nil)
+								err = w.SetMode(&serial.Mode{
+									BaudRate:          baud,
+									DataBits:          8,
+									Parity:            serial.NoParity,
+									StopBits:          serial.OneStopBit,
+									InitialStatusBits: nil,
+								})
+								msg := fmt.Sprintf("%s set baud - установлена скорость %v\r", w, err)
+								log.Println(msg, "\r")
+								Println(msg)
+							default:
+								log.Println(press)
+							}
+						}
 					}
 				}
+			}()
+			err = w.StartTelnet(bind, cgi.Ser2net)
+			if err != nil {
+				log.Println(err)
+				Println(err)
 			}
 		}
 	})

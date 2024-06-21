@@ -2,12 +2,14 @@ module github.com/abakum/dssh
 
 go 1.21.4
 
+// replace github.com/abakum/go-ser2net => ../go-ser2net
+
 require (
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/abakum/embed-encrypt v0.0.0-20240419131915-ba2ccee1a359
 	github.com/abakum/go-ansiterm v0.0.0-20240209124652-4fc46d492442
 	github.com/abakum/go-netstat v0.0.0-20240426061934-05d15dfd4d6c
-	github.com/abakum/go-ser2net v0.0.1
+	github.com/abakum/go-ser2net v0.0.2-0.20240621141651-42d2aa479cd9
 	github.com/abakum/menu v0.0.0-20240516124926-41dfbe5ce154
 	github.com/abakum/pageant v0.0.0-20240419114114-01633e0d85e4
 	github.com/abakum/putty_hosts v0.0.0-20240522125805-7fdec7195277

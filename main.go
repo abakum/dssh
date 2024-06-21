@@ -43,6 +43,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	rdebug "runtime/debug"
 	"slices"
 	"strconv"
@@ -158,7 +159,7 @@ func main() {
 	imag = strings.Split(filepath.Base(exe), ".")[0]
 
 	ips := ints()
-	Println(runtime.GOARCH, runtime.GOOS, GoVer(), repo, Ver, ips)
+	Println(build(Ver, ips))
 	FatalOr("not connected - нет сети", len(ips) == 0)
 
 	anyKey, err := x509.ParsePKCS8PrivateKey(CA)
@@ -725,15 +726,6 @@ func newMap(keys, defs []string, values ...string) (kv map[string]string) {
 	return
 }
 
-func GoVer() (s string) {
-	info, ok := rdebug.ReadBuildInfo()
-	s = "go"
-	if ok {
-		s = info.GoVersion
-	}
-	return
-}
-
 func base() string {
 	info, ok := rdebug.ReadBuildInfo()
 	if ok {
@@ -966,5 +958,23 @@ func ParseDestination(dest string) (user, host, port string) {
 	}
 
 	host = dest
+	return
+}
+
+func build(a ...any) (s string) {
+	s = runtime.GOARCH + " " + runtime.GOOS
+	if info, ok := debug.ReadBuildInfo(); ok {
+		s += " " + info.GoVersion
+		s += " " + path.Base(info.Path)
+		for _, setting := range info.Settings {
+			switch setting.Key {
+			case "vcs.revision":
+				s += " " + setting.Value
+			case "vcs.time":
+				s += " " + strings.ReplaceAll(strings.ReplaceAll(setting.Value, "-", ""), ":", "")
+			}
+		}
+	}
+	s += " " + strings.TrimSpace(fmt.Sprintln(a...))
 	return
 }
