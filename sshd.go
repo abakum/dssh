@@ -15,11 +15,9 @@ import (
 
 	"github.com/abakum/go-ansiterm"
 	"github.com/abakum/go-netstat/netstat"
-	"github.com/abakum/go-ser2net/pkg/ser2net"
 	"github.com/abakum/winssh"
 	gl "github.com/gliderlabs/ssh"
 	"github.com/trzsz/go-arg"
-	"go.bug.st/serial"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -29,7 +27,7 @@ import (
 // signer ключ ЦС,
 // authorizedKeys замки разрешённых пользователей,
 // CertCheck имя разрешённого пользователя в сертификате.
-func server(h, p, repo, use string, signer ssh.Signer) { //, authorizedKeys []gl.PublicKey
+func server(h, p, repo, use string, signer ssh.Signer, Println func(v ...any), Print func(v ...any)) { //, authorizedKeys []gl.PublicKey
 
 	authorizedKeys := FileToAuthorized(filepath.Join(SshUserDir, "authorized_keys"), signer.PublicKey())
 
@@ -42,7 +40,7 @@ func server(h, p, repo, use string, signer ssh.Signer) { //, authorizedKeys []gl
 		Addr: net.JoinHostPort(h, p),
 		// next for ssh -R host:port:x:x
 		ReversePortForwardingCallback: gl.ReversePortForwardingCallback(func(ctx gl.Context, host string, port uint32) bool {
-			lt.Println("Attempt to bind - Начать слушать", host, port, "granted - позволено")
+			Println("Attempt to bind - Начать слушать", host, port, "granted - позволено")
 			return true
 		}),
 		RequestHandlers: map[string]gl.RequestHandler{
@@ -53,7 +51,7 @@ func server(h, p, repo, use string, signer ssh.Signer) { //, authorizedKeys []gl
 
 		// next for ssh -L x:dhost:dport
 		LocalPortForwardingCallback: gl.LocalPortForwardingCallback(func(ctx gl.Context, dhost string, dport uint32) bool {
-			lt.Println("Accepted forward - Разрешен перенос", dhost, dport)
+			Println("Accepted forward - Разрешен перенос", dhost, dport)
 			return true
 		}),
 		ChannelHandlers: map[string]gl.ChannelHandler{
@@ -66,7 +64,7 @@ func server(h, p, repo, use string, signer ssh.Signer) { //, authorizedKeys []gl
 			"sftp":                  winssh.SubsystemHandlerSftp,  // to allow sftp
 			winssh.AgentRequestType: winssh.SubsystemHandlerAgent, // to allow agent forwarding
 		},
-		SessionRequestCallback: winssh.SessionRequestCallback,
+		SessionRequestCallback: SessionRequestCallback,
 		// IdleTimeout:            -time.Second * 100, // send `keepalive` every 100 seconds
 		// MaxTimeout:             -time.Second * 300, // сlosing the session after 300 seconds with no response
 		Version: winssh.Banner(repo, Ver),
@@ -143,80 +141,39 @@ func server(h, p, repo, use string, signer ssh.Signer) { //, authorizedKeys []gl
 			log.SetPrefix(">")
 			log.SetOutput(s.Stderr())
 			baud := baudRate(strconv.Atoi(cgi.Baud))
+			cgi.Serial = getFirstUsbSerial(cgi.Serial, baud, log.Print)
 			if cgi.Serial == "" {
-				var list string
-				cgi.Serial, list = getFirstSerial(true, baud)
-				log.Print(list)
-				if cgi.Serial == "" {
-					log.Print("Not found free serial USB port - Не найден свободный последовательный порт USB")
-					return
-				}
-			}
-			if cgi.Ser2net < 1 {
-				ser(s, &cgi, baud, log.Println)
 				return
 			}
-			bind := "127.0.0.1"
-			press := mess("")
-			w, _ := ser2net.NewSerialWorker(s.Context(), cgi.Serial, baud)
-			go w.Worker()
-			go func() {
-				defer func() {
-					w.Stop()
-					w.SerialClose()
-					Println(w)
-				}()
-				log.Println(press)
-				buffer := make([]byte, 100)
-				for {
-					select {
-					case <-s.Context().Done():
-						return
-					default:
-						n, _ := s.Read(buffer)
-						buf := buffer[:n]
-						if n > 0 {
-							switch buf[0] {
-							case '.', 3:
-								return
-							case '0', '1', '2', '3', '4', '5', '9':
-								baud = baudRate(int(buf[0]-'0'), nil)
-								err = w.SetMode(&serial.Mode{
-									BaudRate:          baud,
-									DataBits:          8,
-									Parity:            serial.NoParity,
-									StopBits:          serial.OneStopBit,
-									InitialStatusBits: nil,
-								})
-								msg := fmt.Sprintf("%s set baud - установлена скорость %v\r", w, err)
-								log.Println(msg, "\r")
-								Println(msg)
-							default:
-								log.Println(press)
-							}
-						}
-					}
-				}
-			}()
-			err = w.StartTelnet(bind, cgi.Ser2net)
+			if cgi.Ser2net < 1 {
+				ser(s, &cgi, baud, log.Println, Println)
+				return
+			}
+			// err := s2n(s, &cgi, baud, log.Println)
+			err := s2n(s.Context(), s, cgi.Serial, cgi.Ser2net, baud, log.Println, Println)
 			if err != nil {
-				log.Println(err)
-				Println(err)
+				log.Println(err, "\r")
+				if true { //cgi.Putty
+					log.Println("Try run plink\r")
+
+				}
+
 			}
 		}
 	})
 
-	lt.Printf("%s daemon waiting on - сервер ожидает на %s\n", repo, server.Addr)
-	lt.Println("to connect use - чтоб подключится используй", use)
+	// lt.Printf("%s daemon waiting on - сервер ожидает на %s\n", repo, server.Addr)
+	Println(fmt.Sprintf("%s daemon waiting on - сервер ожидает на %s", repo, server.Addr))
+	Println("to connect use - чтоб подключится используй", use)
 
 	switch runtime.GOOS {
 	case "windows", "linux":
 		go func() {
-			watch(ctxRWE, caRW, server.Addr)
-			lf.Println("local done")
+			watch(ctxRWE, caRW, server.Addr, Print)
+			Println("local done")
 			server.Close()
 		}()
-		go established(ctxRWE, server.Addr, false)
+		go established(ctxRWE, server.Addr, false, Print)
 	}
 	Println("ListenAndServe", server.ListenAndServe())
 }
@@ -275,7 +232,7 @@ func SetConsoleTitle(s gl.Session) {
 }
 
 // call ca() and return on `Service has been stopped`
-func watch(ctx context.Context, ca context.CancelFunc, dest string) {
+func watch(ctx context.Context, ca context.CancelFunc, dest string, Print func(v ...any)) {
 	if strings.HasPrefix(dest, ":") {
 		dest = ALL + dest
 	}
@@ -290,7 +247,7 @@ func watch(ctx context.Context, ca context.CancelFunc, dest string) {
 				return s.State == netstat.Listen && s.LocalAddr.String() == dest
 			})
 			if new == 0 {
-				lf.Print("The service has been stopped - Служба остановлена\n\t", dest)
+				Print("The service has been stopped - Служба остановлена\n\t", dest)
 				if ca != nil {
 					ca()
 				}
@@ -298,24 +255,24 @@ func watch(ctx context.Context, ca context.CancelFunc, dest string) {
 			}
 			if old != new {
 				if new > old {
-					lf.Print("\nThe service is running - Служба работает\n", ste)
+					Print("\nThe service is running - Служба работает\n", ste)
 				}
 				ste_ = ste
 				old = new
 			}
 			if ste_ != ste {
-				lf.Print("The service has been changed - Служба сменилась\n", ste)
+				Print("The service has been changed - Служба сменилась\n", ste)
 				ste_ = ste
 			}
 		case <-ctx.Done():
-			Println("watch", dest, "done")
+			Print("watch ", dest, " done\n")
 			return
 		}
 	}
 }
 
 // Что там с подключениями к dest
-func established(ctx context.Context, dest string, exit bool) {
+func established(ctx context.Context, dest string, exit bool, Print func(v ...any)) {
 	old := 0
 	ste_ := ""
 	t := time.NewTicker(TOW)
@@ -329,24 +286,24 @@ func established(ctx context.Context, dest string, exit bool) {
 			if old != new {
 				switch {
 				case new == 0:
-					lf.Println(dest, "There are no connections - Нет подключений")
+					Print(dest, " There are no connections - Нет подключений\n")
 					if exit {
 						return
 					}
 				case old > new:
-					lf.Print(dest, " Connections have decreased - Подключений уменьшилось\n", ste)
+					Print(dest, " Connections have decreased - Подключений уменьшилось\n", ste)
 				default:
-					lf.Print(dest, " Connections have increased - Подключений увеличилось\n", ste)
+					Print(dest, " Connections have increased - Подключений увеличилось\n", ste)
 				}
 				ste_ = ste
 				old = new
 			}
 			if ste_ != ste {
-				lf.Print(dest, " Сonnections have changed - Подключения изменились\n", ste)
+				Print(dest, " Сonnections have changed - Подключения изменились\n", ste)
 				ste_ = ste
 			}
 		case <-ctx.Done():
-			Println("established", dest, "done")
+			Print("established ", dest, " done\n")
 			return
 		}
 	}
@@ -385,4 +342,12 @@ func FileToAuthorized(name string, in ...ssh.PublicKey) (authorized []gl.PublicK
 		authorized = append(authorized, pubKey)
 	}
 	return
+}
+
+func SessionRequestCallback(s gl.Session, requestType string) bool {
+	if s == nil {
+		return false
+	}
+	Println(s.RemoteAddr(), requestType, s.RawCommand())
+	return true
 }

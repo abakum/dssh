@@ -67,10 +67,10 @@ func PrintOk(s string, err error) (ok bool) {
 }
 
 // Вывод ошибки если она есть
-func Println(v ...any) (ok bool) {
+func Println(v ...any) {
 	// anys := []any{src(8)}
 	anys := []any{}
-	ok = true
+	ok := true
 	for _, a := range v {
 		switch t := a.(type) {
 		case nil:
@@ -95,7 +95,32 @@ func Println(v ...any) (ok bool) {
 		// le.Println(anys...)
 		fmt.Fprint(le.Writer(), "\r")
 	}
-	return ok
+}
+
+// Вывод ошибки если она есть
+func Print(v ...any) {
+	anys := []any{}
+	ok := true
+	for _, a := range v {
+		switch t := a.(type) {
+		case nil:
+			anys = append(anys, "Ф")
+		case error:
+			anys = append(anys, t)
+			ok = false
+		case string:
+			if t != "" {
+				anys = append(anys, t)
+			}
+		default:
+			anys = append(anys, t)
+		}
+	}
+	if ok {
+		lf.Output(2, fmt.Sprint(anys...))
+	} else {
+		lef.Output(2, fmt.Sprint(anys...))
+	}
 }
 
 // Вывод ошибки и завершение приложения

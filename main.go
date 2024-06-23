@@ -30,6 +30,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/x509"
 	_ "embed"
@@ -61,6 +62,7 @@ import (
 	version "github.com/abakum/version/lib"
 	"github.com/xlab/closer"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/term"
 )
 
 type Parser struct {
@@ -97,6 +99,7 @@ const (
 	EQ       = "="
 	TERM     = "xterm-256color"
 	XTTY     = "putty" // signed https://www.chiark.greenend.org.uk/~sgtatham/putty/latest.html
+	LISTEN   = "2222"
 )
 
 var (
@@ -209,53 +212,43 @@ func main() {
 		return
 	}
 
+	bin := XTTY
+	if runtime.GOOS == "linux" {
+		bin = "plink"
+	}
+	path, err := exec.LookPath(bin)
+	if err != nil {
+		Println(fmt.Errorf("not found - не найден %s", bin))
+		bin = "telnet"
+		path, err = exec.LookPath(bin)
+		if err != nil {
+			Fatal(fmt.Errorf("not found - не найден %s", bin))
+		}
+	}
+
+	Ser2net := -1
 	if args.Ser2net > -1 {
 		if args.Ser2net == 0 {
 			args.Ser2net = 22170
 		}
-		if args.Destination != "." && args.Destination != repo {
-			a2s = append(a2s, "-L", fmt.Sprintf("%d:127.0.0.1:%d", args.Ser2net, args.Ser2net))
-			if err := parser.Parse(a2s); err != nil {
-				Fatal(err)
-			}
-			if args.Ser2net == 0 {
-				args.Ser2net = 22170
-			}
+		// Если sshd на том же хосте что и dssh то перенос RFC2217 не нужен, но тестово сделаем
+		Ser2net = args.Ser2net
+		switch args.Destination {
+		case "", ".", repo:
+			Ser2net++
+		}
+		a2s = append(a2s, "-L", fmt.Sprintf("%d:%s:%d", args.Ser2net, LH, Ser2net))
+		if err := parser.Parse(a2s); err != nil {
+			Fatal(err)
+		}
+		if args.Ser2net == 0 {
+			args.Ser2net = 22170
 		}
 	}
 
 	Println(a2s)
-
 	defer closer.Close()
 	closer.Bind(cleanup)
-
-	if args.Restart || args.Baud != "" || args.Serial != "" || args.Ser2net > 0 {
-		// CGI
-		Println(args.Restart, args.Baud, args.Serial, args.Ser2net)
-		cli = true
-		enableTrzsz = "no"
-		args.Command = repo
-		args.ForceTTY = true
-		args.DisableTTY = false
-		args.Argument = nil
-		if args.Destination == "" {
-			args.Destination = ":"
-		}
-		if args.Restart {
-			args.Argument = append(args.Argument, "--restart")
-		} else {
-			if args.Baud != "" {
-				args.Argument = append(args.Argument, "--baud", args.Baud)
-			}
-			if args.Serial != "" {
-				args.Argument = append(args.Argument, "--serial", args.Serial)
-			}
-			if args.Ser2net > 0 {
-				args.Argument = append(args.Argument, "--2217", strconv.Itoa(args.Ser2net))
-			}
-		}
-
-	}
 
 	// tools
 	SecretEncodeKey = key
@@ -288,6 +281,94 @@ Host ` + SSHJ + `
  PasswordAuthentication no
  ProxyJump ` + u + `@` + JumpHost + `
  EnableTrzsz ` + enableTrzsz
+	if args.Restart || args.Baud != "" || args.Serial != "" || Ser2net > 0 {
+		// CGI
+		Println(args.Restart, args.Baud, args.Serial, Ser2net)
+		cli = true
+		enableTrzsz = "no"
+		args.Command = repo
+		args.ForceTTY = true
+		args.DisableTTY = false
+		args.Argument = nil
+		if args.Restart {
+			if args.Destination == "" {
+				args.Destination = ":" // Рестарт сервера за NAT
+			}
+			args.Argument = append(args.Argument, "--restart")
+		} else {
+			// args.Baud != "" || args.Serial != "" || Ser2net > 0
+			baud := baudRate(strconv.Atoi(args.Baud))
+			args.Baud = strconv.Itoa(baud)
+			args.Serial = getFirstUsbSerial(args.Serial, baud, Print)
+			if args.Serial == "" {
+				return
+			}
+			if args.Baud != "" {
+				args.Argument = append(args.Argument, "--baud", args.Baud)
+			}
+			if args.Serial != "" {
+				args.Argument = append(args.Argument, "--serial", args.Serial)
+			}
+			if Ser2net > 0 {
+				args.Argument = append(args.Argument, "--2217", strconv.Itoa(Ser2net))
+			}
+			if args.Putty {
+				args.Argument = append(args.Argument, "--putty")
+			}
+			switch args.Destination {
+			case "": // Локальная последовательная консоль
+				mute := func(v ...any) {} // Золотая жена
+				if args.Putty {
+					opt := fmt.Sprintln("-serial", args.Serial, "-sercfg", args.Baud)
+					if bin == "telnet" {
+						Ser2net = 22170
+					}
+					if Ser2net > 0 {
+						opt = fmt.Sprintln("-telnet", LH, "-P", Ser2net)
+						if bin == "telnet" {
+							opt = fmt.Sprintln(LH, Ser2net)
+						}
+					}
+					cmd := exec.Command(path, strings.Fields(opt)...)
+					Println(cmd)
+					if bin != XTTY {
+						cmd.Stdin = os.Stdin
+						cmd.Stdout = os.Stdout
+						cmd.Stderr = os.Stdout
+						if Ser2net > 0 {
+							ctx, cancel := context.WithCancel(context.Background())
+							defer cancel()
+							go s2n(ctx, bytes.NewReader(nil), args.Serial, Ser2net, baud, mute, mute)
+						}
+					} else {
+						if Ser2net > 0 {
+							ctx, cancel := context.WithCancel(context.Background())
+							defer cancel()
+							fd := int(os.Stdin.Fd())
+							oldState, _ := term.MakeRaw(fd)
+							defer term.Restore(fd, oldState)
+							go s2n(ctx, os.Stdin, args.Serial, Ser2net, baud, Println, mute)
+						}
+					}
+					cmd.Run()
+					return
+				}
+				// Без putty пока только с сервером
+				p := LISTEN
+				if args.Port != 0 {
+					p = strconv.Itoa(args.Port)
+				}
+				go server(LH, p, repo, "", signer, mute, mute)
+				args.Destination = repo
+				args.LoginName = "_"
+				client(signer, sshj, repo)
+				TsshMain(&args)
+				return
+			}
+		}
+
+	}
+
 	cli = cli ||
 		args.Command != "" ||
 		args.ForwardAgent ||
@@ -344,7 +425,7 @@ Host ` + SSHJ + `
 			hh = h
 		}
 		if p == "" {
-			p = "2222"
+			p = LISTEN
 			if args.Port != 0 {
 				p = strconv.Itoa(args.Port)
 			}
@@ -353,7 +434,7 @@ Host ` + SSHJ + `
 		go func() {
 			s := usage(repo, imag)
 			for {
-				server(h, p, repo, s, signer)
+				server(h, p, repo, s, signer, Println, Print)
 				winssh.KidsDone(os.Getpid())
 				Println("server has been stopped - сервер остановлен")
 				time.Sleep(TOR)
@@ -387,37 +468,39 @@ Host ` + SSHJ + `
 	// Клиенты
 	client(signer, sshj+sshJ(JumpHost, u, "", p), repo, SSHJ)
 	if args.Putty {
-		bin := XTTY
 		opt := ""
 		if args.Destination != "" {
-			if runtime.GOOS == "linux" {
-				bin = "plink"
-				opt = "-no-antispoof -load " + args.Destination
-			} else {
-				opt = "@" + args.Destination
-			}
-			if args.Ser2net > 0 {
-				opt = fmt.Sprintf("telnet://127.0.0.1:%d", args.Ser2net)
+			switch {
+			case Ser2net > 0:
+				opt = fmt.Sprintln("-telnet", LH, "-P", args.Ser2net)
+				if bin == "telnet" {
+					opt = fmt.Sprintln(LH, Ser2net)
+				}
+			default:
+				if runtime.GOOS == "linux" {
+					opt = fmt.Sprintln("-no-antispoof", "-load", args.Destination)
+				} else {
+					opt = "@" + args.Destination
+				}
+				if bin == "telnet" {
+					path = "ssh"
+					opt = args.Destination
+				}
 			}
 		}
-		path, err := exec.LookPath(bin)
-		if err == nil {
-			cmd := exec.Command(path, strings.Fields(opt)...)
-			cmd.Stdin = os.Stdin
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stdout
-			Println(cmd)
-			if args.Ser2net > 0 {
-				time.AfterFunc(time.Second*3, func() {
-					cmd.Start()
-				})
+		cmd := exec.Command(path, strings.Fields(opt)...)
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stdout
+		Println(cmd)
+		if args.Ser2net > 0 {
+			time.AfterFunc(time.Second*2, func() {
+				cmd.Start()
+			})
 
-			} else {
-				cmd.Run()
-				return
-			}
 		} else {
-			Println("not found - не найден", bin)
+			cmd.Run()
+			return
 		}
 	}
 	code := TsshMain(&args)

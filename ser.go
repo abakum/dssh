@@ -6,12 +6,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"os"
 	"runtime"
 	"strings"
+	"time"
 
+	"github.com/abakum/go-ser2net/pkg/ser2net"
 	"github.com/abakum/winssh"
 	gl "github.com/gliderlabs/ssh"
+	"github.com/mattn/go-isatty"
 	"go.bug.st/serial"
 	"go.bug.st/serial/enumerator"
 )
@@ -40,14 +43,19 @@ type cgiArgs struct {
 	Baud    string `arg:"-b,--baud" placeholder:"baud" help:"set serial console baud rate"`
 	Serial  string `arg:"-s,--serial" placeholder:"serial" help:"serial port for console"`
 	Ser2net int    `arg:"-2,--2217" placeholder:"port" help:"RFC2217 telnet port for serial port console over telnet"`
+	Putty   bool   `arg:"-P,--putty" help:"run putty"`
 	Restart bool   `arg:"-r,--restart" help:"restart daemon"`
 }
+
+var (
+	IsTerminal bool = isatty.IsTerminal(os.Stdin.Fd()) || isatty.IsCygwinTerminal(os.Stdin.Fd())
+)
 
 // Подключаем последовательный порт к сессии.
 // Это псевдокоманда `dssh -t . "dssh -b 115200 -s com3"`.
 // Завершение сессии через `<Enter>~.`
 // Если name пусто то ищем первый USB последовательный порт
-func ser(s gl.Session, cgi *cgiArgs, baud int, println func(v ...any)) {
+func ser(s gl.Session, cgi *cgiArgs, baud int, println func(v ...any), Println func(v ...any)) {
 
 	port, err := serial.Open(cgi.Serial,
 		&serial.Mode{
@@ -57,11 +65,11 @@ func ser(s gl.Session, cgi *cgiArgs, baud int, println func(v ...any)) {
 	if err != nil {
 		var portErr serial.PortError
 		if errors.As(err, &portErr) {
-			log.Println(err, portErr, "\r")
+			println(err, portErr, "\r")
 			Println(err, portErr)
 			return
 		}
-		log.Println(err, "\r")
+		println(err, "\r")
 		Println(err)
 		return
 	}
@@ -71,7 +79,7 @@ func ser(s gl.Session, cgi *cgiArgs, baud int, println func(v ...any)) {
 
 	Println(msg)
 	defer func() {
-		err = serialClose(port)
+		err = ser2net.SerialClose(port)
 		msg = fmt.Sprintf("%s@%d closed - закрыт %v\r", cgi.Serial, baud, err)
 		println(msg)
 		Println(msg)
@@ -81,21 +89,13 @@ func ser(s gl.Session, cgi *cgiArgs, baud int, println func(v ...any)) {
 		io.Copy(s, port)
 	}()
 	io.Copy(newBaudWriter(port, "~", cgi.Serial, println), s)
-
-}
-
-func serialClose(port serial.Port) error {
-	port.ResetInputBuffer()
-	port.ResetOutputBuffer()
-	port.Drain()
-	return port.Close()
 }
 
 func mess(s string) string {
 	return rn("",
 		"To exit press - Чтоб выйти нажми "+s+"<.>",
 		"To set baud press - Чтоб сменить скорость передачи нажми "+s+"<x>",
-		"Where x (0-9) - Где x это 0 как 19200, 1 как 115200 и так далее 2400, 38400, 4800, 57600 и 9 как 9600",
+		"Where x (0-9) - Где x это 0 как 115200, 1 как 19200 и так далее 2400, 38400, 4800, 57600 и 9 как 9600",
 	)
 }
 
@@ -129,7 +129,7 @@ func getFirstSerial(isUSB bool, baud int) (name, list string) {
 				continue
 			}
 			_, err = sp.GetModemStatusBits()
-			serialClose(sp)
+			ser2net.SerialClose(sp)
 			if err != nil {
 				list += fmt.Sprintf(" %s", err)
 				continue
@@ -231,10 +231,10 @@ func baudRate(b int, err error) (baud int) {
 		return
 	}
 	switch b {
-	case 0, 19200:
-		baud = 19200
-	case 1, 115200:
+	case 0, 115200:
 		baud = 115200
+	case 1, 19200:
+		baud = 19200
 	case 2, 2400:
 		baud = 2400
 	case 3, 38400:
@@ -243,6 +243,69 @@ func baudRate(b int, err error) (baud int) {
 		baud = 4800
 	case 5, 57600:
 		baud = 57600
+	}
+	return
+}
+func s2n(ctx context.Context, r io.Reader, Serial string, Ser2net, baud int, println func(v ...any), Println func(v ...any)) error {
+	press := mess("")
+	w, _ := ser2net.NewSerialWorker(ctx, Serial, baud)
+	go w.Worker()
+	timer := time.AfterFunc(time.Second, func() {
+		defer func() {
+			w.Stop()
+			w.SerialClose()
+			println(w)
+			Println(w)
+		}()
+		println(press)
+		buffer := make([]byte, 100)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				n, _ := r.Read(buffer)
+				buf := buffer[:n]
+				if n > 0 {
+					switch buf[0] {
+					case '.', 3:
+						return
+					case '0', '1', '2', '3', '4', '5', '9':
+						baud = baudRate(int(buf[0]-'0'), nil)
+						err := w.SetMode(&serial.Mode{
+							BaudRate:          baud,
+							DataBits:          8,
+							Parity:            serial.NoParity,
+							StopBits:          serial.OneStopBit,
+							InitialStatusBits: nil,
+						})
+						msg := fmt.Sprintf("%s set baud - установлена скорость %v\r", w, err)
+						println(msg, "\r")
+						Println(msg)
+					default:
+						println(press)
+					}
+				}
+			}
+		}
+	})
+	err := w.StartTelnet(LH, Ser2net)
+	if err != nil {
+		timer.Stop()
+		println(err)
+		Println(err)
+	}
+	return err
+}
+
+func getFirstUsbSerial(serialPort string, baud int, print func(v ...any)) (serial string) {
+	if serialPort != "" {
+		return serialPort
+	}
+	serial, list := getFirstSerial(true, baud)
+	print(list)
+	if serial == "" {
+		print(fmt.Errorf("not found free serial USB port - не найден свободный последовательный порт USB"))
 	}
 	return
 }
