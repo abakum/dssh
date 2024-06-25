@@ -15,6 +15,7 @@ import (
 
 	"github.com/abakum/go-ansiterm"
 	"github.com/abakum/go-netstat/netstat"
+	"github.com/abakum/go-ser2net/pkg/ser2net"
 	"github.com/abakum/winssh"
 	gl "github.com/gliderlabs/ssh"
 	"github.com/trzsz/go-arg"
@@ -140,29 +141,22 @@ func server(h, p, repo, use string, signer ssh.Signer, Println func(v ...any), P
 			log.SetFlags(log.Lshortfile)
 			log.SetPrefix(">")
 			log.SetOutput(s.Stderr())
-			baud := baudRate(strconv.Atoi(cgi.Baud))
+			baud := ser2net.BaudRate(strconv.Atoi(cgi.Baud))
 			cgi.Serial = getFirstUsbSerial(cgi.Serial, baud, log.Print)
 			if cgi.Serial == "" {
 				return
 			}
-			if cgi.Ser2net < 1 {
-				ser(s, &cgi, baud, log.Println, Println)
+			if cgi.Ser2net > 0 {
+				err := s2n(s.Context(), s, nil, cgi.Serial, cgi.Ser2net, baud, log.Println, Println)
+				if err != nil {
+					log.Println(err, "\r")
+				}
 				return
 			}
-			// err := s2n(s, &cgi, baud, log.Println)
-			err := s2n(s.Context(), s, cgi.Serial, cgi.Ser2net, baud, log.Println, Println)
-			if err != nil {
-				log.Println(err, "\r")
-				if true { //cgi.Putty
-					log.Println("Try run plink\r")
-
-				}
-
-			}
+			ser(s, cgi.Serial, baud, log.Println, Println)
 		}
 	})
 
-	// lt.Printf("%s daemon waiting on - сервер ожидает на %s\n", repo, server.Addr)
 	Println(fmt.Sprintf("%s daemon waiting on - сервер ожидает на %s", repo, server.Addr))
 	Println("to connect use - чтоб подключится используй", use)
 

@@ -49,15 +49,20 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/abakum/embed-encrypt/encryptedfs"
+	"github.com/abakum/go-ser2net/pkg/ser2net"
 	"github.com/abakum/menu"
 	"github.com/abakum/putty_hosts"
 	"github.com/abakum/winssh"
+	"github.com/containerd/console"
+	"github.com/muesli/termenv"
 	"github.com/trzsz/go-arg"
 	"github.com/trzsz/ssh_config"
 
+	prt "github.com/PatrickRudolph/telnet"
 	. "github.com/abakum/dssh/tssh"
 	version "github.com/abakum/version/lib"
 	"github.com/xlab/closer"
@@ -98,8 +103,11 @@ const (
 	JumpHost = SSHJ + ".com"
 	EQ       = "="
 	TERM     = "xterm-256color"
-	XTTY     = "putty" // signed https://www.chiark.greenend.org.uk/~sgtatham/putty/latest.html
+	PUTTY    = "putty" // signed https://www.chiark.greenend.org.uk/~sgtatham/putty/latest.html
 	LISTEN   = "2222"
+	TELNET   = "telnet"
+	PLINK    = "plink"
+	RFC2217  = 22170
 )
 
 var (
@@ -124,6 +132,9 @@ var (
 	Std        = menu.Std
 	repo       = base() // Имя репозитория `dssh` оно же имя алиаса в .ssh/config
 	imag       string   // Имя исполняемого файла `dssh` оно же имя посредника. Можно изменить чтоб не указывать имя посредника.
+	mute       = func(v ...any) {}
+	Win        = runtime.GOOS == "windows"
+	Telnet     = false
 )
 
 //go:generate go run github.com/abakum/version
@@ -212,24 +223,37 @@ func main() {
 		return
 	}
 
-	bin := XTTY
-	if runtime.GOOS == "linux" {
-		bin = "plink"
+	bins := []string{PUTTY, PLINK, TELNET}
+	if args.Unix { // Тестовый параметр
+		Win = false
 	}
-	path, err := exec.LookPath(bin)
-	if err != nil {
-		Println(fmt.Errorf("not found - не найден %s", bin))
-		bin = "telnet"
-		path, err = exec.LookPath(bin)
-		if err != nil {
-			Fatal(fmt.Errorf("not found - не найден %s", bin))
+	if !Win {
+		// В консоле
+		bins = bins[1:]
+	}
+	if args.Telnet { // Тестовый параметр
+		bins = []string{TELNET} // Что если не установлен putty но есть telnet
+	}
+	var (
+		bin  string
+		path string
+	)
+	for _, item := range bins {
+		path, err = exec.LookPath(item)
+		if err == nil {
+			bin = item
+			break
 		}
+		Println(fmt.Errorf("not found - не найден %s", bin))
+	}
+	if args.Putty && bin == "" {
+		Fatal(fmt.Errorf("not found - не найдены %v", bins))
 	}
 
 	Ser2net := -1
 	if args.Ser2net > -1 {
 		if args.Ser2net == 0 {
-			args.Ser2net = 22170
+			args.Ser2net = RFC2217
 		}
 		// Если sshd на том же хосте что и dssh то перенос RFC2217 не нужен, но тестово сделаем
 		Ser2net = args.Ser2net
@@ -242,7 +266,7 @@ func main() {
 			Fatal(err)
 		}
 		if args.Ser2net == 0 {
-			args.Ser2net = 22170
+			args.Ser2net = RFC2217
 		}
 	}
 
@@ -281,9 +305,8 @@ Host ` + SSHJ + `
  PasswordAuthentication no
  ProxyJump ` + u + `@` + JumpHost + `
  EnableTrzsz ` + enableTrzsz
-	if args.Restart || args.Baud != "" || args.Serial != "" || Ser2net > 0 {
+	if args.Restart || args.Baud != "" || args.Serial != "" || args.Ser2net > 0 {
 		// CGI
-		Println(args.Restart, args.Baud, args.Serial, Ser2net)
 		cli = true
 		enableTrzsz = "no"
 		args.Command = repo
@@ -297,7 +320,7 @@ Host ` + SSHJ + `
 			args.Argument = append(args.Argument, "--restart")
 		} else {
 			// args.Baud != "" || args.Serial != "" || Ser2net > 0
-			baud := baudRate(strconv.Atoi(args.Baud))
+			baud := ser2net.BaudRate(strconv.Atoi(args.Baud))
 			args.Baud = strconv.Itoa(baud)
 			args.Serial = getFirstUsbSerial(args.Serial, baud, Print)
 			if args.Serial == "" {
@@ -309,51 +332,107 @@ Host ` + SSHJ + `
 			if args.Serial != "" {
 				args.Argument = append(args.Argument, "--serial", args.Serial)
 			}
-			if Ser2net > 0 {
-				args.Argument = append(args.Argument, "--2217", strconv.Itoa(Ser2net))
-			}
 			if args.Putty {
 				args.Argument = append(args.Argument, "--putty")
 			}
+			var (
+				ctx    context.Context
+				cancel context.CancelFunc
+			)
+			if Ser2net > 0 || bin == TELNET {
+				args.Argument = append(args.Argument, "--2217", strconv.Itoa(Ser2net))
+				ctx, cancel = context.WithCancel(context.Background())
+				defer cancel()
+			}
 			switch args.Destination {
 			case "": // Локальная последовательная консоль
-				mute := func(v ...any) {} // Золотая жена
 				if args.Putty {
+					// dssh -Pb9
 					opt := fmt.Sprintln("-serial", args.Serial, "-sercfg", args.Baud)
-					if bin == "telnet" {
-						Ser2net = 22170
+					if bin == TELNET {
+						// За неимением горничной имеем дворника
+						args.Ser2net = RFC2217
 					}
-					if Ser2net > 0 {
-						opt = fmt.Sprintln("-telnet", LH, "-P", Ser2net)
-						if bin == "telnet" {
-							opt = fmt.Sprintln(LH, Ser2net)
+					if args.Ser2net > 0 {
+						// dssh -P20
+						opt = fmt.Sprintln("-telnet", LH, "-P", args.Ser2net)
+						if bin == TELNET {
+							opt = fmt.Sprintln(LH, args.Ser2net)
 						}
 					}
+
 					cmd := exec.Command(path, strings.Fields(opt)...)
 					Println(cmd)
-					if bin != XTTY {
-						cmd.Stdin = os.Stdin
+					Println("To exit press - Чтоб выйти нажми <^C>")
+					if !Win {
 						cmd.Stdout = os.Stdout
 						cmd.Stderr = os.Stdout
-						if Ser2net > 0 {
-							ctx, cancel := context.WithCancel(context.Background())
-							defer cancel()
-							go s2n(ctx, bytes.NewReader(nil), args.Serial, Ser2net, baud, mute, mute)
+						if args.Ser2net > 0 {
+							if bin == TELNET {
+								Println("To exit press - Чтоб выйти нажми <^]>")
+								go s2n(ctx, nil, nil, args.Serial, args.Ser2net, baud, mute, mute)
+								cmd.Stdin = os.Stdin
+							} else {
+								w, err := cmd.StdinPipe()
+								if err == nil {
+									ch := make(chan byte, 10)
+									go s2n(ctx, nil, ch, args.Serial, args.Ser2net, baud, mute, Println)
+
+									cmd.Start()
+									fd := int(os.Stdin.Fd())
+									oldState, _ := term.MakeRaw(fd)
+									defer term.Restore(fd, oldState)
+									go io.Copy(newSideWriter(w, "~", args.Serial, ch, Println), os.Stdin)
+									cmd.Wait()
+									return
+								} else {
+									Println("To exit press - Чтоб выйти нажми <^]>")
+									go s2n(ctx, nil, nil, args.Serial, args.Ser2net, baud, mute, mute)
+									cmd.Stdin = os.Stdin
+								}
+							}
+						} else {
+							cmd.Stdin = os.Stdin
 						}
 					} else {
-						if Ser2net > 0 {
-							ctx, cancel := context.WithCancel(context.Background())
-							defer cancel()
+						if bin != PUTTY {
+							// cmd = exec.Command("cmd.exe", "/C", fmt.Sprintf(`start %s %s`, bin, opt))
+							createNewConsole(cmd)
+						}
+						if args.Ser2net > 0 {
 							fd := int(os.Stdin.Fd())
 							oldState, _ := term.MakeRaw(fd)
 							defer term.Restore(fd, oldState)
-							go s2n(ctx, os.Stdin, args.Serial, Ser2net, baud, Println, mute)
+							go s2n(ctx, os.Stdin, nil, args.Serial, args.Ser2net, baud, Println, mute)
 						}
 					}
 					cmd.Run()
 					return
 				}
-				// Без putty пока только с сервером
+				if args.Ser2net > 0 {
+					// `dssh -20`
+					Println("To exit press - Чтоб выйти нажми <^Z>")
+					current := console.Current()
+					defer current.Reset()
+					fd := int(os.Stdin.Fd())
+					oldState, _ := term.MakeRaw(fd)
+					defer term.Restore(fd, oldState)
+
+					ch := make(chan byte, 10)
+					go s2n(ctx, nil, ch, args.Serial, args.Ser2net, baud, mute, Println)
+
+					conn, err := prt.Dial(fmt.Sprintf("%s:%d", LH, args.Ser2net))
+					if err != nil {
+						Println(err)
+						return
+					}
+					defer conn.Close()
+					go io.Copy(os.Stdout, conn)
+					io.Copy(newSideWriter(conn, "~", args.Serial, ch, Println), os.Stdin)
+					return
+				}
+				// Если локально не запущен сервер то запускаем и дальше как `dssh -b9 .`
+				// `dssh -b9`
 				p := LISTEN
 				if args.Port != 0 {
 					p = strconv.Itoa(args.Port)
@@ -470,34 +549,62 @@ Host ` + SSHJ + `
 	if args.Putty {
 		opt := ""
 		if args.Destination != "" {
-			switch {
-			case Ser2net > 0:
+			// dssh -P20 x
+			if args.Ser2net > 0 {
 				opt = fmt.Sprintln("-telnet", LH, "-P", args.Ser2net)
-				if bin == "telnet" {
-					opt = fmt.Sprintln(LH, Ser2net)
+				if bin == TELNET {
+					opt = fmt.Sprintln(LH, args.Ser2net)
 				}
-			default:
-				if runtime.GOOS == "linux" {
-					opt = fmt.Sprintln("-no-antispoof", "-load", args.Destination)
-				} else {
+			} else {
+				switch bin {
+				case PUTTY:
 					opt = "@" + args.Destination
-				}
-				if bin == "telnet" {
+				case PLINK:
+					opt = fmt.Sprintln("-no-antispoof", "-load", args.Destination)
+				case TELNET:
+					// За неимением...
 					path = "ssh"
 					opt = args.Destination
 				}
 			}
 		}
 		cmd := exec.Command(path, strings.Fields(opt)...)
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stdout
 		Println(cmd)
+		Println("To exit press - Чтоб выйти нажми <^C>")
+		if !Win {
+			cmd.Stdin = os.Stdin
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stdout
+		} else {
+			if bin != PUTTY {
+				createNewConsole(cmd)
+			}
+		}
 		if args.Ser2net > 0 {
-			time.AfterFunc(time.Second*2, func() {
-				cmd.Start()
-			})
-
+			switch 2 {
+			case 0:
+				go func() {
+					restoreConsole, err := termenv.EnableVirtualTerminalProcessing(termenv.DefaultOutput())
+					if err != nil {
+						Println(err)
+						cmd.Start()
+						return
+					}
+					cmd.Run()
+					restoreConsole()
+					closer.Close()
+				}()
+			case 1:
+				time.AfterFunc(time.Second, func() {
+					cmd.Start()
+				})
+			case 2:
+				fd := int(os.Stdin.Fd())
+				oldState, _ := term.MakeRaw(fd)
+				cmd.Run()
+				term.Restore(fd, oldState)
+				closer.Close()
+			}
 		} else {
 			cmd.Run()
 			return
@@ -619,7 +726,7 @@ func ints() (ips []string) {
 func cleanup() {
 	winssh.KidsDone(os.Getpid())
 	Println("cleanup done")
-	if runtime.GOOS == "windows" {
+	if Win {
 		menu.PressAnyKey("Press any key - Нажмите любую клавишу", TOW)
 	}
 }
@@ -944,7 +1051,7 @@ func GetHostPub() (pub string) {
 }
 
 func programData2etc(s string) string {
-	if runtime.GOOS != "windows" {
+	if !Win {
 		return strings.ReplaceAll(s, "__PROGRAMDATA__", "/etc")
 	}
 	return s
@@ -1060,4 +1167,12 @@ func build(a ...any) (s string) {
 	}
 	s += " " + strings.TrimSpace(fmt.Sprintln(a...))
 	return
+}
+
+func createNewConsole(cmd *exec.Cmd) {
+	const CREATE_NEW_CONSOLE = 0x10
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		CreationFlags:    CREATE_NEW_CONSOLE,
+		NoInheritHandles: true,
+	}
 }

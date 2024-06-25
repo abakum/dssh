@@ -6,6 +6,7 @@ go 1.21.4
 
 require (
 	github.com/Microsoft/go-winio v0.6.2
+	github.com/PatrickRudolph/telnet v0.0.0-20210301083732-6a03c1f7971f
 	github.com/abakum/embed-encrypt v0.0.0-20240419131915-ba2ccee1a359
 	github.com/abakum/go-ansiterm v0.0.0-20240209124652-4fc46d492442
 	github.com/abakum/go-netstat v0.0.0-20240426061934-05d15dfd4d6c
@@ -20,13 +21,16 @@ require (
 	github.com/charmbracelet/bubbletea v0.26.4
 	github.com/charmbracelet/lipgloss v0.11.0
 	github.com/chzyer/readline v1.5.1
+	github.com/containerd/console v1.0.4
 	github.com/creack/pty v1.1.21
 	github.com/gliderlabs/ssh v0.3.7
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/mattn/go-isatty v0.0.20
 	github.com/mattn/go-runewidth v0.0.15
 	github.com/mitchellh/go-homedir v1.1.0
+	github.com/muesli/termenv v0.15.2
 	github.com/pquerna/otp v1.4.0
+	github.com/reiver/go-telnet v0.0.0-20180421082511-9ff0b2ab096e
 	github.com/skeema/knownhosts v1.2.2
 	github.com/smeinecke/go-socks5 v0.0.0-20180316091040-4880db608f18
 	github.com/stretchr/testify v1.9.0
@@ -44,7 +48,6 @@ require (
 
 require (
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
-	github.com/PatrickRudolph/telnet v0.0.0-20210301083732-6a03c1f7971f // indirect
 	github.com/UserExistsError/conpty v0.1.2 // indirect
 	github.com/abakum/go-console v0.0.0-20240420142043-eda1cdf92473 // indirect
 	github.com/akavel/rsrc v0.10.2 // indirect
@@ -81,12 +84,12 @@ require (
 	github.com/mitchellh/go-ps v1.0.0 // indirect
 	github.com/muesli/ansi v0.0.0-20230316100256-276c6243b2f6 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
-	github.com/muesli/termenv v0.15.2 // indirect
 	github.com/ncruces/zenity v0.10.10 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pkg/sftp v1.13.6 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/randall77/makefat v0.0.0-20210315173500-7ddd0e42c844 // indirect
+	github.com/reiver/go-oi v1.0.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/sorenisanerd/gotty v1.3.1-0.20210604044157-f61763f7160b // indirect

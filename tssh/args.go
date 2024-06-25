@@ -94,6 +94,8 @@ type SshArgs struct {
 	Ser2net        int     `arg:"-2,--2217" placeholder:"port" help:"RFC2217 telnet port for serial port console over telnet" default:"-1"`
 	Daemon         bool    `arg:"-d,--daemon" help:"run as ssh daemon, destination as [bind_addr][:port]\nif bind_addr is omit then 127.0.0.1\nif bind_addr is * then 0.0.0.0\nif bind_addr is _ then ip of first interface like 192.168.0.2\nif port is omit then 2222\nor just 'dssh'"`
 	Restart        bool    `arg:"-r,--restart" help:"restart daemon"`
+	Unix           bool    `arg:"-u,--unix" help:"unix test"`
+	Telnet         bool    `arg:"-e,--telnet" help:"telnet test"`
 }
 
 func (SshArgs) Description() string {
