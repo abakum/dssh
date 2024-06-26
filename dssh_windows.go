@@ -5,8 +5,10 @@ package main
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
+	"syscall"
 
 	"golang.org/x/sys/windows/registry"
 )
@@ -40,4 +42,12 @@ func Conf(name, _ string, kv map[string]string) {
 
 func GlobalSshPath() string {
 	return filepath.Join(os.Getenv("ProgramData"), "ssh")
+}
+
+func createNewConsole(cmd *exec.Cmd) {
+	const CREATE_NEW_CONSOLE = 0x10
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		CreationFlags:    CREATE_NEW_CONSOLE,
+		NoInheritHandles: true,
+	}
 }

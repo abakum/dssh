@@ -49,7 +49,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/abakum/embed-encrypt/encryptedfs"
@@ -1154,12 +1153,4 @@ func build(a ...any) (s string) {
 	}
 	s += " " + strings.TrimSpace(fmt.Sprintln(a...))
 	return
-}
-
-func createNewConsole(cmd *exec.Cmd) {
-	const CREATE_NEW_CONSOLE = 0x10
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		CreationFlags:    CREATE_NEW_CONSOLE,
-		NoInheritHandles: true,
-	}
 }
