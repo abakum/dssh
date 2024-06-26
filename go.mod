@@ -10,7 +10,7 @@ require (
 	github.com/abakum/embed-encrypt v0.0.0-20240419131915-ba2ccee1a359
 	github.com/abakum/go-ansiterm v0.0.0-20240209124652-4fc46d492442
 	github.com/abakum/go-netstat v0.0.0-20240426061934-05d15dfd4d6c
-	github.com/abakum/go-ser2net v0.0.2-0.20240621141651-42d2aa479cd9
+	github.com/abakum/go-ser2net v0.0.2-0.20240625223056-93734b867ce2
 	github.com/abakum/menu v0.0.0-20240516124926-41dfbe5ce154
 	github.com/abakum/pageant v0.0.0-20240419114114-01633e0d85e4
 	github.com/abakum/putty_hosts v0.0.0-20240522125805-7fdec7195277
@@ -30,7 +30,6 @@ require (
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/muesli/termenv v0.15.2
 	github.com/pquerna/otp v1.4.0
-	github.com/reiver/go-telnet v0.0.0-20180421082511-9ff0b2ab096e
 	github.com/skeema/knownhosts v1.2.2
 	github.com/smeinecke/go-socks5 v0.0.0-20180316091040-4880db608f18
 	github.com/stretchr/testify v1.9.0
@@ -89,7 +88,6 @@ require (
 	github.com/pkg/sftp v1.13.6 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/randall77/makefat v0.0.0-20210315173500-7ddd0e42c844 // indirect
-	github.com/reiver/go-oi v1.0.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/sorenisanerd/gotty v1.3.1-0.20210604044157-f61763f7160b // indirect

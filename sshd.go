@@ -124,8 +124,8 @@ func server(h, p, repo, use string, signer ssh.Signer, Println func(v ...any), P
 			return
 		}
 		//len(s.Command()) > 1 && s.Command()[0] == repo
-		var cgi cgiArgs
-		parser, err := NewParser(arg.Config{}, &cgi)
+		var args cgiArgs
+		parser, err := NewParser(arg.Config{}, &args)
 		Println("CGI", s.Command(), err)
 		if err != nil {
 			return
@@ -135,25 +135,31 @@ func server(h, p, repo, use string, signer ssh.Signer, Println func(v ...any), P
 			return
 		}
 		switch {
-		case cgi.Restart:
+		case args.Restart:
 			caRW()
-		case cgi.Baud != "" || cgi.Serial != "" || cgi.Ser2net > 0:
+		case args.Baud != "" || args.Serial != "" || args.Ser2net > 0:
 			log.SetFlags(log.Lshortfile)
 			log.SetPrefix(">")
 			log.SetOutput(s.Stderr())
-			baud := ser2net.BaudRate(strconv.Atoi(cgi.Baud))
-			cgi.Serial = getFirstUsbSerial(cgi.Serial, baud, log.Print)
-			if cgi.Serial == "" {
+			baud := ser2net.BaudRate(strconv.Atoi(args.Baud))
+			args.Serial = getFirstUsbSerial(args.Serial, baud, log.Print)
+			if args.Serial == "" {
 				return
 			}
-			if cgi.Ser2net > 0 {
-				err := s2n(s.Context(), s, nil, cgi.Serial, cgi.Ser2net, baud, log.Println, Println)
-				if err != nil {
-					log.Println(err, "\r")
+			if args.Ser2net > 0 {
+				if args.Putty {
+					// Управление режимами последовательного порта через ssh.
+					// Приём передача через putty, plink, telnet.
+					err := s2n(s.Context(), s, nil, args.Serial, args.Ser2net, baud, log.Println, Println)
+					if err != nil {
+						log.Println(err, "\r")
+					}
+					return
 				}
+				rfc2217(s.Context(), s, args.Serial, args.Ser2net, baud, log.Println, Println)
 				return
 			}
-			ser(s, cgi.Serial, baud, log.Println, Println)
+			ser(s, args.Serial, baud, log.Println, Println)
 		}
 	})
 

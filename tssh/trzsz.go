@@ -204,7 +204,7 @@ func newTildaReader(r io.Reader, escapeChar string) *tildaReader {
 }
 
 // Заменяем `<Enter><EscapeChar><EscapeChar>` на `<Enter><EscapeChar>`.
-// Реагируем на `<Enter><EscapeChar>^Z` и `<Enter><EscapeChar>.`
+// Реагируем на `<Enter><EscapeChar><^Z>` и `<Enter><EscapeChar><.>`
 func (r *tildaReader) Read(pp []byte) (int, error) {
 	if r.t == 0 {
 		return r.Reader.Read(pp)
@@ -215,19 +215,17 @@ func (r *tildaReader) Read(pp []byte) (int, error) {
 		return n, err
 	}
 	const (
-		Return = '\r'
-		CtrlZ  = 0x1A
-		Dot    = '.'
+		CtrlZ = 0x1A
 	)
 
 	p = append(r.l, p[:n]...) //+2
 	switch {
-	case bytes.Contains(p, []byte{Return, r.t, CtrlZ}):
-		return 0, fmt.Errorf(`<Enter>%c^Z was pressed`, r.t)
-	case bytes.Contains(p, []byte{Return, r.t, Dot}):
-		return 0, fmt.Errorf(`<Enter>%c. was pressed`, r.t)
-	case bytes.Contains(p, []byte{Return, r.t, r.t}):
-		p = bytes.ReplaceAll(p, []byte{Return, r.t, r.t}, []byte{Return, r.t})
+	case bytes.Contains(p, []byte{'\r', r.t, CtrlZ}):
+		return 0, fmt.Errorf(`<Enter><%c><^Z> was pressed`, r.t)
+	case bytes.Contains(p, []byte{'\r', r.t, '.'}):
+		return 0, fmt.Errorf(`<Enter><%c><.> was pressed`, r.t)
+	case bytes.Contains(p, []byte{'\r', r.t, r.t}):
+		p = bytes.ReplaceAll(p, []byte{'\r', r.t, r.t}, []byte{'\r', r.t})
 	}
 	p = p[2:] //-2
 	n = copy(pp, p)

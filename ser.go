@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	prt "github.com/PatrickRudolph/telnet"
 	"github.com/abakum/go-ser2net/pkg/ser2net"
 	"github.com/abakum/winssh"
 	"github.com/mattn/go-isatty"
@@ -35,11 +36,16 @@ var (
 	IsTerminal bool = isatty.IsTerminal(os.Stdin.Fd()) || isatty.IsCygwinTerminal(os.Stdin.Fd())
 )
 
+type ReadWriteCloser struct {
+	io.Reader
+	io.WriteCloser
+}
+
 // Подключаем последовательный порт к сессии.
 // Это псевдокоманда `dssh -t . "dssh -b 115200 -s com3"`.
 // Завершение сессии через `<Enter>~.`
 // Если name пусто то ищем первый последовательный порт USB
-func ser(s io.ReadWriteCloser, Serial string, baud int, println func(v ...any), Println func(v ...any)) {
+func ser(s io.ReadWriteCloser, Serial string, baud int, println ...func(v ...any)) {
 	mode := serial.Mode{
 		BaudRate: baud,
 		DataBits: 8,
@@ -48,31 +54,38 @@ func ser(s io.ReadWriteCloser, Serial string, baud int, println func(v ...any), 
 	if err != nil {
 		var portErr serial.PortError
 		if errors.As(err, &portErr) {
-			println(err, portErr, "\r")
-			Println(err, portErr)
+			for _, p := range println {
+				p(err, portErr, "\r")
+			}
 			return
 		}
-		println(err, "\r")
-		Println(err)
+		for _, p := range println {
+			p(err, "\r")
+		}
 		return
 	}
 	m := fmt.Sprintf("%s@%s", Serial, ser2net.Mode{mode})
 	msg := fmt.Sprintf("%s opened - открыт\r", m)
-	println(msg)
-	println(mess("<Enter><~>"))
+	for _, p := range println {
+		p(msg)
+	}
 
-	Println(msg)
 	defer func() {
 		err = ser2net.SerialClose(port)
 		msg = fmt.Sprintf("%s closed - закрыт %v\r", m, err)
-		println(msg)
-		Println(msg)
+		for _, p := range println {
+			p(msg)
+		}
 	}()
 
 	go func() {
 		io.Copy(s, port)
 	}()
-	io.Copy(newBaudWriter(port, "~", Serial, baud, println), s)
+	wp := func(v ...any) {}
+	if len(println) > 0 {
+		wp = (println[0])
+	}
+	io.Copy(newBaudWriter(port, "~", Serial, baud, wp), s)
 }
 
 func getFirstSerial(isUSB bool, baud int) (name, list string) {
@@ -139,6 +152,7 @@ func newBaudWriter(port serial.Port, escapeChar, namePort string, baud int, logP
 	default:
 		t = escapeChar[0]
 	}
+	logPrintln(mess("<Enter><~>"))
 	return &baudWriter{
 		port,
 		[]byte{'\r', '\r'},
@@ -158,7 +172,6 @@ func (w *baudWriter) Write(pp []byte) (int, error) {
 	if w.t == 0 {
 		return w.Writer.Write(pp)
 	}
-	// Println(pp)
 	p := append(w.l, pp...) //+2
 	switch {
 	case bytes.Contains(p, []byte{'\r', w.t, CtrlZ}):
@@ -173,9 +186,7 @@ func (w *baudWriter) Write(pp []byte) (int, error) {
 			if bytes.Contains(p, []byte{'\r', w.t, key}) {
 				msg, _ := switchMode(key, &w.mode, "")
 				err := w.port.SetMode(&w.mode)
-				msg = fmt.Sprintf("%s@%s %v\r", w.name, msg, err)
-				w.println(msg)
-				Println(msg)
+				w.println(fmt.Sprintf("%s@%s %v\r", w.name, msg, err))
 				p = bytes.ReplaceAll(p, []byte{'\r', w.t, key}, []byte{'\r', w.t, '\b'})
 			}
 		}
@@ -199,7 +210,7 @@ func (w *baudWriter) Write(pp []byte) (int, error) {
 // Телнет сервер ждёт на порту Ser2net.
 // На консоль клиента println выводит протокол через ssh канал.
 // Локально Println выводит протокол.
-func s2n(ctx context.Context, r io.Reader, chanByte chan byte, Serial string, Ser2net, baud int, println func(v ...any), Println func(v ...any)) error {
+func s2n(ctx context.Context, r io.Reader, chanByte chan byte, Serial string, Ser2net, baud int, println ...func(v ...any)) error {
 	press := mess("")
 	w, _ := ser2net.NewSerialWorker(ctx, Serial, baud)
 	go w.Worker()
@@ -208,14 +219,17 @@ func s2n(ctx context.Context, r io.Reader, chanByte chan byte, Serial string, Se
 		defer func() {
 			w.Stop()
 			w.SerialClose()
-			println(w)
-			Println(w)
+			for _, p := range println {
+				p(w, "\r")
+			}
 		}()
-		println(press)
 		if chanByte == nil {
 			chanByte = make(chan byte, 10)
 		}
 		if r != nil {
+			for _, p := range println {
+				p(press)
+			}
 			buffer := make([]byte, 10)
 			go func() {
 				for {
@@ -230,7 +244,7 @@ func s2n(ctx context.Context, r io.Reader, chanByte chan byte, Serial string, Se
 							return
 						}
 						for _, b := range buffer[:n] {
-							// Если фильтровать ошибочный ввод то какже понять что он ошибочен
+							// Если фильтровать ошибочный ввод то какже дать понять что он ошибочен
 							// if b < '0' || b > '9' {
 							// 	continue
 							// }
@@ -251,26 +265,32 @@ func s2n(ctx context.Context, r io.Reader, chanByte chan byte, Serial string, Se
 					return
 				}
 				if msg == "" {
-					println(press)
+					for _, p := range println {
+						p(press)
+					}
 					continue
 				}
 				err := w.SetMode(&mode)
 				msg = fmt.Sprintf("%s%s %v\r", w, msg, err)
-				println(msg, "\r")
-				Println(msg)
+				for _, p := range println {
+					p(msg)
+				}
 			}
 		}
 	})
 	mod := w.Mode()
 	msg, _ := switchMode('\r', &mod, "")
-	Println(Serial + "@" + msg)
-	Println(mess("<Enter><~>"))
+	msg = Serial + "@" + msg + "\r"
+	for _, p := range println {
+		p(msg)
+	}
 
 	err := w.StartTelnet(LH, Ser2net)
 	if err != nil {
 		t.Stop()
-		println(err)
-		Println(err)
+		for _, p := range println {
+			p(err, "\r")
+		}
 	}
 	return err
 }
@@ -305,6 +325,7 @@ func newSideWriter(w io.WriteCloser, escapeChar, name string, chanByte chan byte
 	default:
 		t = escapeChar[0]
 	}
+	logPrintln(mess("<Enter><~>"))
 	return &sideWriter{
 		w,
 		[]byte{'\r', '\r'},
@@ -415,4 +436,24 @@ func switchMode(b byte, mode *serial.Mode, prefix string) (msg string, quit bool
 	}
 	msg = fmt.Sprintf("%s%s", prefix, msg)
 	return
+}
+
+func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial string, Ser2net, baud int, println ...func(v ...any)) {
+	ch := make(chan byte, 10)
+	go s2n(ctx, nil, ch, Serial, Ser2net, baud, println...)
+
+	wp := func(v ...any) {}
+	if len(println) > 0 {
+		wp = (println[0])
+	}
+
+	conn, err := prt.Dial(fmt.Sprintf("%s:%d", LH, Ser2net))
+	if err != nil {
+		wp(err, "\r")
+		return
+	}
+	defer conn.Close()
+
+	go io.Copy(s, conn)
+	io.Copy(newSideWriter(conn, "~", Serial, ch, wp), s)
 }

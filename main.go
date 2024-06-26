@@ -58,11 +58,9 @@ import (
 	"github.com/abakum/putty_hosts"
 	"github.com/abakum/winssh"
 	"github.com/containerd/console"
-	"github.com/muesli/termenv"
 	"github.com/trzsz/go-arg"
 	"github.com/trzsz/ssh_config"
 
-	prt "github.com/PatrickRudolph/telnet"
 	. "github.com/abakum/dssh/tssh"
 	version "github.com/abakum/version/lib"
 	"github.com/xlab/closer"
@@ -322,12 +320,16 @@ Host ` + SSHJ + `
 			// args.Baud != "" || args.Serial != "" || Ser2net > 0
 			baud := ser2net.BaudRate(strconv.Atoi(args.Baud))
 			args.Baud = strconv.Itoa(baud)
-			args.Serial = getFirstUsbSerial(args.Serial, baud, Print)
-			if args.Serial == "" {
-				return
-			}
 			if args.Baud != "" {
 				args.Argument = append(args.Argument, "--baud", args.Baud)
+			}
+
+			switch args.Destination {
+			case "", ".", repo:
+				args.Serial = getFirstUsbSerial(args.Serial, baud, Print)
+				if args.Serial == "" {
+					return
+				}
 			}
 			if args.Serial != "" {
 				args.Argument = append(args.Argument, "--serial", args.Serial)
@@ -347,36 +349,41 @@ Host ` + SSHJ + `
 			switch args.Destination {
 			case "": // Локальная последовательная консоль
 				if args.Putty {
-					// dssh -Pb9
+					// `dssh -Pb9` `dssh -P20`
 					opt := fmt.Sprintln("-serial", args.Serial, "-sercfg", args.Baud)
 					if bin == TELNET {
+						// `dssh -ePb9` `dssh -eP20`
 						// За неимением горничной имеем дворника
 						args.Ser2net = RFC2217
 					}
 					if args.Ser2net > 0 {
-						// dssh -P20
+						// `dssh -P20`
 						opt = fmt.Sprintln("-telnet", LH, "-P", args.Ser2net)
 						if bin == TELNET {
+							// `dssh -eP20`
 							opt = fmt.Sprintln(LH, args.Ser2net)
 						}
 					}
 
 					cmd := exec.Command(path, strings.Fields(opt)...)
 					Println(cmd)
-					Println("To exit press - Чтоб выйти нажми <^C>")
 					if !Win {
+						// `dssh -uPb9` `dssh -uP20`
 						cmd.Stdout = os.Stdout
 						cmd.Stderr = os.Stdout
 						if args.Ser2net > 0 {
+							// `dssh -uP20`
 							if bin == TELNET {
-								Println("To exit press - Чтоб выйти нажми <^]>")
-								go s2n(ctx, nil, nil, args.Serial, args.Ser2net, baud, mute, mute)
-								cmd.Stdin = os.Stdin
+								// `dssh -euP20`
+								time.AfterFunc(time.Second, func() {
+									Println("To exit press - Чтоб выйти нажми <^]><q><Enter>")
+								})
 							} else {
+								// `dssh -uP20`
 								w, err := cmd.StdinPipe()
 								if err == nil {
 									ch := make(chan byte, 10)
-									go s2n(ctx, nil, ch, args.Serial, args.Ser2net, baud, mute, Println)
+									go s2n(ctx, nil, ch, args.Serial, args.Ser2net, baud, Println)
 
 									cmd.Start()
 									fd := int(os.Stdin.Fd())
@@ -385,16 +392,14 @@ Host ` + SSHJ + `
 									go io.Copy(newSideWriter(w, "~", args.Serial, ch, Println), os.Stdin)
 									cmd.Wait()
 									return
-								} else {
-									Println("To exit press - Чтоб выйти нажми <^]>")
-									go s2n(ctx, nil, nil, args.Serial, args.Ser2net, baud, mute, mute)
-									cmd.Stdin = os.Stdin
 								}
 							}
-						} else {
-							cmd.Stdin = os.Stdin
+							go s2n(ctx, nil, nil, args.Serial, args.Ser2net, baud)
 						}
+						cmd.Stdin = os.Stdin
 					} else {
+						// Win
+						// `dssh -Pb9` `dssh -P20`
 						if bin != PUTTY {
 							// cmd = exec.Command("cmd.exe", "/C", fmt.Sprintf(`start %s %s`, bin, opt))
 							createNewConsole(cmd)
@@ -403,46 +408,41 @@ Host ` + SSHJ + `
 							fd := int(os.Stdin.Fd())
 							oldState, _ := term.MakeRaw(fd)
 							defer term.Restore(fd, oldState)
-							go s2n(ctx, os.Stdin, nil, args.Serial, args.Ser2net, baud, Println, mute)
+							go s2n(ctx, os.Stdin, nil, args.Serial, args.Ser2net, baud, Println)
 						}
 					}
+					Println("To exit press - Чтоб выйти нажми <^C>")
 					cmd.Run()
 					return
 				}
+				// args.Destination=="" && !args.Putty
+				current := console.Current()
+				defer current.Reset()
+				fd := int(os.Stdin.Fd())
+				oldState, _ := term.MakeRaw(fd)
+				defer term.Restore(fd, oldState)
+
+				Println("To exit press - Чтоб выйти нажми <^Z>")
 				if args.Ser2net > 0 {
 					// `dssh -20`
-					Println("To exit press - Чтоб выйти нажми <^Z>")
-					current := console.Current()
-					defer current.Reset()
-					fd := int(os.Stdin.Fd())
-					oldState, _ := term.MakeRaw(fd)
-					defer term.Restore(fd, oldState)
-
-					ch := make(chan byte, 10)
-					go s2n(ctx, nil, ch, args.Serial, args.Ser2net, baud, mute, Println)
-
-					conn, err := prt.Dial(fmt.Sprintf("%s:%d", LH, args.Ser2net))
-					if err != nil {
-						Println(err)
-						return
-					}
-					defer conn.Close()
-					go io.Copy(os.Stdout, conn)
-					io.Copy(newSideWriter(conn, "~", args.Serial, ch, Println), os.Stdin)
+					rfc2217(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, args.Serial, args.Ser2net, baud, Println)
 					return
 				}
+				// `dssh -b9`
+				ser(ReadWriteCloser{os.Stdin, os.Stdout}, args.Serial, baud, Println)
+
 				// Если локально не запущен сервер то запускаем и дальше как `dssh -b9 .`
 				// `dssh -b9`
-				p := LISTEN
-				if args.Port != 0 {
-					p = strconv.Itoa(args.Port)
-				}
-				go server(LH, p, repo, "", signer, mute, mute)
-				args.Destination = repo
-				args.LoginName = "_"
-				client(signer, sshj, repo)
-				TsshMain(&args)
-				return
+				// p := LISTEN
+				// if args.Port != 0 {
+				// 	p = strconv.Itoa(args.Port)
+				// }
+				// go server(LH, p, repo, "", signer, mute, mute)
+				// args.Destination = repo
+				// args.LoginName = "_"
+				// client(signer, sshj, repo)
+				// TsshMain(&args)
+				// return
 			}
 		}
 
@@ -549,7 +549,7 @@ Host ` + SSHJ + `
 	if args.Putty {
 		opt := ""
 		if args.Destination != "" {
-			// dssh -P20 x
+			// dssh -Px :
 			if args.Ser2net > 0 {
 				opt = fmt.Sprintln("-telnet", LH, "-P", args.Ser2net)
 				if bin == TELNET {
@@ -572,6 +572,7 @@ Host ` + SSHJ + `
 		Println(cmd)
 		Println("To exit press - Чтоб выйти нажми <^C>")
 		if !Win {
+			// plink || telnet
 			cmd.Stdin = os.Stdin
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stdout
@@ -581,35 +582,21 @@ Host ` + SSHJ + `
 			}
 		}
 		if args.Ser2net > 0 {
-			switch 2 {
-			case 0:
-				go func() {
-					restoreConsole, err := termenv.EnableVirtualTerminalProcessing(termenv.DefaultOutput())
-					if err != nil {
-						Println(err)
-						cmd.Start()
-						return
-					}
-					cmd.Run()
-					restoreConsole()
-					closer.Close()
-				}()
-			case 1:
-				time.AfterFunc(time.Second, func() {
-					cmd.Start()
-				})
-			case 2:
-				fd := int(os.Stdin.Fd())
-				oldState, _ := term.MakeRaw(fd)
+			// dssh -P20 :
+			fd := int(os.Stdin.Fd())
+			oldState, _ := term.MakeRaw(fd)
+			go func() {
+				time.Sleep(time.Second * 2)
 				cmd.Run()
 				term.Restore(fd, oldState)
 				closer.Close()
-			}
+			}()
 		} else {
 			cmd.Run()
 			return
 		}
 	}
+	// !args.Putty
 	code := TsshMain(&args)
 	if args.Background {
 		Println("tssh started in background with code:", code)
