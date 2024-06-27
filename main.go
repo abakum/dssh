@@ -382,6 +382,7 @@ Host ` + SSHJ + `
 							} else {
 								// dssh -uP20
 								// Microsoft Telnet выпадает
+								// Linux Telnet виснет
 								w, err := cmd.StdinPipe()
 								if err == nil {
 									ch := make(chan byte, K16)

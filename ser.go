@@ -450,6 +450,7 @@ func switchMode(b byte, mode *serial.Mode, prefix string) (msg string, quit bool
 func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial string, Ser2net int, Baud string, println ...func(v ...any)) {
 	ch := make(chan byte, K16)
 	go s2n(ctx, nil, ch, Serial, Ser2net, Baud, println...)
+	time.Sleep(time.Second)
 
 	wp := func(v ...any) {}
 	if len(println) > 0 {
