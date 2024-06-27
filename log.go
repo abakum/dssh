@@ -3,8 +3,11 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 	"path"
+	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"strings"
 
 	"github.com/abakum/menu"
@@ -154,4 +157,38 @@ func FatalAnd(s string, cases ...bool) {
 	le.Println(src(8), s)
 	fmt.Fprint(le.Writer(), "\r")
 	closer.Exit(1)
+}
+
+func base() string {
+	info, ok := debug.ReadBuildInfo()
+	if ok {
+		return path.Base(info.Path) //info.Main.Path
+	}
+	exe, err := os.Executable()
+	if err == nil {
+		return strings.Split(filepath.Base(exe), ".")[0]
+	}
+	dir, err := os.Getwd()
+	if err == nil {
+		return filepath.Base(dir)
+	}
+	return "main"
+}
+
+func build(a ...any) (s string) {
+	s = runtime.GOARCH + " " + runtime.GOOS
+	if info, ok := debug.ReadBuildInfo(); ok {
+		s += " " + info.GoVersion
+		s += " " + path.Base(info.Path)
+		for _, setting := range info.Settings {
+			switch setting.Key {
+			case "vcs.revision":
+				s += " " + setting.Value
+			case "vcs.time":
+				s += " " + strings.ReplaceAll(strings.ReplaceAll(setting.Value, "-", ""), ":", "")
+			}
+		}
+	}
+	s += " " + strings.TrimSpace(fmt.Sprintln(a...))
+	return
 }

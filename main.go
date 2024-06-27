@@ -44,8 +44,6 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
-	"runtime/debug"
-	rdebug "runtime/debug"
 	"slices"
 	"strconv"
 	"strings"
@@ -64,7 +62,6 @@ import (
 	version "github.com/abakum/version/lib"
 	"github.com/xlab/closer"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/term"
 )
 
 type Parser struct {
@@ -129,7 +126,6 @@ var (
 	Std        = menu.Std
 	repo       = base() // Имя репозитория `dssh` оно же имя алиаса в .ssh/config
 	imag       string   // Имя исполняемого файла `dssh` оно же имя посредника. Можно изменить чтоб не указывать имя посредника.
-	mute       = func(v ...any) {}
 	Win        = runtime.GOOS == "windows"
 	Telnet     = false
 )
@@ -270,6 +266,8 @@ func main() {
 	Println(a2s)
 	defer closer.Close()
 	closer.Bind(cleanup)
+	current := console.Current()
+	closer.Bind(func() { current.Reset() })
 
 	// tools
 	SecretEncodeKey = key
@@ -367,27 +365,26 @@ Host ` + SSHJ + `
 					cmd := exec.Command(path, strings.Fields(opt)...)
 					Println(cmd)
 					if !Win {
-						// `dssh -uPb9` `dssh -uP20`
+						// dssh -uPb9
+						// dssh -uP20
 						cmd.Stdout = os.Stdout
 						cmd.Stderr = os.Stdout
 						if args.Ser2net > 0 {
-							// `dssh -uP20`
-							if bin == TELNET {
-								// `dssh -euP20`
+							// dssh -uP20
+							if false && bin == TELNET {
+								// dssh -euP20
 								time.AfterFunc(time.Second, func() {
-									Println("To exit press - Чтоб выйти нажми <^]><q><Enter>")
+									toExitPress("<^]><q><Enter>")
 								})
 							} else {
-								// `dssh -uP20`
+								// dssh -uP20
 								w, err := cmd.StdinPipe()
 								if err == nil {
 									ch := make(chan byte, 10)
 									go s2n(ctx, nil, ch, args.Serial, args.Ser2net, baud, Println)
 
 									cmd.Start()
-									fd := int(os.Stdin.Fd())
-									oldState, _ := term.MakeRaw(fd)
-									defer term.Restore(fd, oldState)
+									current.SetRaw()
 									go io.Copy(newSideWriter(w, "~", args.Serial, ch, Println), os.Stdin)
 									cmd.Wait()
 									return
@@ -398,50 +395,34 @@ Host ` + SSHJ + `
 						cmd.Stdin = os.Stdin
 					} else {
 						// Win
-						// `dssh -Pb9` `dssh -P20`
+						// dssh -Pb9
+						// dssh -P20
 						if bin != PUTTY {
+							// dssh -eP20
 							// cmd = exec.Command("cmd.exe", "/C", fmt.Sprintf(`start %s %s`, bin, opt))
 							createNewConsole(cmd)
 						}
 						if args.Ser2net > 0 {
-							fd := int(os.Stdin.Fd())
-							oldState, _ := term.MakeRaw(fd)
-							defer term.Restore(fd, oldState)
+							current.SetRaw()
 							go s2n(ctx, os.Stdin, nil, args.Serial, args.Ser2net, baud, Println)
 						}
 					}
-					Println("To exit press - Чтоб выйти нажми <^C>")
+					toExitPress("<^C>")
 					cmd.Run()
 					return
 				}
-				// args.Destination=="" && !args.Putty
-				current := console.Current()
-				defer current.Reset()
-				fd := int(os.Stdin.Fd())
-				oldState, _ := term.MakeRaw(fd)
-				defer term.Restore(fd, oldState)
-
-				Println("To exit press - Чтоб выйти нажми <^Z>")
+				// dssh -b9
+				// dssh -20
+				current.SetRaw()
+				toExitPress("<^Z>")
 				if args.Ser2net > 0 {
-					// `dssh -20`
+					// dssh -20
 					rfc2217(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, args.Serial, args.Ser2net, baud, Println)
 					return
 				}
-				// `dssh -b9`
+				// dssh -b9
 				ser(ReadWriteCloser{os.Stdin, os.Stdout}, args.Serial, baud, Println)
-
-				// Если локально не запущен сервер то запускаем и дальше как `dssh -b9 .`
-				// `dssh -b9`
-				// p := LISTEN
-				// if args.Port != 0 {
-				// 	p = strconv.Itoa(args.Port)
-				// }
-				// go server(LH, p, repo, "", signer, mute, mute)
-				// args.Destination = repo
-				// args.LoginName = "_"
-				// client(signer, sshj, repo)
-				// TsshMain(&args)
-				// return
+				return
 			}
 		}
 
@@ -569,7 +550,7 @@ Host ` + SSHJ + `
 		}
 		cmd := exec.Command(path, strings.Fields(opt)...)
 		Println(cmd)
-		Println("To exit press - Чтоб выйти нажми <^C>")
+		toExitPress("<^C>")
 		if !Win {
 			// plink || telnet
 			cmd.Stdin = os.Stdin
@@ -582,12 +563,10 @@ Host ` + SSHJ + `
 		}
 		if args.Ser2net > 0 {
 			// dssh -P20 :
-			fd := int(os.Stdin.Fd())
-			oldState, _ := term.MakeRaw(fd)
+			current.SetRaw()
 			go func() {
 				time.Sleep(time.Second * 2)
 				cmd.Run()
-				term.Restore(fd, oldState)
 				closer.Close()
 			}()
 		} else {
@@ -603,6 +582,10 @@ Host ` + SSHJ + `
 	} else {
 		Println("tssh exit with code:", code)
 	}
+}
+
+func toExitPress(s string) {
+	Println(ToExitPress, s)
 }
 
 // tssh
@@ -902,22 +885,6 @@ func newMap(keys, defs []string, values ...string) (kv map[string]string) {
 	return
 }
 
-func base() string {
-	info, ok := rdebug.ReadBuildInfo()
-	if ok {
-		return path.Base(info.Path) //info.Main.Path
-	}
-	exe, err := os.Executable()
-	if err == nil {
-		return strings.Split(filepath.Base(exe), ".")[0]
-	}
-	dir, err := os.Getwd()
-	if err == nil {
-		return filepath.Base(dir)
-	}
-	return "main"
-}
-
 // Если установлен sshd от OpenSSH обновляем TrustedUserCAKeys (ssh/trusted_user_ca_keys) и HostCertificate.
 // Пишем конфиг I_verify_them_by_key_they_verify_me_by_certificate.
 // Пишем конфиг I_verify_them_by_certificate_they_verify_me_by_certificate.
@@ -1134,23 +1101,5 @@ func ParseDestination(dest string) (user, host, port string) {
 	}
 
 	host = dest
-	return
-}
-
-func build(a ...any) (s string) {
-	s = runtime.GOARCH + " " + runtime.GOOS
-	if info, ok := debug.ReadBuildInfo(); ok {
-		s += " " + info.GoVersion
-		s += " " + path.Base(info.Path)
-		for _, setting := range info.Settings {
-			switch setting.Key {
-			case "vcs.revision":
-				s += " " + setting.Value
-			case "vcs.time":
-				s += " " + strings.ReplaceAll(strings.ReplaceAll(setting.Value, "-", ""), ":", "")
-			}
-		}
-	}
-	s += " " + strings.TrimSpace(fmt.Sprintln(a...))
 	return
 }

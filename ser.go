@@ -6,22 +6,21 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 	"time"
 
 	prt "github.com/PatrickRudolph/telnet"
 	"github.com/abakum/go-ser2net/pkg/ser2net"
 	"github.com/abakum/winssh"
-	"github.com/mattn/go-isatty"
 	"go.bug.st/serial"
 	"go.bug.st/serial/enumerator"
 )
 
 const (
-	CtrlC = 0x03 // ^C END OF TEXT
-	CtrlZ = 0x1A // ^Z SUBSTITUTE
-	IS3   = 0x1D // ^] INFORMATION SEPARATOR THREE (group separator)
+	CtrlC       = 0x03 // ^C END OF TEXT
+	CtrlZ       = 0x1A // ^Z SUBSTITUTE
+	IS3         = 0x1D // ^] INFORMATION SEPARATOR THREE (group separator)
+	ToExitPress = "To exit press - Чтоб выйти нажми"
 )
 
 type cgiArgs struct {
@@ -31,10 +30,6 @@ type cgiArgs struct {
 	Putty   bool   `arg:"-P,--putty" help:"run putty"`
 	Restart bool   `arg:"-r,--restart" help:"restart daemon"`
 }
-
-var (
-	IsTerminal bool = isatty.IsTerminal(os.Stdin.Fd()) || isatty.IsCygwinTerminal(os.Stdin.Fd())
-)
 
 type ReadWriteCloser struct {
 	io.Reader
@@ -384,7 +379,7 @@ func rn(ss ...string) (s string) {
 
 func mess(s string) string {
 	return rn("",
-		"To exit press - Чтоб выйти нажми "+s+"<.>",
+		ToExitPress+" "+s+"<.>",
 		"To change mode of serial port press - Чтоб сменить режим последовательного порта нажми "+s+"<x>",
 		"Where x from 0 to 9 - Где 0[115200], 1[19200], 2[2400], 3[38400], 4[4800], 5[57600], 6[DataBits], 7[Parity], 8[StopBits], 9[9600]",
 	)
