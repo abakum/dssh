@@ -378,15 +378,18 @@ Host ` + SSHJ + `
 								})
 							} else {
 								// dssh -uP20
+								// Microsoft Telnet выпадает
 								w, err := cmd.StdinPipe()
 								if err == nil {
 									ch := make(chan byte, 10)
 									go s2n(ctx, nil, ch, args.Serial, args.Ser2net, baud, Println)
 
-									cmd.Start()
-									current.SetRaw()
-									go io.Copy(newSideWriter(w, "~", args.Serial, ch, Println), os.Stdin)
-									cmd.Wait()
+									err := cmd.Start()
+									if err != nil {
+										current.SetRaw()
+										go io.Copy(newSideWriter(w, "~", args.Serial, ch, Println), os.Stdin)
+										cmd.Wait()
+									}
 									return
 								}
 							}
