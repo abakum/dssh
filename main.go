@@ -55,6 +55,7 @@ import (
 	"github.com/abakum/putty_hosts"
 	"github.com/abakum/winssh"
 	"github.com/containerd/console"
+	"github.com/mattn/go-isatty"
 	"github.com/trzsz/go-arg"
 	"github.com/trzsz/ssh_config"
 
@@ -237,7 +238,7 @@ func main() {
 			bin = item
 			break
 		}
-		Println(fmt.Errorf("not found - не найден %s", bin))
+		Println(fmt.Errorf("not found - не найден %s", item))
 	}
 	if args.Putty && bin == "" {
 		Fatal(fmt.Errorf("not found - не найдены %v", bins))
@@ -266,8 +267,8 @@ func main() {
 	Println(a2s)
 	defer closer.Close()
 	closer.Bind(cleanup)
-	current := console.Current()
-	closer.Bind(func() { current.Reset() })
+	// current := console.Current()
+	// closer.Bind(func() { current.Reset() })
 
 	// tools
 	SecretEncodeKey = key
@@ -305,8 +306,8 @@ Host ` + SSHJ + `
 		cli = true
 		enableTrzsz = "no"
 		args.Command = repo
-		args.ForceTTY = true
-		args.DisableTTY = false
+		// args.ForceTTY = true
+		// args.DisableTTY = false
 		args.Argument = nil
 		if args.Restart {
 			if args.Destination == "" {
@@ -314,18 +315,18 @@ Host ` + SSHJ + `
 			}
 			args.Argument = append(args.Argument, "--restart")
 		} else {
-			// args.Baud != "" || args.Serial != "" || Ser2net > 0
-			baud := ser2net.BaudRate(strconv.Atoi(args.Baud))
-			args.Baud = strconv.Itoa(baud)
+			// args.Baud != "" || args.Serial != "" || args.Ser2net > 0
 			if args.Baud != "" {
 				args.Argument = append(args.Argument, "--baud", args.Baud)
 			}
 
 			switch args.Destination {
 			case "", ".", repo:
-				args.Serial = getFirstUsbSerial(args.Serial, baud, Print)
+				// Локальный последовательный порт
+				args.Serial = getFirstUsbSerial(args.Serial, args.Baud, Print)
 				if args.Serial == "" {
-					return
+					Println(NotFoundFreeSerial)
+					args.Ser2net = RFC2217 // Что если последовательный порт занят ser2net
 				}
 			}
 			if args.Serial != "" {
@@ -346,18 +347,20 @@ Host ` + SSHJ + `
 			switch args.Destination {
 			case "": // Локальная последовательная консоль
 				if args.Putty {
-					// `dssh -Pb9` `dssh -P20`
-					opt := fmt.Sprintln("-serial", args.Serial, "-sercfg", args.Baud)
+					// dssh -Pb9
+					// dssh -P20
+					opt := fmt.Sprintln("-serial", args.Serial, "-sercfg", ser2net.BaudRate(strconv.Atoi(args.Baud)))
 					if bin == TELNET {
-						// `dssh -ePb9` `dssh -eP20`
+						// dssh -ePb9
+						// dssh -eP20
 						// За неимением горничной имеем дворника
 						args.Ser2net = RFC2217
 					}
 					if args.Ser2net > 0 {
-						// `dssh -P20`
+						// dssh -P20
 						opt = fmt.Sprintln("-telnet", LH, "-P", args.Ser2net)
 						if bin == TELNET {
-							// `dssh -eP20`
+							// dssh -eP20
 							opt = fmt.Sprintln(LH, args.Ser2net)
 						}
 					}
@@ -371,7 +374,7 @@ Host ` + SSHJ + `
 						cmd.Stderr = os.Stdout
 						if args.Ser2net > 0 {
 							// dssh -uP20
-							if false && bin == TELNET {
+							if bin == TELNET {
 								// dssh -euP20
 								time.AfterFunc(time.Second, func() {
 									toExitPress("<^]><q><Enter>")
@@ -381,19 +384,20 @@ Host ` + SSHJ + `
 								// Microsoft Telnet выпадает
 								w, err := cmd.StdinPipe()
 								if err == nil {
-									ch := make(chan byte, 10)
-									go s2n(ctx, nil, ch, args.Serial, args.Ser2net, baud, Println)
+									ch := make(chan byte, K16)
+									go s2n(ctx, nil, ch, args.Serial, args.Ser2net, args.Baud, Println)
 
 									err := cmd.Start()
-									if err != nil {
-										current.SetRaw()
+									if err == nil {
+										// current.SetRaw()
+										setRaw()
 										go io.Copy(newSideWriter(w, "~", args.Serial, ch, Println), os.Stdin)
 										cmd.Wait()
 									}
 									return
 								}
 							}
-							go s2n(ctx, nil, nil, args.Serial, args.Ser2net, baud)
+							go s2n(ctx, nil, nil, args.Serial, args.Ser2net, args.Baud)
 						}
 						cmd.Stdin = os.Stdin
 					} else {
@@ -406,8 +410,9 @@ Host ` + SSHJ + `
 							createNewConsole(cmd)
 						}
 						if args.Ser2net > 0 {
-							current.SetRaw()
-							go s2n(ctx, os.Stdin, nil, args.Serial, args.Ser2net, baud, Println)
+							// current.SetRaw()
+							setRaw()
+							go s2n(ctx, os.Stdin, nil, args.Serial, args.Ser2net, args.Baud, Println)
 						}
 					}
 					toExitPress("<^C>")
@@ -416,15 +421,16 @@ Host ` + SSHJ + `
 				}
 				// dssh -b9
 				// dssh -20
-				current.SetRaw()
+				// current.SetRaw()
+				setRaw()
 				toExitPress("<^Z>")
 				if args.Ser2net > 0 {
 					// dssh -20
-					rfc2217(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, args.Serial, args.Ser2net, baud, Println)
+					rfc2217(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, args.Serial, args.Ser2net, args.Baud, Println)
 					return
 				}
 				// dssh -b9
-				ser(ReadWriteCloser{os.Stdin, os.Stdout}, args.Serial, baud, Println)
+				ser(ReadWriteCloser{os.Stdin, os.Stdout}, args.Serial, args.Baud, Println)
 				return
 			}
 		}
@@ -529,27 +535,42 @@ Host ` + SSHJ + `
 
 	// Клиенты
 	client(signer, sshj+sshJ(JumpHost, u, "", p), repo, SSHJ)
+	Println(fmt.Errorf("%s -u=%v -P=%v -b=%s -s=%s -2=%d %s", repo, args.Telnet, args.Putty, args.Baud, args.Serial, args.Ser2net, args.Destination))
 	if args.Putty {
 		opt := ""
 		if args.Destination != "" {
-			// dssh -Px :
+			// dssh -P :
+			// dssh -P20 :
+			if args.Baud != "" || args.Serial != "" {
+				// dssh -Pb9 :
+				// dssh -Ps com3 :
+				path = PLINK
+				opt = fmt.Sprintln("-no-antispoof", "-load", args.Destination, `"`+repo+" --baud="+args.Baud+" --serial="+args.Serial+`"`)
+			}
 			if args.Ser2net > 0 {
+				// dssh -P20 :
+				// dssh -eP20 :
 				opt = fmt.Sprintln("-telnet", LH, "-P", args.Ser2net)
 				if bin == TELNET {
+					// dssh -eP20 :
 					opt = fmt.Sprintln(LH, args.Ser2net)
 				}
-			} else {
+			}
+			// dssh -P :
+			if opt == "" {
 				switch bin {
 				case PUTTY:
 					opt = "@" + args.Destination
 				case PLINK:
 					opt = fmt.Sprintln("-no-antispoof", "-load", args.Destination)
 				case TELNET:
+					// dssh -eP :
 					// За неимением...
 					path = "ssh"
 					opt = args.Destination
 				}
 			}
+			// dssh -Px :
 		}
 		cmd := exec.Command(path, strings.Fields(opt)...)
 		Println(cmd)
@@ -566,7 +587,8 @@ Host ` + SSHJ + `
 		}
 		if args.Ser2net > 0 {
 			// dssh -P20 :
-			current.SetRaw()
+			// current.SetRaw()
+			setRaw()
 			go func() {
 				time.Sleep(time.Second * 2)
 				cmd.Run()
@@ -577,7 +599,9 @@ Host ` + SSHJ + `
 			return
 		}
 	}
-	// !args.Putty
+	// dssh -b9 :
+	// dssh -20 :
+	setRaw()
 	code := TsshMain(&args)
 	if args.Background {
 		Println("tssh started in background with code:", code)
@@ -698,9 +722,9 @@ func ints() (ips []string) {
 func cleanup() {
 	winssh.KidsDone(os.Getpid())
 	Println("cleanup done")
-	if Win {
-		menu.PressAnyKey("Press any key - Нажмите любую клавишу", TOW)
-	}
+	// if Win {
+	// 	menu.PressAnyKey("Press any key - Нажмите любую клавишу", TOW)
+	// }
 }
 
 func FingerprintSHA256(pubKey ssh.PublicKey) string {
@@ -1105,4 +1129,56 @@ func ParseDestination(dest string) (user, host, port string) {
 
 	host = dest
 	return
+}
+
+func setRaw() {
+	var (
+		err      error
+		current  console.Console
+		settings string
+	)
+
+	current, err = console.ConsoleFromFile(os.Stdin)
+	if err == nil {
+		err = current.SetRaw()
+		if err == nil {
+			closer.Bind(func() { current.Reset() })
+			Println("setRaw by console")
+			return
+		}
+	}
+
+	if isatty.IsCygwinTerminal(os.Stdin.Fd()) {
+		settings, err = sttySettings()
+		if err == nil {
+			err = sttyMakeRaw()
+			if err == nil {
+				closer.Bind(func() { sttyReset(settings) })
+				Println("setRaw by stty")
+			}
+		}
+	}
+	Println(err)
+}
+
+func sttyMakeRaw() error {
+	cmd := exec.Command("stty", "raw", "-echo")
+	cmd.Stdin = os.Stdin
+	return cmd.Run()
+}
+
+func sttySettings() (string, error) {
+	cmd := exec.Command("stty", "-g")
+	cmd.Stdin = os.Stdin
+	out, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+func sttyReset(settings string) {
+	cmd := exec.Command("stty", settings)
+	cmd.Stdin = os.Stdin
+	_ = cmd.Run()
 }

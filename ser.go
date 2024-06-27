@@ -6,10 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"time"
 
-	prt "github.com/PatrickRudolph/telnet"
+	"github.com/PatrickRudolph/telnet"
 	"github.com/abakum/go-ser2net/pkg/ser2net"
 	"github.com/abakum/winssh"
 	"go.bug.st/serial"
@@ -21,6 +22,11 @@ const (
 	CtrlZ       = 0x1A // ^Z SUBSTITUTE
 	IS3         = 0x1D // ^] INFORMATION SEPARATOR THREE (group separator)
 	ToExitPress = "To exit press - Чтоб выйти нажми"
+	K16         = 16 * 1024
+)
+
+var (
+	NotFoundFreeSerial = fmt.Errorf("not found free serial USB port - не найден свободный последовательный порт USB")
 )
 
 type cgiArgs struct {
@@ -40,9 +46,16 @@ type ReadWriteCloser struct {
 // Это псевдокоманда `dssh -t . "dssh -b 115200 -s com3"`.
 // Завершение сессии через `<Enter>~.`
 // Если name пусто то ищем первый последовательный порт USB
-func ser(s io.ReadWriteCloser, Serial string, baud int, println ...func(v ...any)) {
+func ser(s io.ReadWriteCloser, Serial, Baud string, println ...func(v ...any)) {
+	if Serial == "" {
+		for _, p := range println {
+			p(NotFoundFreeSerial, "\r")
+		}
+		return
+	}
+	BaudRate := ser2net.BaudRate(strconv.Atoi(Baud))
 	mode := serial.Mode{
-		BaudRate: baud,
+		BaudRate: BaudRate,
 		DataBits: 8,
 	}
 	port, err := serial.Open(Serial, &mode)
@@ -80,10 +93,10 @@ func ser(s io.ReadWriteCloser, Serial string, baud int, println ...func(v ...any
 	if len(println) > 0 {
 		wp = (println[0])
 	}
-	io.Copy(newBaudWriter(port, "~", Serial, baud, wp), s)
+	io.Copy(newBaudWriter(port, "~", Serial, BaudRate, wp), s)
 }
 
-func getFirstSerial(isUSB bool, baud int) (name, list string) {
+func getFirstSerial(isUSB bool, Baud string) (name, list string) {
 	ports, err := enumerator.GetDetailedPortsList()
 	if err != nil || len(ports) == 0 {
 		return
@@ -105,7 +118,7 @@ func getFirstSerial(isUSB bool, baud int) (name, list string) {
 			}
 			// Занят?
 			sp, err := serial.Open(port.Name, &serial.Mode{
-				BaudRate: baud,
+				BaudRate: ser2net.BaudRate(strconv.Atoi(Baud)),
 				DataBits: 8,
 			})
 			if err != nil {
@@ -205,12 +218,19 @@ func (w *baudWriter) Write(pp []byte) (int, error) {
 // Телнет сервер ждёт на порту Ser2net.
 // На консоль клиента println выводит протокол через ssh канал.
 // Локально Println выводит протокол.
-func s2n(ctx context.Context, r io.Reader, chanByte chan byte, Serial string, Ser2net, baud int, println ...func(v ...any)) error {
+func s2n(ctx context.Context, r io.Reader, chanByte chan byte, Serial string, Ser2net int, Baud string, println ...func(v ...any)) error {
+	if Serial == "" {
+		return NotFoundFreeSerial
+	}
 	press := mess("")
-	w, _ := ser2net.NewSerialWorker(ctx, Serial, baud)
+	w, _ := ser2net.NewSerialWorker(ctx, Serial, ser2net.BaudRate(strconv.Atoi(Baud)))
 	go w.Worker()
 	t := time.AfterFunc(time.Second, func() {
 		// Если порт Ser2net занят то t.Stop отменит запуск управления последовательным портом
+		for _, p := range println {
+			p(fmt.Sprintf("%s@%s connected to %s:%d\r", Serial, ser2net.Mode{w.Mode()}, LH, Ser2net))
+		}
+
 		defer func() {
 			w.Stop()
 			w.SerialClose()
@@ -219,13 +239,13 @@ func s2n(ctx context.Context, r io.Reader, chanByte chan byte, Serial string, Se
 			}
 		}()
 		if chanByte == nil {
-			chanByte = make(chan byte, 10)
+			chanByte = make(chan byte, K16)
 		}
 		if r != nil {
 			for _, p := range println {
 				p(press)
 			}
-			buffer := make([]byte, 10)
+			buffer := make([]byte, K16)
 			go func() {
 				for {
 					select {
@@ -273,12 +293,6 @@ func s2n(ctx context.Context, r io.Reader, chanByte chan byte, Serial string, Se
 			}
 		}
 	})
-	mod := w.Mode()
-	msg, _ := switchMode('\r', &mod, "")
-	msg = Serial + "@" + msg + "\r"
-	for _, p := range println {
-		p(msg)
-	}
 
 	err := w.StartTelnet(LH, Ser2net)
 	if err != nil {
@@ -290,15 +304,15 @@ func s2n(ctx context.Context, r io.Reader, chanByte chan byte, Serial string, Se
 	return err
 }
 
-func getFirstUsbSerial(serialPort string, baud int, print func(v ...any)) (serial string) {
+func getFirstUsbSerial(serialPort, Baud string, print func(v ...any)) (serial string) {
 	if serialPort != "" {
 		return serialPort
 	}
-	serial, list := getFirstSerial(true, baud)
+	serial, list := getFirstSerial(true, Baud)
 	print(list)
-	if serial == "" {
-		print(fmt.Errorf("not found free serial USB port - не найден свободный последовательный порт USB"))
-	}
+	// if serial == "" {
+	// 	print(NotFoundFreeSerial)
+	// }
 	return
 }
 
@@ -433,16 +447,16 @@ func switchMode(b byte, mode *serial.Mode, prefix string) (msg string, quit bool
 	return
 }
 
-func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial string, Ser2net, baud int, println ...func(v ...any)) {
-	ch := make(chan byte, 10)
-	go s2n(ctx, nil, ch, Serial, Ser2net, baud, println...)
+func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial string, Ser2net int, Baud string, println ...func(v ...any)) {
+	ch := make(chan byte, K16)
+	go s2n(ctx, nil, ch, Serial, Ser2net, Baud, println...)
 
 	wp := func(v ...any) {}
 	if len(println) > 0 {
 		wp = (println[0])
 	}
 
-	conn, err := prt.Dial(fmt.Sprintf("%s:%d", LH, Ser2net))
+	conn, err := telnet.Dial(fmt.Sprintf("%s:%d", LH, Ser2net))
 	if err != nil {
 		wp(err, "\r")
 		return

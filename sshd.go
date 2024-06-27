@@ -9,13 +9,11 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/abakum/go-ansiterm"
 	"github.com/abakum/go-netstat/netstat"
-	"github.com/abakum/go-ser2net/pkg/ser2net"
 	"github.com/abakum/winssh"
 	gl "github.com/gliderlabs/ssh"
 	"github.com/trzsz/go-arg"
@@ -141,25 +139,23 @@ func server(h, p, repo, use string, signer ssh.Signer, Println func(v ...any), P
 			log.SetFlags(log.Lshortfile)
 			log.SetPrefix(">")
 			log.SetOutput(s.Stderr())
-			baud := ser2net.BaudRate(strconv.Atoi(args.Baud))
-			args.Serial = getFirstUsbSerial(args.Serial, baud, log.Print)
-			if args.Serial == "" {
-				return
-			}
+			args.Serial = getFirstUsbSerial(args.Serial, args.Baud, log.Print)
 			if args.Ser2net > 0 {
 				if args.Putty {
+					// dssh -P20 :
 					// Управление режимами последовательного порта через ssh.
 					// Приём передача через putty, plink, telnet.
-					err := s2n(s.Context(), s, nil, args.Serial, args.Ser2net, baud, log.Println, Println)
+					err := s2n(s.Context(), s, nil, args.Serial, args.Ser2net, args.Baud, log.Println, Println)
 					if err != nil {
 						log.Println(err, "\r")
 					}
 					return
 				}
-				rfc2217(s.Context(), s, args.Serial, args.Ser2net, baud, log.Println, Println)
+				// dssh -20 :
+				rfc2217(s.Context(), s, args.Serial, args.Ser2net, args.Baud, log.Println, Println)
 				return
 			}
-			ser(s, args.Serial, baud, log.Println, Println)
+			ser(s, args.Serial, args.Baud, log.Println, Println)
 		}
 	})
 
