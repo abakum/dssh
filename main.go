@@ -310,6 +310,7 @@ Host ` + SSHJ + `
 		// args.DisableTTY = false
 		args.Argument = nil
 		if args.Restart {
+			// dssh --restart
 			if args.Destination == "" {
 				args.Destination = ":" // Рестарт сервера за NAT
 			}
@@ -386,19 +387,27 @@ Host ` + SSHJ + `
 								w, err := cmd.StdinPipe()
 								if err == nil {
 									ch := make(chan byte, K16)
-									go s2n(ctx, nil, ch, args.Serial, args.Ser2net, args.Baud, Println)
+									go func() {
+										s2n(ctx, nil, ch, args.Serial, args.Ser2net, args.Baud, "", Println)
+										closer.Close()
+									}()
 
 									err := cmd.Start()
 									if err == nil {
 										// current.SetRaw()
 										setRaw()
-										go io.Copy(newSideWriter(w, "~", args.Serial, ch, Println), os.Stdin)
-										cmd.Wait()
+										io.Copy(newSideWriter(w, "~", args.Serial, " или <^Z>", ch, Println), os.Stdin)
+										if cmd.Process != nil {
+											cmd.Process.Release()
+										}
 									}
 									return
 								}
 							}
-							go s2n(ctx, nil, nil, args.Serial, args.Ser2net, args.Baud)
+							go func() {
+								s2n(ctx, nil, nil, args.Serial, args.Ser2net, "", args.Baud)
+								closer.Close()
+							}()
 						}
 						cmd.Stdin = os.Stdin
 					} else {
@@ -411,27 +420,28 @@ Host ` + SSHJ + `
 							createNewConsole(cmd)
 						}
 						if args.Ser2net > 0 {
-							// current.SetRaw()
+							// dssh -P20
 							setRaw()
-							go s2n(ctx, os.Stdin, nil, args.Serial, args.Ser2net, args.Baud, Println)
+							go func() {
+								s2n(ctx, os.Stdin, nil, args.Serial, args.Ser2net, args.Baud, " или <^C>", Println)
+								closer.Close()
+							}()
 						}
 					}
-					toExitPress("<^C>")
+					// toExitPress("<^C>")
 					cmd.Run()
 					return
 				}
 				// dssh -b9
 				// dssh -20
-				// current.SetRaw()
 				setRaw()
-				toExitPress("<^Z>")
 				if args.Ser2net > 0 {
 					// dssh -20
-					rfc2217(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, args.Serial, args.Ser2net, args.Baud, Println)
+					rfc2217(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, args.Serial, args.Ser2net, args.Baud, " или <^Z>", Println)
 					return
 				}
 				// dssh -b9
-				ser(ReadWriteCloser{os.Stdin, os.Stdout}, args.Serial, args.Baud, Println)
+				ser(ReadWriteCloser{os.Stdin, os.Stdout}, args.Serial, args.Baud, " или <^Z>", Println)
 				return
 			}
 		}
@@ -536,7 +546,7 @@ Host ` + SSHJ + `
 
 	// Клиенты
 	client(signer, sshj+sshJ(JumpHost, u, "", p), repo, SSHJ)
-	Println(fmt.Errorf("%s -u=%v -P=%v -b=%s -s=%s -2=%d %s", repo, args.Telnet, args.Putty, args.Baud, args.Serial, args.Ser2net, args.Destination))
+	Println(fmt.Errorf("%s -e=%v -u=%v -P=%v -b=%s -s=%s -2=%d %s", repo, args.Telnet, args.Unix, args.Putty, args.Baud, args.Serial, args.Ser2net, args.Destination))
 	if args.Putty {
 		opt := ""
 		if args.Destination != "" {
@@ -545,8 +555,7 @@ Host ` + SSHJ + `
 			if args.Baud != "" || args.Serial != "" {
 				// dssh -Pb9 :
 				// dssh -Ps com3 :
-				path = PLINK
-				opt = fmt.Sprintln("-no-antispoof", "-load", args.Destination, `"`+repo+" --baud="+args.Baud+" --serial="+args.Serial+`"`)
+				args.Ser2net = RFC2217
 			}
 			if args.Ser2net > 0 {
 				// dssh -P20 :
@@ -557,7 +566,6 @@ Host ` + SSHJ + `
 					opt = fmt.Sprintln(LH, args.Ser2net)
 				}
 			}
-			// dssh -P :
 			if opt == "" {
 				switch bin {
 				case PUTTY:
@@ -571,13 +579,19 @@ Host ` + SSHJ + `
 					opt = args.Destination
 				}
 			}
-			// dssh -Px :
 		}
+		// dssh -P
+		// dssh -P x
+		// dssh -P20
+		// dssh -P20 x
 		cmd := exec.Command(path, strings.Fields(opt)...)
 		Println(cmd)
 		toExitPress("<^C>")
 		if !Win {
-			// plink || telnet
+			// dssh -uP
+			// dssh -uP x
+			// dssh -uP20
+			// dssh -uP20 x
 			cmd.Stdin = os.Stdin
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stdout
@@ -587,9 +601,10 @@ Host ` + SSHJ + `
 			}
 		}
 		if args.Ser2net > 0 {
+			// dssh -P20
 			// dssh -P20 :
 			// current.SetRaw()
-			setRaw()
+			// setRaw()
 			go func() {
 				time.Sleep(time.Second * 2)
 				cmd.Run()
@@ -1144,7 +1159,7 @@ func setRaw() {
 		err = current.SetRaw()
 		if err == nil {
 			closer.Bind(func() { current.Reset() })
-			Println("setRaw by console")
+			Println("Set raw by go")
 			return
 		}
 	}
@@ -1155,7 +1170,7 @@ func setRaw() {
 			err = sttyMakeRaw()
 			if err == nil {
 				closer.Bind(func() { sttyReset(settings) })
-				Println("setRaw by stty")
+				Println("Set raw by stty")
 			}
 		}
 	}

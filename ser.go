@@ -46,7 +46,7 @@ type ReadWriteCloser struct {
 // Это псевдокоманда `dssh -t . "dssh -b 115200 -s com3"`.
 // Завершение сессии через `<Enter>~.`
 // Если name пусто то ищем первый последовательный порт USB
-func ser(s io.ReadWriteCloser, Serial, Baud string, println ...func(v ...any)) {
+func ser(s io.ReadWriteCloser, Serial, Baud, exit string, println ...func(v ...any)) {
 	if Serial == "" {
 		for _, p := range println {
 			p(NotFoundFreeSerial, "\r")
@@ -93,7 +93,7 @@ func ser(s io.ReadWriteCloser, Serial, Baud string, println ...func(v ...any)) {
 	if len(println) > 0 {
 		wp = (println[0])
 	}
-	io.Copy(newBaudWriter(port, "~", Serial, BaudRate, wp), s)
+	io.Copy(newBaudWriter(port, "~", Serial, exit, BaudRate, wp), s)
 }
 
 func getFirstSerial(isUSB bool, Baud string) (name, list string) {
@@ -150,9 +150,10 @@ type baudWriter struct {
 	name    string         // Имя порта
 	println func(v ...any) // log
 	mode    serial.Mode
+	exit    string
 }
 
-func newBaudWriter(port serial.Port, escapeChar, namePort string, baud int, logPrintln func(v ...any)) *baudWriter {
+func newBaudWriter(port serial.Port, escapeChar, namePort, exit string, baud int, logPrintln func(v ...any)) *baudWriter {
 	var t byte
 	switch strings.ToLower(escapeChar) {
 	case "none", "":
@@ -160,7 +161,7 @@ func newBaudWriter(port serial.Port, escapeChar, namePort string, baud int, logP
 	default:
 		t = escapeChar[0]
 	}
-	logPrintln(mess("<Enter><~>"))
+	logPrintln(mess("<Enter><~>", exit))
 	return &baudWriter{
 		port,
 		[]byte{'\r', '\r'},
@@ -172,6 +173,7 @@ func newBaudWriter(port serial.Port, escapeChar, namePort string, baud int, logP
 			BaudRate: baud,
 			DataBits: 8,
 		},
+		exit,
 	}
 }
 
@@ -189,7 +191,7 @@ func (w *baudWriter) Write(pp []byte) (int, error) {
 	case bytes.Contains(p, []byte{'\r', w.t, w.t}):
 		p = bytes.ReplaceAll(p, []byte{'\r', w.t, w.t}, []byte{'\r', w.t})
 	case bytes.Contains(p, []byte{'\r', w.t}) && !bytes.Contains(p, []byte{'\r', w.t, '\b'}):
-		w.println(mess(""))
+		w.println(mess("", w.exit))
 		for _, key := range []byte{'0', '1', '2', '3', '4', '5', '6', '7', '8', '9'} {
 			if bytes.Contains(p, []byte{'\r', w.t, key}) {
 				msg, _ := switchMode(key, &w.mode, "")
@@ -216,13 +218,13 @@ func (w *baudWriter) Write(pp []byte) (int, error) {
 
 // Используем r или chanByte для смены serial.Mode порта Serial.
 // Телнет сервер ждёт на порту Ser2net.
-// На консоль клиента println выводит протокол через ssh канал.
-// Локально Println выводит протокол.
-func s2n(ctx context.Context, r io.Reader, chanByte chan byte, Serial string, Ser2net int, Baud string, println ...func(v ...any)) error {
+// На консоль клиента println[0] выводит протокол через ssh канал.
+// Локально println[1] выводит протокол.
+func s2n(ctx context.Context, r io.Reader, chanByte chan byte, Serial string, Ser2net int, Baud, exit string, println ...func(v ...any)) error {
 	if Serial == "" {
 		return NotFoundFreeSerial
 	}
-	press := mess("")
+	press := mess("", exit)
 	w, _ := ser2net.NewSerialWorker(ctx, Serial, ser2net.BaudRate(strconv.Atoi(Baud)))
 	go w.Worker()
 	t := time.AfterFunc(time.Second, func() {
@@ -324,9 +326,10 @@ type sideWriter struct {
 	chanByte chan byte      // side chan
 	name     string         // Имя порта
 	println  func(v ...any) // log
+	exit     string
 }
 
-func newSideWriter(w io.WriteCloser, escapeChar, name string, chanByte chan byte, logPrintln func(v ...any)) *sideWriter {
+func newSideWriter(w io.WriteCloser, escapeChar, name, exit string, chanByte chan byte, logPrintln func(v ...any)) *sideWriter {
 	var t byte
 	switch strings.ToLower(escapeChar) {
 	case "none", "":
@@ -334,7 +337,7 @@ func newSideWriter(w io.WriteCloser, escapeChar, name string, chanByte chan byte
 	default:
 		t = escapeChar[0]
 	}
-	logPrintln(mess("<Enter><~>"))
+	logPrintln(mess("<Enter><~>", exit))
 	return &sideWriter{
 		w,
 		[]byte{'\r', '\r'},
@@ -342,6 +345,7 @@ func newSideWriter(w io.WriteCloser, escapeChar, name string, chanByte chan byte
 		chanByte,
 		name,
 		logPrintln,
+		exit,
 	}
 }
 
@@ -361,7 +365,7 @@ func (w *sideWriter) Write(pp []byte) (int, error) {
 	case bytes.Contains(p, []byte{'\r', w.t, w.t}):
 		p = bytes.ReplaceAll(p, []byte{'\r', w.t, w.t}, []byte{'\r', w.t, '\b'})
 	case bytes.Contains(p, []byte{'\r', w.t}) && !bytes.Contains(p, []byte{'\r', w.t, '\b'}):
-		w.println(mess(""))
+		w.println(mess("", w.exit))
 		for _, key := range []byte{'0', '1', '2', '3', '4', '5', '6', '7', '8', '9'} {
 			if bytes.Contains(p, []byte{'\r', w.t, key}) {
 				w.chanByte <- key
@@ -391,10 +395,10 @@ func rn(ss ...string) (s string) {
 	return strings.TrimSuffix(strings.ReplaceAll(s, "\n", "\r\n"), "\n")
 }
 
-func mess(s string) string {
+func mess(esc, exit string) string {
 	return rn("",
-		ToExitPress+" "+s+"<.>",
-		"To change mode of serial port press - Чтоб сменить режим последовательного порта нажми "+s+"<x>",
+		ToExitPress+" "+esc+"<.>"+exit,
+		"To change mode of serial port press - Чтоб сменить режим последовательного порта нажми "+esc+"<x>",
 		"Where x from 0 to 9 - Где 0[115200], 1[19200], 2[2400], 3[38400], 4[4800], 5[57600], 6[DataBits], 7[Parity], 8[StopBits], 9[9600]",
 	)
 }
@@ -447,9 +451,9 @@ func switchMode(b byte, mode *serial.Mode, prefix string) (msg string, quit bool
 	return
 }
 
-func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial string, Ser2net int, Baud string, println ...func(v ...any)) {
+func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial string, Ser2net int, Baud, exit string, println ...func(v ...any)) {
 	ch := make(chan byte, K16)
-	go s2n(ctx, nil, ch, Serial, Ser2net, Baud, println...)
+	go s2n(ctx, nil, ch, Serial, Ser2net, Baud, exit, println...)
 	time.Sleep(time.Second)
 
 	wp := func(v ...any) {}
@@ -465,5 +469,5 @@ func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial string, Ser2net i
 	defer conn.Close()
 
 	go io.Copy(s, conn)
-	io.Copy(newSideWriter(conn, "~", Serial, ch, wp), s)
+	io.Copy(newSideWriter(conn, "~", Serial, exit, ch, wp), s)
 }
