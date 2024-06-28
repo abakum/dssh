@@ -428,7 +428,11 @@ Host ` + SSHJ + `
 							}()
 						}
 					}
-					// toExitPress("<^C>")
+					if !Win && bin == TELNET && args.Putty {
+						// dssh -uePb9
+					} else {
+						toExitPress("<^C>")
+					}
 					cmd.Run()
 					return
 				}
