@@ -581,11 +581,11 @@ Host ` + SSHJ + `
 		if args.Destination != "" {
 			// dssh -P :
 			// dssh -P20 :
-			if BS {
-				// dssh -Pb9 :
-				// dssh -Ps com3 :
-				args.Ser2net = RFC2217
-			}
+			// if BS && args.Ser2net < 0 {
+			// 	// dssh -Pb9 :
+			// 	// dssh -Ps com3 :
+			// 	args.Ser2net = RFC2217
+			// }
 			if args.Ser2net > 0 {
 				// dssh -P20 :
 				// dssh -eP20 :
@@ -615,12 +615,13 @@ Host ` + SSHJ + `
 		// dssh -P20 x
 		cmd := exec.Command(path, strings.Fields(opt)...)
 		Println(cmd)
-		if windows {
-			exit = "<^C>"
-		}
-		if exit != "" {
-			toExitPress(exit)
-		}
+		// if windows {
+		// 	exit = "<^C>"
+		// }
+		// if exit != "" {
+		// 	toExitPress(exit)
+		// }
+		toExitPress("<^C>")
 		if !Win {
 			// dssh -uP
 			// dssh -uP x
@@ -639,6 +640,7 @@ Host ` + SSHJ + `
 			// dssh -P20 :
 			go func() {
 				time.Sleep(time.Second * 5)
+				setRaw()
 				cmd.Run()
 				closer.Close()
 			}()
