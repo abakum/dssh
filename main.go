@@ -127,7 +127,8 @@ var (
 	Std        = menu.Std
 	repo       = base() // Имя репозитория `dssh` оно же имя алиаса в .ssh/config
 	imag       string   // Имя исполняемого файла `dssh` оно же имя посредника. Можно изменить чтоб не указывать имя посредника.
-	Win        = runtime.GOOS == "windows"
+	windows    = runtime.GOOS == "windows"
+	Win        = windows
 	Cygwin     = isatty.IsCygwinTerminal(os.Stdin.Fd())
 	Telnet     = false
 )
@@ -397,7 +398,7 @@ Host ` + SSHJ + `
 									if err == nil {
 										setRaw()
 										exit := ""
-										if runtime.GOOS == "windows" {
+										if windows {
 											exit = " или <^Z>"
 										}
 										if Cygwin {
@@ -447,7 +448,7 @@ Host ` + SSHJ + `
 				// dssh -20
 				setRaw()
 				exit := ""
-				if runtime.GOOS == "windows" && !isatty.IsCygwinTerminal(os.Stdin.Fd()) {
+				if windows && !isatty.IsCygwinTerminal(os.Stdin.Fd()) {
 					// ^Z только под виндовс прерывает
 					// Чтоб послать ^Z в порт используй <Enter><~><Z>
 					exit = " или <^Z>"
