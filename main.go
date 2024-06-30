@@ -219,6 +219,13 @@ func main() {
 		return
 	}
 
+	exit := ""
+	if windows {
+		exit = " или <^Z>"
+	}
+	if Cygwin {
+		exit = " или <^C>"
+	}
 	bins := []string{PUTTY, PLINK, TELNET}
 	if args.Unix { // Тестовый параметр
 		Win = false
@@ -380,7 +387,11 @@ Host ` + SSHJ + `
 							if bin == TELNET {
 								// dssh -euP20
 								time.AfterFunc(time.Second, func() {
-									toExitPress("<^]><q><Enter>")
+									ex := "<^]><q><Enter>"
+									if Cygwin {
+										ex = "<^C>"
+									}
+									toExitPress(ex)
 								})
 							} else {
 								// dssh -uP20
@@ -397,13 +408,6 @@ Host ` + SSHJ + `
 									err := cmd.Start()
 									if err == nil {
 										setRaw()
-										exit := ""
-										if windows {
-											exit = " или <^Z>"
-										}
-										if Cygwin {
-											exit = " или <^C>"
-										}
 										io.Copy(newSideWriter(w, "~", args.Serial, exit, ch, Println), os.Stdin)
 										if cmd.Process != nil {
 											cmd.Process.Release()
@@ -447,12 +451,6 @@ Host ` + SSHJ + `
 				// dssh -b9
 				// dssh -20
 				setRaw()
-				exit := ""
-				if windows && !isatty.IsCygwinTerminal(os.Stdin.Fd()) {
-					// ^Z только под виндовс прерывает
-					// Чтоб послать ^Z в порт используй <Enter><~><Z>
-					exit = " или <^Z>"
-				}
 				if args.Ser2net > 0 {
 					// dssh -20
 					rfc2217(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, args.Serial, args.Ser2net, args.Baud, exit, Println)
