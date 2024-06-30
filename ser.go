@@ -20,6 +20,7 @@ import (
 const (
 	CtrlC       = 0x03 // ^C END OF TEXT
 	CtrlZ       = 0x1A // ^Z SUBSTITUTE
+	BackSpace   = 0x7F
 	IS3         = 0x1D // ^] INFORMATION SEPARATOR THREE (group separator)
 	ToExitPress = "To exit press - Чтоб выйти нажми"
 	K16         = 16 * 1024
@@ -182,38 +183,64 @@ func (w *baudWriter) Write(pp []byte) (int, error) {
 	if w.t == 0 {
 		return w.Writer.Write(pp)
 	}
+	o := len(pp)
 	p := append(w.l, pp...) //+2
+	// Println(o, p, 6)
 	switch {
 	case bytes.Contains(p, []byte{'\r', w.t, CtrlZ}):
 		return 0, fmt.Errorf(`<Enter><%c><^Z> was pressed`, w.t)
 	case bytes.Contains(p, []byte{'\r', w.t, '.'}):
 		return 0, fmt.Errorf(`<Enter><%c><.> was pressed`, w.t)
-	case bytes.Contains(p, []byte{'\r', w.t, w.t}):
-		p = bytes.ReplaceAll(p, []byte{'\r', w.t, w.t}, []byte{'\r', w.t})
-	case bytes.Contains(p, []byte{'\r', w.t}) && !bytes.Contains(p, []byte{'\r', w.t, '\b'}):
-		w.println(mess("", w.exit))
-		for _, key := range []byte{'0', '1', '2', '3', '4', '5', '6', '7', '8', '9'} {
+	case bytes.Contains(p, []byte{'\r', w.t}):
+		// w.println(mess("", w.exit))
+		fmt.Print("\a")
+		for _, key := range []byte{'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'z', 'Z', w.t} {
 			if bytes.Contains(p, []byte{'\r', w.t, key}) {
-				msg, _ := switchMode(key, &w.mode, "")
-				err := w.port.SetMode(&w.mode)
-				w.println(fmt.Sprintf("%s@%s %v\r", w.name, msg, err))
-				p = bytes.ReplaceAll(p, []byte{'\r', w.t, key}, []byte{'\r', w.t, '\b'})
+				switch key {
+				case w.t:
+					if o > 1 {
+						p = bytes.ReplaceAll(p, []byte{'\r', w.t, key}, []byte{key})
+					} else {
+						return o, nil
+					}
+				case 'z', 'Z':
+					if o > 1 {
+						p = bytes.ReplaceAll(p, []byte{'\r', w.t, key}, []byte{CtrlZ})
+					} else {
+						p = bytes.ReplaceAll(p, []byte{'\r', w.t, key}, []byte{'\r', w.t, BackSpace, CtrlZ})
+					}
+				default:
+					msg, _ := switchMode(key, &w.mode, "")
+					err := w.port.SetMode(&w.mode)
+					w.println(fmt.Sprintf("%s@%s %v\r", w.name, msg, err))
+					if o > 1 {
+						p = bytes.ReplaceAll(p, []byte{'\r', w.t, key}, []byte{})
+					} else {
+						w.l = []byte{'\r', w.t}
+						return w.Writer.Write([]byte{BackSpace})
+					}
+				}
+				break
 			}
 		}
 	}
-	p = p[2:] //-2
-	n := len(pp)
+	if len(p) > 1 {
+		p = p[2:] //-2
+	}
+	n := len(p)
+	// Println(n, p)
 
 	switch n {
 	case 0:
-		w.l = []byte{w.l[1], 0}
-		return 0, nil
+		w.l = []byte{'\r', '\r'}
+		return o, nil
 	case 1:
 		w.l = []byte{w.l[1], p[0]}
 	default:
 		w.l = []byte{p[n-2], p[n-1]}
 	}
-	return w.Writer.Write(p)
+	_, err := w.Writer.Write(p)
+	return o, err
 }
 
 // Используем r или chanByte для смены serial.Mode порта Serial.
@@ -354,38 +381,61 @@ func (w *sideWriter) Write(pp []byte) (int, error) {
 	if w.t == 0 {
 		return w.WriteCloser.Write(pp)
 	}
+	o := len(pp)
 	p := append(w.l, pp...) //+2
 	switch {
 	case bytes.Contains(p, []byte{'\r', w.t, CtrlZ}):
-		w.chanByte <- CtrlZ
 		return 0, fmt.Errorf(`<Enter><%c><^Z> was pressed`, w.t)
 	case bytes.Contains(p, []byte{'\r', w.t, '.'}):
 		w.chanByte <- '.'
 		return 0, fmt.Errorf(`<Enter><%c><.> was pressed`, w.t)
-	case bytes.Contains(p, []byte{'\r', w.t, w.t}):
-		p = bytes.ReplaceAll(p, []byte{'\r', w.t, w.t}, []byte{'\r', w.t, '\b'})
-	case bytes.Contains(p, []byte{'\r', w.t}) && !bytes.Contains(p, []byte{'\r', w.t, '\b'}):
-		w.println(mess("", w.exit))
-		for _, key := range []byte{'0', '1', '2', '3', '4', '5', '6', '7', '8', '9'} {
+	case bytes.Contains(p, []byte{'\r', w.t}):
+		// w.println(mess("", w.exit))
+		fmt.Print("\a")
+		for _, key := range []byte{'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'z', 'Z', w.t} {
 			if bytes.Contains(p, []byte{'\r', w.t, key}) {
-				w.chanByte <- key
-				p = bytes.ReplaceAll(p, []byte{'\r', w.t, key}, []byte{'\r', w.t, '\b'})
+				switch key {
+				case w.t:
+					if o > 1 {
+						p = bytes.ReplaceAll(p, []byte{'\r', w.t, key}, []byte{key})
+					} else {
+						return o, nil
+					}
+				case 'z', 'Z':
+					if o > 1 {
+						p = bytes.ReplaceAll(p, []byte{'\r', w.t, key}, []byte{CtrlZ})
+					} else {
+						p = bytes.ReplaceAll(p, []byte{'\r', w.t, key}, []byte{'\r', w.t, BackSpace, CtrlZ})
+					}
+				default:
+					w.chanByte <- key
+					if o > 1 {
+						p = bytes.ReplaceAll(p, []byte{'\r', w.t, key}, []byte{})
+					} else {
+						w.l = []byte{'\r', w.t}
+						return w.WriteCloser.Write([]byte{BackSpace})
+					}
+				}
+				break
 			}
 		}
 	}
-	p = p[2:] //-2
-	n := len(pp)
+	if len(p) > 1 {
+		p = p[2:] //-2
+	}
+	n := len(p)
 
 	switch n {
 	case 0:
-		w.l = []byte{w.l[1], 0}
-		return 0, nil
+		w.l = []byte{'\r', '\r'}
+		return o, nil
 	case 1:
 		w.l = []byte{w.l[1], p[0]}
 	default:
 		w.l = []byte{p[n-2], p[n-1]}
 	}
-	return w.WriteCloser.Write(p)
+	_, err := w.WriteCloser.Write(p)
+	return o, err
 }
 
 func rn(ss ...string) (s string) {
