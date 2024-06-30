@@ -194,9 +194,7 @@ func (w *baudWriter) Write(pp []byte) (int, error) {
 		return 0, fmt.Errorf(`<Enter><%c><.> was pressed`, w.t)
 	case bytes.Contains(p, []byte{'\r', w.t}):
 		// w.println(mess("", w.exit))
-		// fmt.Print("\a")
-		// fmt.Fprint(os.Stderr, "\a")
-		fmt.Fprint(os.Stderr, w.t)
+		fmt.Fprint(os.Stderr, "\a")
 		for _, key := range []byte{'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'z', 'Z', w.t} {
 			if bytes.Contains(p, []byte{'\r', w.t, key}) {
 				switch key {
@@ -394,8 +392,7 @@ func (w *sideWriter) Write(pp []byte) (int, error) {
 		return 0, fmt.Errorf(`<Enter><%c><.> was pressed`, w.t)
 	case bytes.Contains(p, []byte{'\r', w.t}):
 		// w.println(mess("", w.exit))
-		// fmt.Fprint(os.Stderr, "\a")
-		fmt.Fprint(os.Stderr, w.t)
+		fmt.Fprint(os.Stderr, "\a")
 		for _, key := range []byte{'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'z', 'Z', w.t} {
 			if bytes.Contains(p, []byte{'\r', w.t, key}) {
 				switch key {

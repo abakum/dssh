@@ -249,8 +249,15 @@ func main() {
 		}
 		Println(fmt.Errorf("not found - не найден %s", item))
 	}
-	if args.Putty && bin == "" {
-		Fatal(fmt.Errorf("not found - не найдены %v", bins))
+	if args.Putty {
+		if bin == "" {
+			Fatal(fmt.Errorf("not found - не найдены %v", bins))
+		}
+		if args.Destination != "" && (args.Baud != "" || args.Serial != "") {
+			// dssh -Pb9 :
+			// dssh -Pscom3 :
+			args.Ser2net = RFC2217
+		}
 	}
 
 	Ser2net := -1
@@ -387,11 +394,11 @@ Host ` + SSHJ + `
 							if bin == TELNET {
 								// dssh -euP20
 								time.AfterFunc(time.Second, func() {
-									ex := "<^]><q><Enter>"
+									exit := "<^]><q><Enter>"
 									if Cygwin {
-										ex = "<^C>"
+										exit = "<^C>"
 									}
-									toExitPress(ex)
+									toExitPress(exit)
 								})
 							} else {
 								// dssh -uP20
@@ -603,7 +610,7 @@ Host ` + SSHJ + `
 		cmd := exec.Command(path, strings.Fields(opt)...)
 		Println(cmd)
 		if windows {
-			exit = " или <^C>"
+			exit = "<^C>"
 		}
 		if exit != "" {
 			toExitPress(exit)
@@ -624,14 +631,13 @@ Host ` + SSHJ + `
 		if args.Ser2net > 0 {
 			// dssh -P20
 			// dssh -P20 :
-			// current.SetRaw()
-			// setRaw()
 			go func() {
-				time.Sleep(time.Second * 2)
+				time.Sleep(time.Second * 5)
 				cmd.Run()
 				closer.Close()
 			}()
 		} else {
+			// dssh -P :
 			cmd.Run()
 			return
 		}
@@ -639,6 +645,15 @@ Host ` + SSHJ + `
 	// dssh -b9 :
 	// dssh -20 :
 	setRaw()
+	if windows {
+		exit = "<^Z>"
+	}
+	if Cygwin {
+		exit = "<^C>"
+	}
+	if exit != "" {
+		toExitPress(exit)
+	}
 	code := TsshMain(&args)
 	if args.Background {
 		Println("tssh started in background with code:", code)
