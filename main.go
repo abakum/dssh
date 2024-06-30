@@ -249,14 +249,15 @@ func main() {
 		}
 		Println(fmt.Errorf("not found - не найден %s", item))
 	}
+	ser := args.Baud != "" || args.Serial != ""
 	if args.Putty {
 		if bin == "" {
 			Fatal(fmt.Errorf("not found - не найдены %v", bins))
 		}
-		if args.Destination != "" && (args.Baud != "" || args.Serial != "") {
+		if args.Destination != "" && ser && args.Ser2net < 0 {
 			// dssh -Pb9 :
 			// dssh -Pscom3 :
-			args.Ser2net = RFC2217
+			args.Ser2net = 0
 		}
 	}
 
@@ -274,6 +275,11 @@ func main() {
 		a2s = append(a2s, "-L", fmt.Sprintf("%d:%s:%d", args.Ser2net, LH, Ser2net))
 		if err := parser.Parse(a2s); err != nil {
 			Fatal(err)
+		}
+		if args.Destination != "" && ser && args.Ser2net < 0 {
+			// dssh -Pb9 :
+			// dssh -Pscom3 :
+			args.Ser2net = 0
 		}
 		if args.Ser2net == 0 {
 			args.Ser2net = RFC2217
@@ -317,7 +323,7 @@ Host ` + SSHJ + `
  PasswordAuthentication no
  ProxyJump ` + u + `@` + JumpHost + `
  EnableTrzsz ` + enableTrzsz
-	if args.Restart || args.Baud != "" || args.Serial != "" || args.Ser2net > 0 {
+	if args.Restart || ser || args.Ser2net > 0 {
 		// CGI
 		cli = true
 		enableTrzsz = "no"
@@ -332,7 +338,7 @@ Host ` + SSHJ + `
 			}
 			args.Argument = append(args.Argument, "--restart")
 		} else {
-			// args.Baud != "" || args.Serial != "" || args.Ser2net > 0
+			// ser || args.Ser2net > 0
 			if args.Baud != "" {
 				args.Argument = append(args.Argument, "--baud", args.Baud)
 			}
@@ -575,7 +581,7 @@ Host ` + SSHJ + `
 		if args.Destination != "" {
 			// dssh -P :
 			// dssh -P20 :
-			if args.Baud != "" || args.Serial != "" {
+			if ser {
 				// dssh -Pb9 :
 				// dssh -Ps com3 :
 				args.Ser2net = RFC2217
