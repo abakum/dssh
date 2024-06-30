@@ -602,7 +602,12 @@ Host ` + SSHJ + `
 		// dssh -P20 x
 		cmd := exec.Command(path, strings.Fields(opt)...)
 		Println(cmd)
-		toExitPress("<^C>")
+		if windows {
+			exit = " или <^C>"
+		}
+		if exit != "" {
+			toExitPress(exit)
+		}
 		if !Win {
 			// dssh -uP
 			// dssh -uP x
