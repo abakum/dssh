@@ -240,18 +240,8 @@ func main() {
 	if args.Telnet { // Тестовый параметр
 		bins = []string{TELNET} // Что если не установлен putty но есть telnet
 	}
-	var (
-		bin  string
-		path string
-	)
-	for _, item := range bins {
-		path, err = exec.LookPath(item)
-		if err == nil {
-			bin = item
-			break
-		}
-		Println(fmt.Errorf("not found - не найден %s", item))
-	}
+	execPath, bin, err := look(bins...)
+	Println(execPath, bin, err)
 
 	BS := args.Baud != "" || args.Serial != ""
 	if args.Putty {
@@ -394,7 +384,7 @@ Host ` + SSHJ + `
 						}
 					}
 
-					cmd := exec.Command(path, strings.Fields(opt)...)
+					cmd := exec.Command(execPath, strings.Fields(opt)...)
 					Println(cmd)
 					if !Win {
 						// dssh -uPb9
@@ -606,28 +596,35 @@ Host ` + SSHJ + `
 				case TELNET:
 					// dssh -eP :
 					// За неимением...
-					path = "ssh"
+					execPath = "ssh"
 					opt = args.Destination
 				}
 			}
 		}
 		// dssh -P
 		// dssh -P :
-		// dssh -P20
 		// dssh -P20 :
-		cmd := exec.Command(path, strings.Fields(opt)...)
+		// dssh -eP :
+		// dssh -eP20 :
+		cmd := exec.Command(execPath, strings.Fields(opt)...)
 		Println(cmd)
 		if bin != PUTTY {
 			createNewConsole(cmd)
 		}
 		if args.Ser2net > 0 {
-			// dssh -P20
 			// dssh -P20 :
+			// dssh -eP20 :
 			time.AfterFunc(time.Second*5, func() {
 				setRaw()
 				cmd.Run()
 				closer.Close()
 			})
+			// go func() {
+			// 	time.Sleep(time.Second * 5)
+			// 	setRaw()
+			// 	cmd.Run()
+			// 	closer.Close()
+			// }()
 		} else {
 			// dssh -P :
 			toExitPress("<^C>")
@@ -1218,4 +1215,16 @@ func sttyReset(settings string) {
 	cmd := exec.Command("stty", settings)
 	cmd.Stdin = os.Stdin
 	_ = cmd.Run()
+}
+
+func look(bins ...string) (path, bin string, err error) {
+	for _, item := range bins {
+		path, err = exec.LookPath(item)
+		if err == nil {
+			bin = item
+			return
+		}
+		err = fmt.Errorf("not found - не найден %s", item)
+	}
+	return
 }

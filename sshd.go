@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -146,6 +147,38 @@ func server(h, p, repo, use string, signer ssh.Signer, Println func(v ...any), P
 					// Только для Виндовс.
 					// Управление режимами последовательного порта через ssh.
 					// Приём передача через putty, plink, telnet.
+					// Протокол дублируется на стороне сервера через putty, plink, telnet.
+					if runtime.GOOS == "windows" {
+						execPath, bin, err := look(PUTTY, PLINK, TELNET)
+						Println(execPath, bin, err)
+						if err == nil {
+							opt := fmt.Sprintln("-telnet", LH, "-P", args.Ser2net)
+							if bin == TELNET {
+								opt = fmt.Sprintln(LH, args.Ser2net)
+							}
+							cmd := exec.CommandContext(s.Context(), execPath, strings.Fields(opt)...)
+							if bin != PUTTY {
+								createNewConsole(cmd)
+							}
+							err = cmd.Start()
+							Println(cmd, err)
+							if err == nil {
+								go func() {
+									err = cmd.Wait()
+									if err != nil {
+										switch err.Error() {
+										case "exit status 0xc000013a":
+											Println("User closed window with log - Пользователь закрыл окно c протоколом")
+										case "exit status 1":
+											Println("Session of ssh was terminated - Сессия ssh завершилась")
+										default:
+											Println(err, "= cmd.Wait()")
+										}
+									}
+								}()
+							}
+						}
+					}
 					err := s2n(s.Context(), s, nil, args.Serial, args.Ser2net, args.Baud, " или <^C>", log.Println, Println)
 					if err != nil {
 						log.Println(err, "\r")
