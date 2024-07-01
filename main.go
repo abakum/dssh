@@ -131,6 +131,8 @@ var (
 	Win        = windows
 	Cygwin     = isatty.IsCygwinTerminal(os.Stdin.Fd())
 	Telnet     = false
+	ctx        context.Context
+	cancel     context.CancelFunc
 )
 
 //go:generate go run github.com/abakum/version
@@ -226,6 +228,7 @@ func main() {
 	if Cygwin {
 		exit = " или <^C>"
 	}
+
 	bins := []string{PUTTY, PLINK, TELNET}
 	if args.Unix { // Тестовый параметр
 		Win = false
@@ -249,6 +252,7 @@ func main() {
 		}
 		Println(fmt.Errorf("not found - не найден %s", item))
 	}
+
 	BS := args.Baud != "" || args.Serial != ""
 	if args.Putty {
 		if bin == "" {
@@ -257,8 +261,13 @@ func main() {
 		if args.Destination != "" && BS && args.Ser2net < 0 {
 			// dssh -Pb9 :
 			// dssh -Pscom3 :
-			args.Ser2net = 0
+			args.Ser2net = RFC2217
 		}
+	}
+
+	if args.Ser2net > 0 || bin == TELNET {
+		ctx, cancel = context.WithCancel(context.Background())
+		defer cancel()
 	}
 
 	Ser2net := -1
@@ -355,17 +364,14 @@ Host ` + SSHJ + `
 			if args.Serial != "" {
 				args.Argument = append(args.Argument, "--serial", args.Serial)
 			}
-			if args.Putty {
+			if args.Putty && args.Destination != "" && Win {
 				args.Argument = append(args.Argument, "--putty")
 			}
-			var (
-				ctx    context.Context
-				cancel context.CancelFunc
-			)
 			if Ser2net > 0 || bin == TELNET {
 				args.Argument = append(args.Argument, "--2217", strconv.Itoa(Ser2net))
-				ctx, cancel = context.WithCancel(context.Background())
-				defer cancel()
+			}
+			if exit != "" {
+				args.Argument = append(args.Argument, "--exit", exit)
 			}
 			switch args.Destination {
 			case "": // Локальная последовательная консоль
@@ -576,16 +582,9 @@ Host ` + SSHJ + `
 	// Клиенты
 	client(signer, sshj+sshJ(JumpHost, u, "", p), repo, SSHJ)
 	Println(fmt.Errorf("%s -e=%v -u=%v -P=%v -b=%s -s=%s -2=%d %s", repo, args.Telnet, args.Unix, args.Putty, args.Baud, args.Serial, args.Ser2net, args.Destination))
-	if args.Putty {
+	if args.Putty && Win {
 		opt := ""
 		if args.Destination != "" {
-			// dssh -P :
-			// dssh -P20 :
-			// if BS && args.Ser2net < 0 {
-			// 	// dssh -Pb9 :
-			// 	// dssh -Ps com3 :
-			// 	args.Ser2net = RFC2217
-			// }
 			if args.Ser2net > 0 {
 				// dssh -P20 :
 				// dssh -eP20 :
@@ -622,18 +621,8 @@ Host ` + SSHJ + `
 		// 	toExitPress(exit)
 		// }
 		toExitPress("<^C>")
-		if !Win {
-			// dssh -uP
-			// dssh -uP x
-			// dssh -uP20
-			// dssh -uP20 x
-			cmd.Stdin = os.Stdin
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stdout
-		} else {
-			if bin != PUTTY {
-				createNewConsole(cmd)
-			}
+		if bin != PUTTY {
+			createNewConsole(cmd)
 		}
 		if args.Ser2net > 0 {
 			// dssh -P20
@@ -653,15 +642,6 @@ Host ` + SSHJ + `
 	// dssh -b9 :
 	// dssh -20 :
 	setRaw()
-	if windows {
-		exit = "<^Z>"
-	}
-	if Cygwin {
-		exit = "<^C>"
-	}
-	if exit != "" {
-		toExitPress(exit)
-	}
 	code := TsshMain(&args)
 	if args.Background {
 		Println("tssh started in background with code:", code)

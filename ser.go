@@ -36,6 +36,7 @@ type cgiArgs struct {
 	Serial  string `arg:"-s,--serial" placeholder:"serial" help:"serial port for console"`
 	Ser2net int    `arg:"-2,--2217" placeholder:"port" help:"RFC2217 telnet port for serial port console over telnet"`
 	Putty   bool   `arg:"-P,--putty" help:"run putty"`
+	Exit    string `arg:"-x,--exit" help:"exit message"`
 	Restart bool   `arg:"-r,--restart" help:"restart daemon"`
 }
 

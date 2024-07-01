@@ -143,19 +143,20 @@ func server(h, p, repo, use string, signer ssh.Signer, Println func(v ...any), P
 			if args.Ser2net > 0 {
 				if args.Putty {
 					// dssh -P20 :
+					// Только для Виндовс.
 					// Управление режимами последовательного порта через ssh.
 					// Приём передача через putty, plink, telnet.
-					err := s2n(s.Context(), s, nil, args.Serial, args.Ser2net, args.Baud, "", log.Println, Println)
+					err := s2n(s.Context(), s, nil, args.Serial, args.Ser2net, args.Baud, " или <^C>", log.Println, Println)
 					if err != nil {
 						log.Println(err, "\r")
 					}
 					return
 				}
 				// dssh -20 :
-				rfc2217(s.Context(), s, args.Serial, args.Ser2net, args.Baud, "", log.Println, Println)
+				rfc2217(s.Context(), s, args.Serial, args.Ser2net, args.Baud, args.Exit, log.Println, Println)
 				return
 			}
-			ser(s, args.Serial, args.Baud, "", log.Println, Println)
+			ser(s, args.Serial, args.Baud, args.Exit, log.Println, Println)
 		}
 	})
 
