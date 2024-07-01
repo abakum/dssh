@@ -265,11 +265,6 @@ func main() {
 		}
 	}
 
-	if args.Ser2net > 0 || bin == TELNET {
-		ctx, cancel = context.WithCancel(context.Background())
-		defer cancel()
-	}
-
 	Ser2net := -1
 	if args.Ser2net > -1 {
 		if args.Ser2net == 0 {
@@ -288,7 +283,7 @@ func main() {
 		if args.Destination != "" && BS && args.Ser2net < 0 {
 			// dssh -Pb9 :
 			// dssh -Pscom3 :
-			args.Ser2net = 0
+			args.Ser2net = RFC2217
 		}
 		if args.Ser2net == 0 {
 			args.Ser2net = RFC2217
@@ -298,6 +293,11 @@ func main() {
 	Println(a2s)
 	defer closer.Close()
 	closer.Bind(cleanup)
+	if args.Ser2net > 0 || bin == TELNET {
+		ctx, cancel = context.WithCancel(context.Background())
+		closer.Bind(cancel)
+	}
+
 	// current := console.Current()
 	// closer.Bind(func() { current.Reset() })
 
@@ -424,6 +424,7 @@ Host ` + SSHJ + `
 										closer.Close()
 									}()
 
+									time.Sleep(time.Second)
 									err := cmd.Start()
 									if err == nil {
 										setRaw()
@@ -453,10 +454,12 @@ Host ` + SSHJ + `
 						if args.Ser2net > 0 {
 							// dssh -P20
 							setRaw()
-							go func() {
-								s2n(ctx, os.Stdin, nil, args.Serial, args.Ser2net, args.Baud, " или <^C>", Println)
+							time.AfterFunc(time.Second, func() {
+								cmd.Run()
 								closer.Close()
-							}()
+							})
+							s2n(ctx, os.Stdin, nil, args.Serial, args.Ser2net, args.Baud, " или <^C>", Println)
+							return
 						}
 					}
 					if !Win && bin == TELNET && args.Putty {
@@ -587,7 +590,6 @@ Host ` + SSHJ + `
 		if args.Destination != "" {
 			if args.Ser2net > 0 {
 				// dssh -P20 :
-				// dssh -eP20 :
 				opt = fmt.Sprintln("-telnet", LH, "-P", args.Ser2net)
 				if bin == TELNET {
 					// dssh -eP20 :
@@ -595,6 +597,7 @@ Host ` + SSHJ + `
 				}
 			}
 			if opt == "" {
+				// dssh -P :
 				switch bin {
 				case PUTTY:
 					opt = "@" + args.Destination
@@ -609,32 +612,25 @@ Host ` + SSHJ + `
 			}
 		}
 		// dssh -P
-		// dssh -P x
+		// dssh -P :
 		// dssh -P20
-		// dssh -P20 x
+		// dssh -P20 :
 		cmd := exec.Command(path, strings.Fields(opt)...)
 		Println(cmd)
-		// if windows {
-		// 	exit = "<^C>"
-		// }
-		// if exit != "" {
-		// 	toExitPress(exit)
-		// }
-		toExitPress("<^C>")
 		if bin != PUTTY {
 			createNewConsole(cmd)
 		}
 		if args.Ser2net > 0 {
 			// dssh -P20
 			// dssh -P20 :
-			go func() {
-				time.Sleep(time.Second * 5)
+			time.AfterFunc(time.Second*5, func() {
 				setRaw()
 				cmd.Run()
 				closer.Close()
-			}()
+			})
 		} else {
 			// dssh -P :
+			toExitPress("<^C>")
 			cmd.Run()
 			return
 		}
