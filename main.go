@@ -131,8 +131,6 @@ var (
 	Win        = windows
 	Cygwin     = isatty.IsCygwinTerminal(os.Stdin.Fd())
 	Telnet     = false
-	ctx        context.Context
-	cancel     context.CancelFunc
 )
 
 //go:generate go run github.com/abakum/version
@@ -185,7 +183,20 @@ func main() {
 	parser, err := NewParser(arg.Config{}, &args)
 	Fatal(err)
 
-	a2s := make([]string, 0) // without built in option
+	// tools
+	SecretEncodeKey = key
+	if args.NewHost ||
+		args.EncSecret ||
+		args.InstallTrzsz ||
+		args.InstallPath != "" ||
+		args.TrzszVersion != "" ||
+		args.TrzszBinPath != "" ||
+		false {
+		TsshMain(&args)
+		return
+	}
+
+	a2s := make([]string, 0) // Без встроенных параметров -h -v
 	cli := false
 	enableTrzsz := "yes"
 	for _, arg := range os.Args[1:] {
@@ -230,79 +241,74 @@ func main() {
 	}
 
 	bins := []string{PUTTY, PLINK, TELNET}
-	if args.Unix { // Тестовый параметр
+	if args.Unix { // Параметр чтоб эмулировать Юникс на хосте с Виндовс
 		Win = false
 	}
 	if !Win {
-		// В консоле
+		// В Юниксе используем консольные приложения plink или telnet
 		bins = bins[1:]
 	}
-	if args.Telnet { // Тестовый параметр
-		bins = []string{TELNET} // Что если не установлен putty но есть telnet
+	if args.Telnet { // Параметр чтоб эмулировать отсутствие putty и plink при наличии telnet
+		bins = []string{TELNET}
 	}
 	execPath, bin, err := look(bins...)
-	Println(execPath, bin, err)
-
-	BS := args.Baud != "" || args.Serial != ""
-	if args.Putty {
-		if bin == "" {
-			Fatal(fmt.Errorf("not found - не найдены %v", bins))
-		}
-		if args.Destination != "" && BS && args.Ser2net < 0 {
-			// dssh -Pb9 :
-			// dssh -Pscom3 :
-			args.Ser2net = RFC2217
-		}
+	if args.Putty && err != nil {
+		Fatal(fmt.Errorf("not found - не найдены %v", bins))
 	}
 
-	Ser2net := -1
-	if args.Ser2net > -1 {
-		if args.Ser2net == 0 {
-			args.Ser2net = RFC2217
-		}
-		// Если sshd на том же хосте что и dssh то перенос RFC2217 не нужен, но тестово сделаем
-		Ser2net = args.Ser2net
+	lNear := args.Ser2net
+	if lNear == 0 {
+		lNear = RFC2217
+	}
+
+	serial := args.Serial
+	BS := args.Baud != "" || serial != ""
+	if BS || lNear > 0 {
 		switch args.Destination {
 		case "", ".", repo:
-			Ser2net++
+			// Локальный последовательный порт
+			serial = getFirstUsbSerial(serial, args.Baud, Print)
 		}
-		a2s = append(a2s, "-L", fmt.Sprintf("%d:%s:%d", args.Ser2net, LH, Ser2net))
+		if serial == "" {
+			Println(NotFoundFreeSerial)
+			Println("we will try to use RFC2217 - будем пробовать использовать RFC2217")
+		}
+	}
+	if BS && lNear < 0 {
+		switch args.Destination {
+		case "", ".", repo:
+			// Локальный последовательный порт
+		default:
+			if args.Putty {
+				// dssh -Pb9 :
+				// dssh -Ps com3 :
+				lNear = RFC2217
+			}
+		}
+		if bin == TELNET || serial == "" {
+			// dssh -eb9
+			// dssh -es com3
+			lNear = RFC2217
+		}
+	}
+	lFar := lNear
+
+	if lNear > -1 {
+		switch args.Destination {
+		case "", ".", repo:
+			lFar++
+		}
+		a2s = append(a2s, "-L", fmt.Sprintf("%d:%s:%d", lNear, LH, lFar))
 		if err := parser.Parse(a2s); err != nil {
 			Fatal(err)
 		}
-		if args.Destination != "" && BS && args.Ser2net < 0 {
-			// dssh -Pb9 :
-			// dssh -Pscom3 :
-			args.Ser2net = RFC2217
-		}
-		if args.Ser2net == 0 {
-			args.Ser2net = RFC2217
-		}
 	}
 
-	Println(a2s)
+	Println(repo, strings.Join(a2s, " "))
 	defer closer.Close()
 	closer.Bind(cleanup)
-	if args.Ser2net > 0 || bin == TELNET {
-		ctx, cancel = context.WithCancel(context.Background())
-		closer.Bind(cancel)
-	}
-
-	// current := console.Current()
-	// closer.Bind(func() { current.Reset() })
-
-	// tools
-	SecretEncodeKey = key
-	if args.NewHost ||
-		args.EncSecret ||
-		args.InstallTrzsz ||
-		args.InstallPath != "" ||
-		args.TrzszVersion != "" ||
-		args.TrzszBinPath != "" ||
-		false {
-		TsshMain(&args)
-		return
-	}
+	ctx, cancel := context.WithCancel(context.Background())
+	closer.Bind(cancel)
 
 	u, h, p := ParseDestination(args.Destination) //tssh
 	// `dssh` как `dssh -d`
@@ -322,13 +328,12 @@ Host ` + SSHJ + `
  PasswordAuthentication no
  ProxyJump ` + u + `@` + JumpHost + `
  EnableTrzsz ` + enableTrzsz
-	if args.Restart || BS || args.Ser2net > 0 {
+	if args.Restart || BS || lNear > 0 {
 		// CGI
 		cli = true
 		enableTrzsz = "no"
 		args.Command = repo
 		// args.ForceTTY = true
-		// args.DisableTTY = false
 		args.Argument = nil
 		if args.Restart {
 			// dssh --restart
@@ -337,28 +342,19 @@ Host ` + SSHJ + `
 			}
 			args.Argument = append(args.Argument, "--restart")
 		} else {
-			// BS || args.Ser2net > 0
+			// BS || nearL > 0
 			if args.Baud != "" {
 				args.Argument = append(args.Argument, "--baud", args.Baud)
 			}
 
-			switch args.Destination {
-			case "", ".", repo:
-				// Локальный последовательный порт
-				args.Serial = getFirstUsbSerial(args.Serial, args.Baud, Print)
-				if args.Serial == "" {
-					Println(NotFoundFreeSerial)
-					args.Ser2net = RFC2217 // Что если последовательный порт занят ser2net
-				}
-			}
-			if args.Serial != "" {
-				args.Argument = append(args.Argument, "--serial", args.Serial)
+			if serial != "" {
+				args.Argument = append(args.Argument, "--serial", serial)
 			}
 			if args.Putty && args.Destination != "" && Win {
 				args.Argument = append(args.Argument, "--putty")
 			}
-			if Ser2net > 0 || bin == TELNET {
-				args.Argument = append(args.Argument, "--2217", strconv.Itoa(Ser2net))
+			if lFar > 0 {
+				args.Argument = append(args.Argument, "--2217", strconv.Itoa(lFar))
 			}
 			if exit != "" {
 				args.Argument = append(args.Argument, "--exit", exit)
@@ -367,32 +363,24 @@ Host ` + SSHJ + `
 			case "": // Локальная последовательная консоль
 				if args.Putty {
 					// dssh -Pb9
-					// dssh -P20
-					opt := fmt.Sprintln("-serial", args.Serial, "-sercfg", ser2net.BaudRate(strconv.Atoi(args.Baud)))
-					if bin == TELNET {
-						// dssh -ePb9
-						// dssh -eP20
-						// За неимением горничной имеем дворника
-						args.Ser2net = RFC2217
-					}
-					if args.Ser2net > 0 {
+					opt := fmt.Sprintln("-serial", serial, "-sercfg", ser2net.BaudRate(strconv.Atoi(args.Baud)))
+					if lNear > 0 {
 						// dssh -P20
-						opt = fmt.Sprintln("-telnet", LH, "-P", args.Ser2net)
-						if bin == TELNET {
-							// dssh -eP20
-							opt = fmt.Sprintln(LH, args.Ser2net)
-						}
+						opt = optTelnet(bin == TELNET, lNear)
 					}
 
-					cmd := exec.Command(execPath, strings.Fields(opt)...)
-					Println(cmd)
+					cmd := exec.CommandContext(ctx, execPath, strings.Fields(opt)...)
+					run := func() {
+						err = cmd.Start()
+						Println(cmd, err)
+						cmd.Wait()
+					}
+
 					if !Win {
 						// dssh -uPb9
-						// dssh -uP20
 						cmd.Stdout = os.Stdout
 						cmd.Stderr = os.Stdout
-						if args.Ser2net > 0 {
-							// dssh -uP20
+						if lNear > 0 {
 							if bin == TELNET {
 								// dssh -euP20
 								time.AfterFunc(time.Second, func() {
@@ -408,26 +396,30 @@ Host ` + SSHJ + `
 								// Linux Telnet виснет
 								w, err := cmd.StdinPipe()
 								if err == nil {
-									ch := make(chan byte, K16)
-									go func() {
-										s2n(ctx, nil, ch, args.Serial, args.Ser2net, args.Baud, "", Println)
-										closer.Close()
-									}()
+									chanByte := make(chan byte, K16)
 
-									time.Sleep(time.Second)
-									err := cmd.Start()
-									if err == nil {
-										setRaw()
-										io.Copy(newSideWriter(w, "~", args.Serial, exit, ch, Println), os.Stdin)
-										if cmd.Process != nil {
-											cmd.Process.Release()
+									chanError := make(chan error, 1)
+									go func() {
+										chanError <- s2n(ctx, nil, chanByte, serial, lNear, args.Baud, "", Println)
+									}()
+									select {
+									case err = <-chanError:
+										Println(err)
+									case <-time.NewTimer(time.Second).C:
+										err := cmd.Start()
+										if err == nil {
+											setRaw()
+											io.Copy(newSideWriter(w, "~", serial, exit, chanByte, Println), os.Stdin)
+											if cmd.Process != nil {
+												cmd.Process.Release()
+											}
 										}
+										return
 									}
-									return
 								}
 							}
 							go func() {
-								s2n(ctx, nil, nil, args.Serial, args.Ser2net, "", args.Baud)
+								s2n(ctx, nil, nil, serial, lNear, "", args.Baud)
 								closer.Close()
 							}()
 						}
@@ -435,20 +427,17 @@ Host ` + SSHJ + `
 					} else {
 						// Win
 						// dssh -Pb9
-						// dssh -P20
-						if bin != PUTTY {
-							// dssh -eP20
-							// cmd = exec.Command("cmd.exe", "/C", fmt.Sprintf(`start %s %s`, bin, opt))
-							createNewConsole(cmd)
-						}
-						if args.Ser2net > 0 {
+						notPutty(bin, cmd) // dssh -eP20
+						if lNear > 0 {
 							// dssh -P20
+							// dssh -ePb0
 							setRaw()
-							time.AfterFunc(time.Second, func() {
-								cmd.Run()
+							t := time.AfterFunc(time.Second, func() {
+								run()
 								closer.Close()
 							})
-							s2n(ctx, os.Stdin, nil, args.Serial, args.Ser2net, args.Baud, " или <^C>", Println)
+							Println(s2n(ctx, os.Stdin, nil, serial, lNear, args.Baud, " или <^C>", Println))
+							t.Stop() // Если не успел стартануть то и не надо
 							return
 						}
 					}
@@ -457,19 +446,17 @@ Host ` + SSHJ + `
 					} else {
 						toExitPress("<^C>")
 					}
-					cmd.Run()
+					run()
 					return
 				}
-				// dssh -b9
-				// dssh -20
 				setRaw()
-				if args.Ser2net > 0 {
+				if lNear > 0 {
 					// dssh -20
-					rfc2217(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, args.Serial, args.Ser2net, args.Baud, exit, Println)
+					Println(rfc2217(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, serial, lNear, args.Baud, exit, Println))
 					return
 				}
 				// dssh -b9
-				ser(ReadWriteCloser{os.Stdin, os.Stdout}, args.Serial, args.Baud, exit, Println)
+				Println(ser(ReadWriteCloser{os.Stdin, os.Stdout}, serial, args.Baud, exit, Println))
 				return
 			}
 		}
@@ -574,17 +561,12 @@ Host ` + SSHJ + `
 
 	// Клиенты
 	client(signer, sshj+sshJ(JumpHost, u, "", p), repo, SSHJ)
-	Println(fmt.Errorf("%s -e=%v -u=%v -P=%v -b=%s -s=%s -2=%d %s", repo, args.Telnet, args.Unix, args.Putty, args.Baud, args.Serial, args.Ser2net, args.Destination))
 	if args.Putty && Win {
 		opt := ""
 		if args.Destination != "" {
-			if args.Ser2net > 0 {
+			if lNear > 0 {
 				// dssh -P20 :
-				opt = fmt.Sprintln("-telnet", LH, "-P", args.Ser2net)
-				if bin == TELNET {
-					// dssh -eP20 :
-					opt = fmt.Sprintln(LH, args.Ser2net)
-				}
+				opt = optTelnet(bin == TELNET, lNear)
 			}
 			if opt == "" {
 				// dssh -P :
@@ -602,33 +584,27 @@ Host ` + SSHJ + `
 			}
 		}
 		// dssh -P
-		// dssh -P :
-		// dssh -P20 :
 		// dssh -eP :
 		// dssh -eP20 :
-		cmd := exec.Command(execPath, strings.Fields(opt)...)
-		Println(cmd)
-		if bin != PUTTY {
-			createNewConsole(cmd)
+		cmd := exec.CommandContext(ctx, execPath, strings.Fields(opt)...)
+		run := func() {
+			err = cmd.Start()
+			Println(cmd, err)
+			cmd.Wait()
 		}
-		if args.Ser2net > 0 {
+		notPutty(bin, cmd)
+		if lNear > 0 {
 			// dssh -P20 :
 			// dssh -eP20 :
-			time.AfterFunc(time.Second*5, func() {
+			time.AfterFunc(time.Second, func() {
 				setRaw()
-				cmd.Run()
+				run()
 				closer.Close()
 			})
-			// go func() {
-			// 	time.Sleep(time.Second * 5)
-			// 	setRaw()
-			// 	cmd.Run()
-			// 	closer.Close()
-			// }()
 		} else {
 			// dssh -P :
 			toExitPress("<^C>")
-			cmd.Run()
+			run()
 			return
 		}
 	}
@@ -1227,4 +1203,19 @@ func look(bins ...string) (path, bin string, err error) {
 		err = fmt.Errorf("not found - не найден %s", item)
 	}
 	return
+}
+
+func optTelnet(telnet bool, lNear int) (opt string) {
+	opt = fmt.Sprintln("-telnet", LH, "-P", lNear)
+	if telnet {
+		// dssh -eP20 :
+		opt = fmt.Sprintln(LH, lNear)
+	}
+	return
+}
+
+func notPutty(bin string, cmd *exec.Cmd) {
+	if bin != PUTTY {
+		createNewConsole(cmd)
+	}
 }

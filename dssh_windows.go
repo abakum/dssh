@@ -44,6 +44,7 @@ func GlobalSshPath() string {
 	return filepath.Join(os.Getenv("ProgramData"), "ssh")
 }
 
+// cmd = exec.Command("cmd.exe", "/C", fmt.Sprintf(`start %s %s`, bin, opt))
 func createNewConsole(cmd *exec.Cmd) {
 	const CREATE_NEW_CONSOLE = 0x10
 	cmd.SysProcAttr = &syscall.SysProcAttr{

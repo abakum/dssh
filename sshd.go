@@ -148,18 +148,13 @@ func server(h, p, repo, use string, signer ssh.Signer, Println func(v ...any), P
 					// Управление режимами последовательного порта через ssh.
 					// Приём передача через putty, plink, telnet.
 					// Протокол дублируется на стороне сервера через putty, plink, telnet.
-					if runtime.GOOS == "windows" {
+					if windows {
 						execPath, bin, err := look(PUTTY, PLINK, TELNET)
 						Println(execPath, bin, err)
 						if err == nil {
-							opt := fmt.Sprintln("-telnet", LH, "-P", args.Ser2net)
-							if bin == TELNET {
-								opt = fmt.Sprintln(LH, args.Ser2net)
-							}
+							opt := optTelnet(bin == TELNET, args.Ser2net)
 							cmd := exec.CommandContext(s.Context(), execPath, strings.Fields(opt)...)
-							if bin != PUTTY {
-								createNewConsole(cmd)
-							}
+							notPutty(bin, cmd)
 							err = cmd.Start()
 							Println(cmd, err)
 							if err == nil {
@@ -179,17 +174,22 @@ func server(h, p, repo, use string, signer ssh.Signer, Println func(v ...any), P
 							}
 						}
 					}
-					err := s2n(s.Context(), s, nil, args.Serial, args.Ser2net, args.Baud, " или <^C>", log.Println, Println)
+					err = s2n(s.Context(), s, nil, args.Serial, args.Ser2net, args.Baud, " или <^C>", log.Println, Println)
 					if err != nil {
 						log.Println(err, "\r")
+						Println(err)
 					}
 					return
 				}
 				// dssh -20 :
-				rfc2217(s.Context(), s, args.Serial, args.Ser2net, args.Baud, args.Exit, log.Println, Println)
+				err = rfc2217(s.Context(), s, args.Serial, args.Ser2net, args.Baud, args.Exit, log.Println, Println)
+				log.Println(err, "\r")
+				Println(err)
 				return
 			}
-			ser(s, args.Serial, args.Baud, args.Exit, log.Println, Println)
+			err = ser(s, args.Serial, args.Baud, args.Exit, log.Println, Println)
+			log.Println(err, "\r")
+			Println(err)
 		}
 	})
 

@@ -49,12 +49,12 @@ type ReadWriteCloser struct {
 // Это псевдокоманда `dssh -t . "dssh -b 115200 -s com3"`.
 // Завершение сессии через `<Enter>~.`
 // Если name пусто то ищем первый последовательный порт USB
-func ser(s io.ReadWriteCloser, Serial, Baud, exit string, println ...func(v ...any)) {
+func ser(s io.ReadWriteCloser, Serial, Baud, exit string, println ...func(v ...any)) error {
 	if Serial == "" {
-		for _, p := range println {
-			p(NotFoundFreeSerial, "\r")
-		}
-		return
+		// for _, p := range println {
+		// 	p(NotFoundFreeSerial, "\r")
+		// }
+		return NotFoundFreeSerial
 	}
 	BaudRate := ser2net.BaudRate(strconv.Atoi(Baud))
 	mode := serial.Mode{
@@ -65,15 +65,15 @@ func ser(s io.ReadWriteCloser, Serial, Baud, exit string, println ...func(v ...a
 	if err != nil {
 		var portErr serial.PortError
 		if errors.As(err, &portErr) {
-			for _, p := range println {
-				p(err, portErr, "\r")
-			}
-			return
+			// for _, p := range println {
+			// 	p(err, portErr, "\r")
+			// }
+			return err
 		}
-		for _, p := range println {
-			p(err, "\r")
-		}
-		return
+		// for _, p := range println {
+		// 	p(err, "\r")
+		// }
+		return err
 	}
 	m := fmt.Sprintf("%s@%s", Serial, ser2net.Mode{mode})
 	msg := fmt.Sprintf("%s opened - открыт\r", m)
@@ -96,7 +96,8 @@ func ser(s io.ReadWriteCloser, Serial, Baud, exit string, println ...func(v ...a
 	if len(println) > 0 {
 		wp = (println[0])
 	}
-	io.Copy(newBaudWriter(port, "~", Serial, exit, BaudRate, wp), s)
+	_, err = io.Copy(newBaudWriter(port, "~", Serial, exit, BaudRate, wp), s)
+	return err
 }
 
 func getFirstSerial(isUSB bool, Baud string) (name, list string) {
@@ -503,23 +504,34 @@ func switchMode(b byte, mode *serial.Mode, prefix string) (msg string, quit bool
 	return
 }
 
-func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial string, Ser2net int, Baud, exit string, println ...func(v ...any)) {
-	ch := make(chan byte, K16)
-	go s2n(ctx, nil, ch, Serial, Ser2net, Baud, exit, println...)
-	time.Sleep(time.Second)
-
+func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial string, Ser2net int, Baud, exit string, println ...func(v ...any)) error {
 	wp := func(v ...any) {}
 	if len(println) > 0 {
 		wp = (println[0])
 	}
 
+	chanByte := make(chan byte, K16)
+
+	if Serial != "" {
+		chanError := make(chan error, 1)
+		go func() {
+			chanError <- s2n(ctx, nil, chanByte, Serial, Ser2net, Baud, exit, println...)
+		}()
+		select {
+		case err := <-chanError:
+			return err
+		case <-time.NewTimer(time.Second).C:
+		}
+	}
+
 	conn, err := telnet.Dial(fmt.Sprintf("%s:%d", LH, Ser2net))
 	if err != nil {
-		wp(err, "\r")
-		return
+		// wp(err, "\r")
+		return err
 	}
 	defer conn.Close()
 
 	go io.Copy(s, conn)
-	io.Copy(newSideWriter(conn, "~", Serial, exit, ch, wp), s)
+	_, err = io.Copy(newSideWriter(conn, "~", Serial, exit, chanByte, wp), s)
+	return err
 }
