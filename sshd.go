@@ -181,10 +181,14 @@ func server(h, p, repo, use string, signer ssh.Signer, Println func(v ...any), P
 							}
 						}
 					}
-					err = s2n(s.Context(), s, nil, serial, args.Ser2net, args.Baud, " или <^C>", log.Println, Println)
-					if err != nil {
-						log.Println(err, "\r")
-						Println(err)
+					if serial == "" {
+						<-s.Context().Done()
+					} else {
+						err = s2n(s.Context(), s, nil, serial, args.Ser2net, args.Baud, " или <^C>", log.Println, Println)
+						if err != nil {
+							log.Println(err, "\r")
+							Println(err)
+						}
 					}
 					return
 				}
