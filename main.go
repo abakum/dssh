@@ -300,12 +300,15 @@ func main() {
 
 	if lNear > -1 {
 		switch args.Destination {
-		case "", ".", repo:
+		case "":
+		case ".", repo:
 			lFar++
-		}
-		a2s = append(a2s, "-L", fmt.Sprintf("%d:%s:%d", lNear, LH, lFar))
-		if err := parser.Parse(a2s); err != nil {
-			Fatal(err)
+			fallthrough
+		default:
+			a2s = append(a2s, "-L", fmt.Sprintf("%d:%s:%d", lNear, LH, lFar))
+			if err := parser.Parse(a2s); err != nil {
+				Fatal(err)
+			}
 		}
 	}
 

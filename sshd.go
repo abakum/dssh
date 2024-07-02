@@ -140,7 +140,14 @@ func server(h, p, repo, use string, signer ssh.Signer, Println func(v ...any), P
 			log.SetFlags(log.Lshortfile)
 			log.SetPrefix(">")
 			log.SetOutput(s.Stderr())
-			args.Serial = getFirstUsbSerial(args.Serial, args.Baud, log.Print)
+			serial := getFirstUsbSerial(args.Serial, args.Baud, log.Print)
+			if serial == "" {
+				Println(NotFoundFreeSerial)
+				Println("we will try to use RFC2217 - будем пробовать использовать RFC2217")
+				if args.Ser2net < 0 {
+					args.Ser2net = RFC2217
+				}
+			}
 			if args.Ser2net > 0 {
 				if args.Putty {
 					// dssh -P20 :
@@ -174,7 +181,7 @@ func server(h, p, repo, use string, signer ssh.Signer, Println func(v ...any), P
 							}
 						}
 					}
-					err = s2n(s.Context(), s, nil, args.Serial, args.Ser2net, args.Baud, " или <^C>", log.Println, Println)
+					err = s2n(s.Context(), s, nil, serial, args.Ser2net, args.Baud, " или <^C>", log.Println, Println)
 					if err != nil {
 						log.Println(err, "\r")
 						Println(err)
@@ -182,12 +189,12 @@ func server(h, p, repo, use string, signer ssh.Signer, Println func(v ...any), P
 					return
 				}
 				// dssh -20 :
-				err = rfc2217(s.Context(), s, args.Serial, args.Ser2net, args.Baud, args.Exit, log.Println, Println)
+				err = rfc2217(s.Context(), s, serial, args.Ser2net, args.Baud, args.Exit, log.Println, Println)
 				log.Println(err, "\r")
 				Println(err)
 				return
 			}
-			err = ser(s, args.Serial, args.Baud, args.Exit, log.Println, Println)
+			err = ser(s, serial, args.Baud, args.Exit, log.Println, Println)
 			log.Println(err, "\r")
 			Println(err)
 		}
