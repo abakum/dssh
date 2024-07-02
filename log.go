@@ -192,3 +192,18 @@ func build(a ...any) (s string) {
 	s += " " + strings.TrimSpace(fmt.Sprintln(a...))
 	return
 }
+
+func revision() (s string) {
+	if info, ok := debug.ReadBuildInfo(); ok {
+		for _, setting := range info.Settings {
+			switch setting.Key {
+			case "vcs.revision":
+				s = setting.Value
+			}
+		}
+	}
+	if s == "" {
+		s = base()
+	}
+	return
+}

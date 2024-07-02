@@ -13,7 +13,7 @@ package main
 `go run github.com/abakum/embed-encrypt` этим генерируется код для вложений `encrypted_fs.go`
 `go install`
 
-Запускаем `dssh -vd` как сервис. Первый раз с `-v` чтоб зарезервировать `~/.ssh/config`.
+Запускаем `dssh -v` как сервис. Первый раз с `-v` чтоб зарезервировать `~/.ssh/config`.
 Пробно запускаем `dssh .` или `ssh dssh` как клиента на том же хосте что и сервис.
 Запускаем `dssh -v :` или `ssh ssh-j` как клиента через посредника `dssh@ssh-j.com` на хосте за NAT. Первый раз с `-v` чтоб зарезервировать `~/.ssh/config`.
 
@@ -125,8 +125,9 @@ var (
 	KnownHosts = filepath.Join(SshUserDir, "known_hosts")
 	args       SshArgs
 	Std        = menu.Std
-	repo       = base() // Имя репозитория `dssh` оно же имя алиаса в .ssh/config
-	imag       string   // Имя исполняемого файла `dssh` оно же имя посредника. Можно изменить чтоб не указывать имя посредника.
+	repo       = base()     // Имя репозитория `dssh` оно же имя алиаса в .ssh/config
+	rev        = revision() // Имя для посредника.
+	imag       string       // Имя исполняемого файла `dssh` его можно изменить чтоб не указывать имя для посредника.
 	windows    = runtime.GOOS == "windows"
 	Win        = windows
 	Cygwin     = isatty.IsCygwinTerminal(os.Stdin.Fd())
@@ -144,14 +145,14 @@ var CA []byte // Ключ ЦС
 //go:embed VERSION
 var Ver string
 
-// `dssh` `dssh -d` `foo -l dssh` Где foo это переименованный исполняемый файл dssh.
+// `dssh` `dssh -d` `dssh -l revision` `revision` Где revision  это что-то типа 59d7a68a020c992ca41819553e888fad8f9684c1 (смотри `dssh -V`)
 //
 //	запустит сервер ssh на адресе `127.0.0.1:2222`.
 //	подготовит алиас `ssh-j.com` и запустит его для переноса сессии с белого адреса `ssh-j.com:22` на серый `127.0.0.1:2222`.
 //	подготовит алиас `dssh` для подключения к серверу локально.
 //	подготовит алиас `ssh-j` для подключения к серверу через `dssh@ssh-j.com`.
 //	`dssh .` `dssh dssh` `ssh dssh` подключится к серверу локально.
-//	`dssh :` `dssh ssh-j` `foo -l dssh :` `foo -l dssh ssh-j` `ssh ssh-j` подключится к серверу через посредника `dssh@ssh-j.com`.
+//	`dssh :` `dssh ssh-j` `revision :` `dssh -l revision ssh-j` `ssh ssh-j` подключится к серверу через посредника `revision@ssh-j.com`.
 func main() {
 	SetColor()
 
@@ -319,7 +320,10 @@ func main() {
 	// `dssh` как `dssh -d`
 	// `foo` как `dssh foo@` как `dssh -dl foo` как `dssh -dl bar foo@` Где foo переименованный dssh
 	if u == "" {
-		u = imag // Имя для посредника ssh-j.com
+		u = rev // Имя для посредника ssh-j.com
+		if imag != repo {
+			u = imag // Если бинарный файл переименован то вместо ревизии имя переименованного бинарного файла и будет именем для посредника ssh-j.com
+		}
 		if args.LoginName != "" {
 			u = args.LoginName
 		}
