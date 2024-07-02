@@ -1,8 +1,11 @@
 module github.com/abakum/dssh
 
-go 1.21.4
+go 1.20
 
+toolchain go1.21.4
+// toolchain go1.21.4
 // replace github.com/abakum/go-ser2net => ../go-ser2net
+// replace github.com/abakum/embed-encrypt => ../embed-encrypt
 
 require (
 	github.com/Microsoft/go-winio v0.6.2

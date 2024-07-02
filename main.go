@@ -44,7 +44,6 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -732,7 +731,7 @@ func ints() (ips []string) {
 				ips = append(ips, strings.Split(addr.String(), "/")[0])
 			}
 		}
-		slices.Reverse(ips)
+		// slices.Reverse(ips)
 	}
 	return
 }

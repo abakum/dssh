@@ -8,8 +8,6 @@ github.com/PatrickRudolph/telnet v0.0.0-20210301083732-6a03c1f7971f h1:DM2VAX9E6
 github.com/PatrickRudolph/telnet v0.0.0-20210301083732-6a03c1f7971f/go.mod h1:Ns9OzNzuZ95HvUEnHhJ0O+m545S2cixTavGPehPHfV4=
 github.com/UserExistsError/conpty v0.1.2 h1:ikx+zk1ekB8Agiajun6Cpg4Ju/cEaU/mnRZQYT21naI=
 github.com/UserExistsError/conpty v0.1.2/go.mod h1:PDglKIkX3O/2xVk0MV9a6bCWxRmPVfxqZoTG/5sSd9I=
-github.com/abakum/embed-encrypt v0.0.0-20240419131915-ba2ccee1a359 h1:8FCz3utG0ogKjQTMICxgCQvJTsXymTjGl1EZ4LDIv7Q=
-github.com/abakum/embed-encrypt v0.0.0-20240419131915-ba2ccee1a359/go.mod h1:iDz4zVkoN9O4jn00gbU9G2IXwA7R+Xh6ztUnY/KfWCY=
 github.com/abakum/go-ansiterm v0.0.0-20240209124652-4fc46d492442 h1:SsivDZBadH7DqG/Wfilz3+HW/WBuEz4Iw+T6yqo5uvU=
 github.com/abakum/go-ansiterm v0.0.0-20240209124652-4fc46d492442/go.mod h1:WzQf6EqfkRdEyEveQ6edF8KNbe3UW1jVDBmV2uVkNLs=
 github.com/abakum/go-console v0.0.0-20240420142043-eda1cdf92473 h1:imAvu4O75rT0wDRkXCt7dmnMxkcHyHlXRpSYdu+0Zx4=
