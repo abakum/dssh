@@ -199,7 +199,7 @@ func main() {
 	a2s := make([]string, 0) // Без встроенных параметров -h -v
 	cli := false
 	enableTrzsz := "yes"
-	for _, arg := range os.Args[1:] {
+	for i, arg := range os.Args[1:] {
 		switch strings.ToLower(arg) {
 		case "-help", "--help":
 			parser.WriteHelp(Std)
@@ -211,7 +211,12 @@ func main() {
 			Println(args.Version())
 			return
 		case "-v":
-			a2s = append(a2s, "--debug")
+			if os.Args[i+1:][i] == "-V" {
+				Println(args.Version())
+				return
+			} else {
+				a2s = append(a2s, "--debug")
+			}
 		default:
 			if strings.HasPrefix(arg, "-") {
 				switch arg[len(arg)-1:] {
