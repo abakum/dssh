@@ -131,6 +131,7 @@ var (
 	Win        = windows
 	Cygwin     = isatty.IsCygwinTerminal(os.Stdin.Fd())
 	Telnet     = false
+	once       = false
 )
 
 //go:generate go run github.com/abakum/version
@@ -273,27 +274,31 @@ func main() {
 		case "", ".", repo:
 			// Локальный последовательный порт
 			serial = getFirstUsbSerial(serial, args.Baud, Print)
-		}
-		if serial == "" {
-			Println(NotFoundFreeSerial)
-			Println("we will try to use RFC2217 - будем пробовать использовать RFC2217")
-		}
-	}
-	if BS && lNear < 0 {
-		switch args.Destination {
-		case "", ".", repo:
-			// Локальный последовательный порт
-		default:
-			if args.Putty {
-				// dssh -Pb9 :
-				// dssh -Ps com3 :
-				lNear = RFC2217
+			if serial == "" {
+				Println(NotFoundFreeSerial)
+				Println("we will try to use RFC2217 - будем пробовать использовать RFC2217")
+				if lNear < 0 {
+					// dssh -b9
+					// dssh -s com3
+					lNear = RFC2217
+				}
 			}
 		}
-		if bin == TELNET || serial == "" {
-			// dssh -eb9
-			// dssh -es com3
-			lNear = RFC2217
+		if lNear < 0 {
+			switch args.Destination {
+			case "", ".", repo:
+			default:
+				if args.Putty {
+					// dssh -Pb9 :
+					// dssh -Ps com3 :
+					lNear = RFC2217
+					if bin == TELNET {
+						// dssh -Peb9
+						// dssh -Pes com3
+						lNear = RFC2217
+					}
+				}
+			}
 		}
 	}
 	lFar := lNear
@@ -312,6 +317,7 @@ func main() {
 		}
 	}
 
+	// Println(fmt.Sprintf("args %+v", args))
 	Println(repo, strings.Join(a2s, " "))
 	defer closer.Close()
 	closer.Bind(cleanup)
@@ -320,14 +326,15 @@ func main() {
 
 	u, h, p := ParseDestination(args.Destination) //tssh
 	// `dssh` как `dssh -d`
-	// `foo` как `dssh foo@` как `dssh -dl foo` как `dssh -dl bar foo@` Где foo переименованный dssh
+	// `foo` как `dssh foo@` как `dssh -dl foo`
+
+	if args.LoginName != "" {
+		u = args.LoginName // dssh -l foo
+	}
 	if u == "" {
 		u = rev // Имя для посредника ssh-j.com
 		if imag != repo {
 			u = imag // Если бинарный файл переименован то вместо ревизии имя переименованного бинарного файла и будет именем для посредника ssh-j.com
-		}
-		if args.LoginName != "" {
-			u = args.LoginName
 		}
 	}
 	sshj := `
@@ -354,24 +361,24 @@ Host ` + SSHJ + `
 			args.Argument = append(args.Argument, "--restart")
 		} else {
 			// BS || nearL > 0
-			if args.Baud != "" {
-				args.Argument = append(args.Argument, "--baud", args.Baud)
-			}
-
-			if serial != "" {
-				args.Argument = append(args.Argument, "--serial", serial)
-			}
-			if args.Putty && args.Destination != "" && Win {
-				args.Argument = append(args.Argument, "--putty")
-			}
-			if lFar > 0 {
-				args.Argument = append(args.Argument, "--2217", strconv.Itoa(lFar))
-			}
-			if exit != "" {
-				args.Argument = append(args.Argument, "--exit", exit)
-			}
-			switch args.Destination {
-			case "": // Локальная последовательная консоль
+			if args.Destination != "" {
+				if args.Baud != "" {
+					args.Argument = append(args.Argument, "--baud", args.Baud)
+				}
+				if serial != "" {
+					args.Argument = append(args.Argument, "--serial", serial)
+				}
+				if lFar > 0 {
+					args.Argument = append(args.Argument, "--2217", strconv.Itoa(lFar))
+				}
+				if exit != "" {
+					args.Argument = append(args.Argument, "--exit", exit)
+				}
+				if args.Putty {
+					args.Argument = append(args.Argument, "--putty")
+				}
+			} else {
+				// Локальная последовательная консоль
 				if args.Putty {
 					// dssh -Pb9
 					opt := fmt.Sprintln("-serial", serial, "-sercfg", ser2net.BaudRate(strconv.Atoi(args.Baud)))
@@ -383,7 +390,7 @@ Host ` + SSHJ + `
 					cmd := exec.CommandContext(ctx, execPath, strings.Fields(opt)...)
 					run := func() {
 						err = cmd.Start()
-						Println(cmd, err)
+						PrintLn(3, cmd, err)
 						cmd.Wait()
 					}
 
@@ -399,7 +406,7 @@ Host ` + SSHJ + `
 									if Cygwin {
 										exit = "<^C>"
 									}
-									toExitPress(exit)
+									Println(ToExitPress, exit)
 								})
 							} else {
 								// dssh -uP20
@@ -416,10 +423,10 @@ Host ` + SSHJ + `
 									select {
 									case err = <-chanError:
 										Println(err)
-									case <-time.NewTimer(time.Second).C:
+									case <-time.After(time.Second):
 										err := cmd.Start()
 										if err == nil {
-											setRaw()
+											setRaw(&once)
 											io.Copy(newSideWriter(w, "~", serial, exit, chanByte, Println), os.Stdin)
 											if cmd.Process != nil {
 												cmd.Process.Release()
@@ -442,11 +449,11 @@ Host ` + SSHJ + `
 						if lNear > 0 {
 							// dssh -P20
 							// dssh -ePb0
-							setRaw()
 							t := time.AfterFunc(time.Second, func() {
 								run()
 								closer.Close()
 							})
+							setRaw(&once)
 							Println(s2n(ctx, os.Stdin, nil, serial, lNear, args.Baud, " или <^C>", Println))
 							t.Stop() // Если не успел стартануть то и не надо
 							return
@@ -455,12 +462,12 @@ Host ` + SSHJ + `
 					if !Win && bin == TELNET && args.Putty {
 						// dssh -uePb9
 					} else {
-						toExitPress("<^C>")
+						Println(ToExitPress, "<^C>")
 					}
 					run()
 					return
 				}
-				setRaw()
+				setRaw(&once)
 				if lNear > 0 {
 					// dssh -20
 					Println(rfc2217(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, serial, lNear, args.Baud, exit, Println))
@@ -471,7 +478,6 @@ Host ` + SSHJ + `
 				return
 			}
 		}
-
 	}
 
 	cli = cli ||
@@ -600,28 +606,27 @@ Host ` + SSHJ + `
 		cmd := exec.CommandContext(ctx, execPath, strings.Fields(opt)...)
 		run := func() {
 			err = cmd.Start()
-			Println(cmd, err)
+			PrintLn(3, cmd, err)
 			cmd.Wait()
 		}
 		notPutty(bin, cmd)
 		if lNear > 0 {
 			// dssh -P20 :
 			// dssh -eP20 :
-			time.AfterFunc(time.Second, func() {
-				setRaw()
+			time.AfterFunc(time.Second*5, func() {
 				run()
 				closer.Close()
 			})
 		} else {
 			// dssh -P :
-			toExitPress("<^C>")
+			Println(ToExitPress, "<^C>")
 			run()
 			return
 		}
 	}
 	// dssh -b9 :
 	// dssh -20 :
-	setRaw()
+	setRaw(&once)
 	code := TsshMain(&args)
 	if args.Background {
 		Println("tssh started in background with code:", code)
@@ -629,10 +634,6 @@ Host ` + SSHJ + `
 	} else {
 		Println("tssh exit with code:", code)
 	}
-}
-
-func toExitPress(s string) {
-	Println(ToExitPress, s)
 }
 
 // tssh
@@ -1151,7 +1152,12 @@ func ParseDestination(dest string) (user, host, port string) {
 	return
 }
 
-func setRaw() {
+func setRaw(already *bool) {
+	if *already {
+		return
+	}
+	*already = true
+
 	var (
 		err      error
 		current  console.Console
@@ -1163,7 +1169,7 @@ func setRaw() {
 		err = current.SetRaw()
 		if err == nil {
 			closer.Bind(func() { current.Reset() })
-			Println("Set raw by go")
+			PrintLn(3, "Set raw by go")
 			return
 		}
 	}
@@ -1174,12 +1180,13 @@ func setRaw() {
 			err = sttyMakeRaw()
 			if err == nil {
 				closer.Bind(func() { sttyReset(settings) })
-				Println("Set raw by stty")
+				PrintLn(3, "Set raw by stty")
 				return
 			}
 		}
 	}
-	Println(err)
+	PrintLn(3, err)
+
 }
 
 func sttyMakeRaw() error {

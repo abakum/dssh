@@ -34,7 +34,7 @@ var (
 type cgiArgs struct {
 	Baud    string `arg:"-b,--baud" placeholder:"baud" help:"set serial console baud rate"`
 	Serial  string `arg:"-s,--serial" placeholder:"serial" help:"serial port for console"`
-	Ser2net int    `arg:"-2,--2217" placeholder:"port" help:"RFC2217 telnet port for serial port console over telnet"`
+	Ser2net int    `arg:"-2,--2217" placeholder:"port" help:"RFC2217 telnet port for serial port console over telnet" default:"-1"`
 	Putty   bool   `arg:"-P,--putty" help:"run putty"`
 	Exit    string `arg:"-x,--exit" help:"exit message"`
 	Restart bool   `arg:"-r,--restart" help:"restart daemon"`
@@ -165,7 +165,7 @@ func newBaudWriter(port serial.Port, escapeChar, namePort, exit string, baud int
 	default:
 		t = escapeChar[0]
 	}
-	logPrintln(mess("<Enter><~>", exit))
+	logPrintln(mess("<Enter><~>", exit, namePort))
 	return &baudWriter{
 		port,
 		[]byte{'\r', '\r'},
@@ -181,10 +181,24 @@ func newBaudWriter(port serial.Port, escapeChar, namePort, exit string, baud int
 	}
 }
 
+// Некоторые устройства имеют короткий буфер или медленно из него читают.
+// Будем передавать по одному байту за раз.
+func (w *baudWriter) Write1(p []byte) (int, error) {
+	var err error
+	for i, b := range p {
+		_, err = w.Writer.Write([]byte{b})
+		if err != nil {
+			return i + 1, err
+		}
+	}
+	return len(p), nil
+}
+
 // Изменяем скорость порта  по нажатию`<Enter><EscapeChar>(0-9)`.
 func (w *baudWriter) Write(pp []byte) (int, error) {
 	if w.t == 0 {
-		return w.Writer.Write(pp)
+		// return w.Writer.Write(pp)
+		return w.Write1(pp)
 	}
 	o := len(pp)
 	p := append(w.l, pp...) //+2
@@ -193,8 +207,14 @@ func (w *baudWriter) Write(pp []byte) (int, error) {
 	case bytes.Contains(p, []byte{'\r', w.t, CtrlZ}):
 		return 0, fmt.Errorf(`<Enter><%c><^Z> was pressed`, w.t)
 	case bytes.Contains(p, []byte{'\r', w.t, '.'}):
+		if o > 1 {
+			p = bytes.ReplaceAll(p, []byte{'\r', w.t, '.'}, []byte{})
+		} else {
+			p = []byte{BackSpace}
+		}
+		w.Write1(p)
 		return 0, fmt.Errorf(`<Enter><%c><.> was pressed`, w.t)
-	case bytes.Contains(p, []byte{'\r', w.t}):
+	case w.name != "" && bytes.Contains(p, []byte{'\r', w.t}):
 		// w.println(mess("", w.exit))
 		fmt.Fprint(os.Stderr, "\a")
 		for _, key := range []byte{'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'z', 'Z', w.t} {
@@ -242,7 +262,8 @@ func (w *baudWriter) Write(pp []byte) (int, error) {
 	default:
 		w.l = []byte{p[n-2], p[n-1]}
 	}
-	_, err := w.Writer.Write(p)
+	// _, err := w.Writer.Write(p)
+	_, err := w.Write1(p)
 	return o, err
 }
 
@@ -254,7 +275,7 @@ func s2n(ctx context.Context, r io.Reader, chanByte chan byte, Serial string, Se
 	if Serial == "" {
 		return NotFoundFreeSerial
 	}
-	press := mess("", exit)
+	press := mess("", exit, Serial)
 	w, _ := ser2net.NewSerialWorker(ctx, Serial, ser2net.BaudRate(strconv.Atoi(Baud)))
 	go w.Worker()
 	t := time.AfterFunc(time.Second, func() {
@@ -367,7 +388,7 @@ func newSideWriter(w io.WriteCloser, escapeChar, name, exit string, chanByte cha
 	default:
 		t = escapeChar[0]
 	}
-	logPrintln(mess("<Enter><~>", exit))
+	logPrintln(mess("<Enter><~>", exit, name))
 	return &sideWriter{
 		w,
 		[]byte{'\r', '\r'},
@@ -379,10 +400,24 @@ func newSideWriter(w io.WriteCloser, escapeChar, name, exit string, chanByte cha
 	}
 }
 
+// Некоторые устройства имеют короткий буфер и медленно из него читают.
+// Будем передавать по одному байту за раз.
+func (w *sideWriter) Write1(p []byte) (int, error) {
+	var err error
+	for i, b := range p {
+		_, err = w.WriteCloser.Write([]byte{b})
+		if err != nil {
+			return i + 1, err
+		}
+	}
+	return len(p), nil
+}
+
 // Изменяем скорость и режим порта  по нажатию`<Enter><EscapeChar>(0-9)`.
 func (w *sideWriter) Write(pp []byte) (int, error) {
 	if w.t == 0 {
-		return w.WriteCloser.Write(pp)
+		// return w.WriteCloser.Write(pp)
+		return w.Write1(pp)
 	}
 	o := len(pp)
 	p := append(w.l, pp...) //+2
@@ -391,8 +426,14 @@ func (w *sideWriter) Write(pp []byte) (int, error) {
 		return 0, fmt.Errorf(`<Enter><%c><^Z> was pressed`, w.t)
 	case bytes.Contains(p, []byte{'\r', w.t, '.'}):
 		w.chanByte <- '.'
+		if o > 1 {
+			p = bytes.ReplaceAll(p, []byte{'\r', w.t, '.'}, []byte{})
+		} else {
+			p = []byte{BackSpace}
+		}
+		w.Write1(p)
 		return 0, fmt.Errorf(`<Enter><%c><.> was pressed`, w.t)
-	case bytes.Contains(p, []byte{'\r', w.t}):
+	case w.name != "" && bytes.Contains(p, []byte{'\r', w.t}):
 		// w.println(mess("", w.exit))
 		fmt.Fprint(os.Stderr, "\a")
 		for _, key := range []byte{'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'z', 'Z', w.t} {
@@ -416,7 +457,7 @@ func (w *sideWriter) Write(pp []byte) (int, error) {
 						p = bytes.ReplaceAll(p, []byte{'\r', w.t, key}, []byte{})
 					} else {
 						w.l = []byte{'\r', w.t}
-						return w.WriteCloser.Write([]byte{BackSpace})
+						return w.Write1([]byte{BackSpace})
 					}
 				}
 				break
@@ -437,8 +478,10 @@ func (w *sideWriter) Write(pp []byte) (int, error) {
 	default:
 		w.l = []byte{p[n-2], p[n-1]}
 	}
-	_, err := w.WriteCloser.Write(p)
-	return o, err
+
+	// _, err := w.WriteCloser.Write(p)
+	_, err := w.Write1(p)
+	return o, err // Надо сказать что записанно именно o байт а не n - иначе беда
 }
 
 func rn(ss ...string) (s string) {
@@ -448,12 +491,18 @@ func rn(ss ...string) (s string) {
 	return strings.TrimSuffix(strings.ReplaceAll(s, "\n", "\r\n"), "\n")
 }
 
-func mess(esc, exit string) string {
-	return rn("",
+func mess(esc, exit, namePort string) string {
+	s := rn("",
 		ToExitPress+" "+esc+"<.>"+exit,
+	)
+	if namePort == "" {
+		return s
+	}
+	s += rn(
 		"To change mode of serial port press - Чтоб сменить режим последовательного порта нажми "+esc+"<x>",
 		"Where x from 0 to 9 - Где 0[115200], 1[19200], 2[2400], 3[38400], 4[4800], 5[57600], 6[DataBits], 7[Parity], 8[StopBits], 9[9600]",
 	)
+	return s
 }
 
 func switchMode(b byte, mode *serial.Mode, prefix string) (msg string, quit bool) {
@@ -520,7 +569,7 @@ func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial string, Ser2net i
 		select {
 		case err := <-chanError:
 			return err
-		case <-time.NewTimer(time.Second).C:
+		case <-time.After(time.Second):
 		}
 	}
 
