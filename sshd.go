@@ -142,7 +142,7 @@ func server(h, p, repo, use string, signer ssh.Signer, Println func(v ...any), P
 			log.SetOutput(s.Stderr())
 			serial := getFirstUsbSerial(args.Serial, args.Baud, log.Print)
 			if serial == "" {
-				Println(NotFoundFreeSerial)
+				Println(ErrNotFoundFreeSerial)
 				Println("we will try to use RFC2217 - будем пробовать использовать RFC2217")
 				if args.Ser2net < 0 {
 					args.Ser2net = RFC2217
@@ -198,7 +198,7 @@ func server(h, p, repo, use string, signer ssh.Signer, Println func(v ...any), P
 				Println(err)
 				return
 			}
-			err = ser(s, serial, args.Baud, args.Exit, log.Println, Println)
+			err = ser(s.Context(), s, serial, args.Baud, args.Exit, log.Println, Println)
 			log.Println(err, "\r")
 			Println(err)
 		}

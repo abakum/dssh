@@ -24,11 +24,11 @@ const (
 	BackSpace   = 0x7F
 	IS3         = 0x1D // ^] INFORMATION SEPARATOR THREE (group separator)
 	ToExitPress = "To exit press - Чтоб выйти нажми"
-	K16         = 16 * 1024
+	B16         = 16
 )
 
 var (
-	NotFoundFreeSerial = fmt.Errorf("not found free serial USB port - не найден свободный последовательный порт USB")
+	ErrNotFoundFreeSerial = fmt.Errorf("not found free serial USB port - не найден свободный последовательный порт USB")
 )
 
 type cgiArgs struct {
@@ -45,58 +45,49 @@ type ReadWriteCloser struct {
 	io.WriteCloser
 }
 
-// Подключаем последовательный порт к сессии.
-// Это псевдокоманда `dssh -t . "dssh -b 115200 -s com3"`.
+// Подключаем последовательный порт к сессии ssh или локально.
 // Завершение сессии через `<Enter>~.`
 // Если name пусто то ищем первый последовательный порт USB
-func ser(s io.ReadWriteCloser, Serial, Baud, exit string, println ...func(v ...any)) error {
+func ser(ctx context.Context, s io.ReadWriteCloser, Serial, Baud, exit string, println ...func(v ...any)) error {
 	if Serial == "" {
-		// for _, p := range println {
-		// 	p(NotFoundFreeSerial, "\r")
-		// }
-		return NotFoundFreeSerial
+		return ErrNotFoundFreeSerial
 	}
+
 	BaudRate := ser2net.BaudRate(strconv.Atoi(Baud))
-	mode := serial.Mode{
-		BaudRate: BaudRate,
-		DataBits: 8,
-	}
+	w, _ := ser2net.NewSerialWorker(ctx, Serial, BaudRate)
+
+	mode := w.Mode()
 	port, err := serial.Open(Serial, &mode)
 	if err != nil {
 		var portErr serial.PortError
 		if errors.As(err, &portErr) {
-			// for _, p := range println {
-			// 	p(err, portErr, "\r")
-			// }
 			return err
 		}
-		// for _, p := range println {
-		// 	p(err, "\r")
-		// }
 		return err
 	}
-	m := fmt.Sprintf("%s@%s", Serial, ser2net.Mode{mode})
-	msg := fmt.Sprintf("%s opened - открыт\r", m)
+	msg := fmt.Sprintf("%s opened - открыт\r", ser2net.Mode{mode, Serial})
 	for _, p := range println {
 		p(msg)
 	}
+	w.SetSerial(port)
 
 	defer func() {
+		msg = fmt.Sprintf("%s closed - закрыт %v\r", ser2net.Mode{w.Mode(), w.Path()}, err)
 		err = ser2net.SerialClose(port)
-		msg = fmt.Sprintf("%s closed - закрыт %v\r", m, err)
 		for _, p := range println {
 			p(msg)
 		}
 	}()
 
-	go func() {
-		io.Copy(s, port)
-	}()
-	wp := func(v ...any) {}
-	if len(println) > 0 {
-		wp = (println[0])
-	}
-	_, err = io.Copy(newBaudWriter(port, "~", Serial, exit, BaudRate, wp), s)
+	go io.Copy(s, port)
+
+	chanByte := make(chan byte, B16)
+	t := time.AfterFunc(time.Second, func() {
+		SetMode(w, ctx, nil, chanByte, exit, 0, println...)
+	})
+
+	_, err = io.Copy(newSideWriter(port, "~", Serial, exit, chanByte, println...), s)
+	t.Stop()
 	return err
 }
 
@@ -146,205 +137,139 @@ func getFirstSerial(isUSB bool, Baud string) (name, list string) {
 	return
 }
 
-type baudWriter struct {
-	io.Writer
-	l       []byte         // last 2 bytes
-	t       byte           // EscapeChar
-	port    serial.Port    // Для SetMode baud
-	name    string         // Имя порта
-	println func(v ...any) // log
-	mode    serial.Mode
-	exit    string
-}
+// type baudWriter struct {
+// 	io.Writer
+// 	l       []byte         // last 2 bytes
+// 	t       byte           // EscapeChar
+// 	port    serial.Port    // Для SetMode baud
+// 	name    string         // Имя порта
+// 	println func(v ...any) // log
+// 	mode    serial.Mode
+// 	exit    string
+// }
 
-func newBaudWriter(port serial.Port, escapeChar, namePort, exit string, baud int, logPrintln func(v ...any)) *baudWriter {
-	var t byte
-	switch strings.ToLower(escapeChar) {
-	case "none", "":
-		t = 0
-	default:
-		t = escapeChar[0]
-	}
-	logPrintln(mess("<Enter><~>", exit, namePort))
-	return &baudWriter{
-		port,
-		[]byte{'\r', '\r'},
-		t,
-		port,
-		namePort,
-		logPrintln,
-		serial.Mode{
-			BaudRate: baud,
-			DataBits: 8,
-		},
-		exit,
-	}
-}
+// func newBaudWriter(port serial.Port, escapeChar, namePort, exit string, baud int, logPrintln func(v ...any)) *baudWriter {
+// 	var t byte
+// 	switch strings.ToLower(escapeChar) {
+// 	case "none", "":
+// 		t = 0
+// 	default:
+// 		t = escapeChar[0]
+// 	}
+// 	logPrintln(mess("<Enter><~>", exit, namePort))
+// 	return &baudWriter{
+// 		port,
+// 		[]byte{'\r', '\r'},
+// 		t,
+// 		port,
+// 		namePort,
+// 		logPrintln,
+// 		serial.Mode{
+// 			BaudRate: baud,
+// 			DataBits: 8,
+// 		},
+// 		exit,
+// 	}
+// }
 
-// Некоторые устройства имеют короткий буфер или медленно из него читают.
-// Будем передавать по одному байту за раз.
-func (w *baudWriter) Write1(p []byte) (int, error) {
-	var err error
-	for i, b := range p {
-		_, err = w.Writer.Write([]byte{b})
-		if err != nil {
-			return i + 1, err
-		}
-	}
-	return len(p), nil
-}
+// // Некоторые устройства имеют короткий буфер или медленно из него читают.
+// // Будем передавать по одному байту за раз.
+// func (w *baudWriter) Write1(p []byte) (int, error) {
+// 	var err error
+// 	for i, b := range p {
+// 		_, err = w.Writer.Write([]byte{b})
+// 		if err != nil {
+// 			return i, err
+// 		}
+// 	}
+// 	return len(p), nil
+// }
 
-// Изменяем скорость порта  по нажатию`<Enter><EscapeChar>(0-9)`.
-func (w *baudWriter) Write(pp []byte) (int, error) {
-	if w.t == 0 {
-		// return w.Writer.Write(pp)
-		return w.Write1(pp)
-	}
-	o := len(pp)
-	p := append(w.l, pp...) //+2
-	// Println(o, p, 6)
-	switch {
-	case bytes.Contains(p, []byte{'\r', w.t, CtrlZ}):
-		return 0, fmt.Errorf(`<Enter><%c><^Z> was pressed`, w.t)
-	case bytes.Contains(p, []byte{'\r', w.t, '.'}):
-		if o > 1 {
-			p = bytes.ReplaceAll(p, []byte{'\r', w.t, '.'}, []byte{})
-		} else {
-			p = []byte{BackSpace}
-		}
-		w.Write1(p)
-		return 0, fmt.Errorf(`<Enter><%c><.> was pressed`, w.t)
-	case w.name != "" && bytes.Contains(p, []byte{'\r', w.t}):
-		// w.println(mess("", w.exit))
-		fmt.Fprint(os.Stderr, "\a")
-		for _, key := range []byte{'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'z', 'Z', w.t} {
-			if bytes.Contains(p, []byte{'\r', w.t, key}) {
-				switch key {
-				case w.t:
-					if o > 1 {
-						p = bytes.ReplaceAll(p, []byte{'\r', w.t, key}, []byte{key})
-					} else {
-						return o, nil
-					}
-				case 'z', 'Z':
-					if o > 1 {
-						p = bytes.ReplaceAll(p, []byte{'\r', w.t, key}, []byte{CtrlZ})
-					} else {
-						p = bytes.ReplaceAll(p, []byte{'\r', w.t, key}, []byte{'\r', w.t, BackSpace, CtrlZ})
-					}
-				default:
-					msg, _ := switchMode(key, &w.mode, "")
-					err := w.port.SetMode(&w.mode)
-					w.println(fmt.Sprintf("%s@%s %v\r", w.name, msg, err))
-					if o > 1 {
-						p = bytes.ReplaceAll(p, []byte{'\r', w.t, key}, []byte{})
-					} else {
-						w.l = []byte{'\r', w.t}
-						return w.Writer.Write([]byte{BackSpace})
-					}
-				}
-				break
-			}
-		}
-	}
-	if len(p) > 1 {
-		p = p[2:] //-2
-	}
-	n := len(p)
-	// Println(n, p)
+// // Изменяем скорость порта  по нажатию`<Enter><EscapeChar>(0-9)`.
+// func (w *baudWriter) Write(pp []byte) (int, error) {
+// 	if w.t == 0 {
+// 		// return w.Writer.Write(pp)
+// 		return w.Write1(pp)
+// 	}
+// 	o := len(pp)
+// 	p := append(w.l, pp...) //+2
+// 	// Println(o, p, 6)
+// 	switch {
+// 	case bytes.Contains(p, []byte{'\r', w.t, CtrlZ}):
+// 		return 0, fmt.Errorf(`<Enter><%c><^Z> was pressed`, w.t)
+// 	case bytes.Contains(p, []byte{'\r', w.t, '.'}):
+// 		if o > 1 {
+// 			p = bytes.ReplaceAll(p, []byte{'\r', w.t, '.'}, []byte{})
+// 		} else {
+// 			p = []byte{BackSpace}
+// 		}
+// 		w.Write1(p)
+// 		return 0, fmt.Errorf(`<Enter><%c><.> was pressed`, w.t)
+// 	case w.name != "" && bytes.Contains(p, []byte{'\r', w.t}):
+// 		// w.println(mess("", w.exit))
+// 		fmt.Fprint(os.Stderr, "\a")
+// 		for _, key := range []byte{'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'z', 'Z', w.t} {
+// 			if bytes.Contains(p, []byte{'\r', w.t, key}) {
+// 				switch key {
+// 				case w.t:
+// 					if o > 1 {
+// 						p = bytes.ReplaceAll(p, []byte{'\r', w.t, key}, []byte{key})
+// 					} else {
+// 						return o, nil
+// 					}
+// 				case 'z', 'Z':
+// 					if o > 1 {
+// 						p = bytes.ReplaceAll(p, []byte{'\r', w.t, key}, []byte{CtrlZ})
+// 					} else {
+// 						p = bytes.ReplaceAll(p, []byte{'\r', w.t, key}, []byte{'\r', w.t, BackSpace, CtrlZ})
+// 					}
+// 				default:
+// 					msg, _ := switchMode(key, &w.mode, w.name, "")
+// 					err := w.port.SetMode(&w.mode)
+// 					w.println(fmt.Sprintf("%s %v\r", msg, err))
+// 					if o > 1 {
+// 						p = bytes.ReplaceAll(p, []byte{'\r', w.t, key}, []byte{})
+// 					} else {
+// 						w.l = []byte{'\r', w.t}
+// 						return w.Writer.Write([]byte{BackSpace})
+// 					}
+// 				}
+// 				break
+// 			}
+// 		}
+// 	}
+// 	if len(p) > 1 {
+// 		p = p[2:] //-2
+// 	}
+// 	n := len(p)
+// 	// Println(n, p)
 
-	switch n {
-	case 0:
-		w.l = []byte{'\r', '\r'}
-		return o, nil
-	case 1:
-		w.l = []byte{w.l[1], p[0]}
-	default:
-		w.l = []byte{p[n-2], p[n-1]}
-	}
-	// _, err := w.Writer.Write(p)
-	_, err := w.Write1(p)
-	return o, err
-}
+// 	switch n {
+// 	case 0:
+// 		w.l = []byte{'\r', '\r'}
+// 		return o, nil
+// 	case 1:
+// 		w.l = []byte{w.l[1], p[0]}
+// 	default:
+// 		w.l = []byte{p[n-2], p[n-1]}
+// 	}
+// 	// _, err := w.Writer.Write(p)
+// 	_, err := w.Write1(p)
+// 	return o, err
+// }
 
-// Используем r или chanByte для смены serial.Mode порта Serial.
-// Телнет сервер ждёт на порту Ser2net.
+// Телнет сервер RFC2217 ждёт на порту Ser2net.
+// SetMode использует r или chanByte для смены serial.Mode порта Serial.
 // На консоль клиента println[0] выводит протокол через ssh канал.
 // Локально println[1] выводит протокол.
 func s2n(ctx context.Context, r io.Reader, chanByte chan byte, Serial string, Ser2net int, Baud, exit string, println ...func(v ...any)) error {
 	if Serial == "" {
-		return NotFoundFreeSerial
+		return ErrNotFoundFreeSerial
 	}
-	press := mess("", exit, Serial)
 	w, _ := ser2net.NewSerialWorker(ctx, Serial, ser2net.BaudRate(strconv.Atoi(Baud)))
 	go w.Worker()
 	t := time.AfterFunc(time.Second, func() {
-		// Если порт Ser2net занят то t.Stop отменит запуск управления последовательным портом
-		for _, p := range println {
-			p(fmt.Sprintf("%s@%s connected to %s:%d\r", Serial, ser2net.Mode{w.Mode()}, LH, Ser2net))
-		}
-
-		defer func() {
-			w.Stop()
-			w.SerialClose()
-			for _, p := range println {
-				p(w, "\r")
-			}
-		}()
-		if chanByte == nil {
-			chanByte = make(chan byte, K16)
-		}
-		if r != nil {
-			for _, p := range println {
-				p(press)
-			}
-			buffer := make([]byte, K16)
-			go func() {
-				for {
-					select {
-					case <-ctx.Done():
-						chanByte <- CtrlC
-						return
-					default:
-						n, err := r.Read(buffer)
-						if err != nil {
-							chanByte <- CtrlZ
-							return
-						}
-						for _, b := range buffer[:n] {
-							// Если фильтровать ошибочный ввод то какже дать понять что он ошибочен
-							// if b < '0' || b > '9' {
-							// 	continue
-							// }
-							chanByte <- b
-						}
-					}
-				}
-			}()
-		}
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case b := <-chanByte:
-				mode := w.Mode()
-				msg, quit := switchMode(b, &mode, " ")
-				if quit {
-					return
-				}
-				if msg == "" {
-					for _, p := range println {
-						p(press)
-					}
-					continue
-				}
-				err := w.SetMode(&mode)
-				msg = fmt.Sprintf("%s%s %v\r", w, msg, err)
-				for _, p := range println {
-					p(msg)
-				}
-			}
-		}
+		SetMode(w, ctx, r, chanByte, exit, Ser2net, println...)
 	})
 
 	err := w.StartTelnet(LH, Ser2net)
@@ -380,13 +305,19 @@ type sideWriter struct {
 	exit     string
 }
 
-func newSideWriter(w io.WriteCloser, escapeChar, name, exit string, chanByte chan byte, logPrintln func(v ...any)) *sideWriter {
+func newSideWriter(w io.WriteCloser, escapeChar, name, exit string, chanByte chan byte, println ...func(v ...any)) *sideWriter {
 	var t byte
 	switch strings.ToLower(escapeChar) {
 	case "none", "":
 		t = 0
 	default:
 		t = escapeChar[0]
+	}
+
+	logPrintln := func(v ...any) {}
+	for _, p := range println {
+		logPrintln = p
+		break
 	}
 	logPrintln(mess("<Enter><~>", exit, name))
 	return &sideWriter{
@@ -407,7 +338,7 @@ func (w *sideWriter) Write1(p []byte) (int, error) {
 	for i, b := range p {
 		_, err = w.WriteCloser.Write([]byte{b})
 		if err != nil {
-			return i + 1, err
+			return i, err
 		}
 	}
 	return len(p), nil
@@ -481,7 +412,7 @@ func (w *sideWriter) Write(pp []byte) (int, error) {
 
 	// _, err := w.WriteCloser.Write(p)
 	_, err := w.Write1(p)
-	return o, err // Надо сказать что записанно именно o байт а не n - иначе беда
+	return o, err // Надо вызывающему коду сказать что записанно именно o байт а не n - иначе беда
 }
 
 func rn(ss ...string) (s string) {
@@ -492,74 +423,70 @@ func rn(ss ...string) (s string) {
 }
 
 func mess(esc, exit, namePort string) string {
-	s := rn("",
-		ToExitPress+" "+esc+"<.>"+exit,
-	)
 	if namePort == "" {
-		return s
+		return rn("",
+			ToExitPress+" "+esc+"<.>"+exit,
+		)
 	}
-	s += rn(
+	return rn("",
+		ToExitPress+" "+esc+"<.>"+exit,
 		"To change mode of serial port press - Чтоб сменить режим последовательного порта нажми "+esc+"<x>",
 		"Where x from 0 to 9 - Где 0[115200], 1[19200], 2[2400], 3[38400], 4[4800], 5[57600], 6[DataBits], 7[Parity], 8[StopBits], 9[9600]",
 	)
-	return s
 }
 
-func switchMode(b byte, mode *serial.Mode, prefix string) (msg string, quit bool) {
-	switch b {
-	case '.', CtrlC, CtrlZ:
-		quit = true
-		return
-	case '6':
-		switch mode.DataBits {
-		case 7:
-			mode.DataBits = 8
-		case 8:
-			mode.DataBits = 7
-		}
-		msg = "set data bits - установлено кол-во бит"
-	case '7':
-		switch mode.Parity {
-		case serial.NoParity:
-			mode.Parity = serial.OddParity
-		case serial.OddParity:
-			mode.Parity = serial.EvenParity
-		case serial.EvenParity:
-			mode.Parity = serial.MarkParity
-		case serial.MarkParity:
-			mode.Parity = serial.SpaceParity
-		case serial.SpaceParity:
-			mode.Parity = serial.NoParity
-		}
-		msg = "set parity - установлена чётность"
-	case '8':
-		switch mode.StopBits {
-		case serial.OneStopBit:
-			mode.StopBits = serial.OnePointFiveStopBits
-		case serial.OnePointFiveStopBits:
-			mode.StopBits = serial.TwoStopBits
-		case serial.TwoStopBits:
-			mode.StopBits = serial.OneStopBit
-		}
-		msg = "set stop bits - установлено кол-во стоповых бит"
-	case '0', '1', '2', '3', '4', '5', '9':
-		mode.BaudRate = ser2net.BaudRate(int(b-'0'), nil)
-		msg = "set baud - установлена скорость"
-	}
-	if prefix == "" {
-		prefix = ser2net.Mode{*mode}.String() + " "
-	}
-	msg = fmt.Sprintf("%s%s", prefix, msg)
-	return
-}
+// Меняет mode по b возвращает протокол
+// func switchMode(b byte, mode *serial.Mode, name, prefix string) (msg string, quit bool) {
+// 	switch b {
+// 	case '.', CtrlC, CtrlZ:
+// 		quit = true
+// 		return
+// 	case '6':
+// 		switch mode.DataBits {
+// 		case 7:
+// 			mode.DataBits = 8
+// 		case 8:
+// 			mode.DataBits = 7
+// 		}
+// 		msg = "set data bits - установлено кол-во бит"
+// 	case '7':
+// 		switch mode.Parity {
+// 		case serial.NoParity:
+// 			mode.Parity = serial.OddParity
+// 		case serial.OddParity:
+// 			mode.Parity = serial.EvenParity
+// 		case serial.EvenParity:
+// 			mode.Parity = serial.MarkParity
+// 		case serial.MarkParity:
+// 			mode.Parity = serial.SpaceParity
+// 		case serial.SpaceParity:
+// 			mode.Parity = serial.NoParity
+// 		}
+// 		msg = "set parity - установлена чётность"
+// 	case '8':
+// 		switch mode.StopBits {
+// 		case serial.OneStopBit:
+// 			mode.StopBits = serial.OnePointFiveStopBits
+// 		case serial.OnePointFiveStopBits:
+// 			mode.StopBits = serial.TwoStopBits
+// 		case serial.TwoStopBits:
+// 			mode.StopBits = serial.OneStopBit
+// 		}
+// 		msg = "set stop bits - установлено кол-во стоповых бит"
+// 	case '0', '1', '2', '3', '4', '5', '9':
+// 		mode.BaudRate = ser2net.BaudRate(int(b-'0'), nil)
+// 		msg = "set baud - установлена скорость"
+// 	}
+// 	if prefix == "" {
+// 		prefix = ser2net.Mode{*mode, name}.String() + " "
+// 	}
+// 	msg = fmt.Sprintf("%s%s", prefix, msg)
+// 	return
+// }
 
+// Запускает ser2net server на 127.0.0.1:Ser2net подключает к нему s через телнет клиента
 func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial string, Ser2net int, Baud, exit string, println ...func(v ...any)) error {
-	wp := func(v ...any) {}
-	if len(println) > 0 {
-		wp = (println[0])
-	}
-
-	chanByte := make(chan byte, K16)
+	chanByte := make(chan byte, B16)
 
 	if Serial != "" {
 		chanError := make(chan error, 1)
@@ -575,12 +502,123 @@ func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial string, Ser2net i
 
 	conn, err := telnet.Dial(fmt.Sprintf("%s:%d", LH, Ser2net))
 	if err != nil {
-		// wp(err, "\r")
 		return err
 	}
 	defer conn.Close()
 
 	go io.Copy(s, conn)
-	_, err = io.Copy(newSideWriter(conn, "~", Serial, exit, chanByte, wp), s)
+	_, err = io.Copy(newSideWriter(conn, "~", Serial, exit, chanByte, println...), s)
 	return err
+}
+
+// Через r или напрямую по chanByte управляет режимами последовательного порта w
+func SetMode(w *ser2net.SerialWorker, ctx context.Context, r io.Reader, chanByte chan byte, exit string, Ser2net int, println ...func(v ...any)) {
+	press := mess("", exit, w.Path())
+	if Ser2net > 0 {
+		for _, p := range println {
+			p(w.String() + "\r")
+		}
+
+		defer func() {
+			w.Stop()
+			w.SerialClose()
+			for _, p := range println {
+				p(w.String() + "\r")
+			}
+		}()
+	}
+
+	if chanByte == nil {
+		chanByte = make(chan byte, B16)
+	}
+	if r != nil {
+		for _, p := range println {
+			p(press)
+			break
+		}
+		buffer := make([]byte, B16)
+		go func() {
+			for {
+				select {
+				case <-ctx.Done():
+					chanByte <- CtrlC
+					return
+				default:
+					n, err := r.Read(buffer)
+					if err != nil {
+						chanByte <- CtrlZ
+						return
+					}
+					for _, b := range buffer[:n] {
+						// Если фильтровать ошибочный ввод то какже дать понять что он ошибочен
+						// if b < '0' || b > '9' {
+						// 	continue
+						// }
+						chanByte <- b
+					}
+				}
+			}
+		}()
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case b := <-chanByte:
+			mode := w.Mode()
+			// msg, quit := switchMode(b, &mode, w.Path(), " ")
+			msg := ""
+			switch b {
+			case '.', CtrlC, CtrlZ:
+				return
+			case '6':
+				switch mode.DataBits {
+				case 7:
+					mode.DataBits = 8
+				case 8:
+					mode.DataBits = 7
+				}
+				msg = "set data bits - установлено кол-во бит"
+			case '7':
+				switch mode.Parity {
+				case serial.NoParity:
+					mode.Parity = serial.OddParity
+				case serial.OddParity:
+					mode.Parity = serial.EvenParity
+				case serial.EvenParity:
+					mode.Parity = serial.MarkParity
+				case serial.MarkParity:
+					mode.Parity = serial.SpaceParity
+				case serial.SpaceParity:
+					mode.Parity = serial.NoParity
+				}
+				msg = "set parity - установлена чётность"
+			case '8':
+				switch mode.StopBits {
+				case serial.OneStopBit:
+					mode.StopBits = serial.OnePointFiveStopBits
+				case serial.OnePointFiveStopBits:
+					mode.StopBits = serial.TwoStopBits
+				case serial.TwoStopBits:
+					mode.StopBits = serial.OneStopBit
+				}
+				msg = "set stop bits - установлено кол-во стоповых бит"
+			case '0', '1', '2', '3', '4', '5', '9':
+				mode.BaudRate = ser2net.BaudRate(int(b-'0'), nil)
+				msg = "set baud - установлена скорость"
+			}
+			if msg == "" {
+				for _, p := range println {
+					p(press)
+					break
+				}
+				continue
+			}
+			err := w.SetMode(&mode)
+			msg = fmt.Sprintf("%s%s %v\r", w, msg, err)
+			for _, p := range println {
+				p(msg)
+			}
+		}
+	}
 }

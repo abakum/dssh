@@ -275,7 +275,7 @@ func main() {
 			// Локальный последовательный порт
 			serial = getFirstUsbSerial(serial, args.Baud, Print)
 			if serial == "" {
-				Println(NotFoundFreeSerial)
+				Println(ErrNotFoundFreeSerial)
 				Println("we will try to use RFC2217 - будем пробовать использовать RFC2217")
 				if lNear < 0 {
 					// dssh -b9
@@ -414,7 +414,7 @@ Host ` + SSHJ + `
 								// Linux Telnet виснет
 								w, err := cmd.StdinPipe()
 								if err == nil {
-									chanByte := make(chan byte, K16)
+									chanByte := make(chan byte, B16)
 
 									chanError := make(chan error, 1)
 									go func() {
@@ -474,7 +474,7 @@ Host ` + SSHJ + `
 					return
 				}
 				// dssh -b9
-				Println(ser(ReadWriteCloser{os.Stdin, os.Stdout}, serial, args.Baud, exit, Println))
+				Println(ser(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, serial, args.Baud, exit, Println))
 				return
 			}
 		}
