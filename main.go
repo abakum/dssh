@@ -440,7 +440,7 @@ Host ` + SSHJ + `
 								}
 							}
 							go func() {
-								s2n(ctx, nil, nil, serial, lNear, "", args.Baud)
+								s2n(ctx, nil, nil, serial, lNear, "", args.Baud, Println)
 								closer.Close()
 							}()
 						}
