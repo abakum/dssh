@@ -287,20 +287,18 @@ func main() {
 				}
 			}
 		}
-		if lNear < 0 {
+		if lNear < 0 && args.Putty {
+			if bin == TELNET {
+				// dssh -Peb9 [:]
+				// dssh -Pes com3 [:]
+				lNear = RFC2217
+			}
 			switch args.Destination {
 			case "", ".", repo:
 			default:
-				if args.Putty {
-					// dssh -Pb9 :
-					// dssh -Ps com3 :
-					lNear = RFC2217
-					if bin == TELNET {
-						// dssh -Peb9 :
-						// dssh -Pes com3 :
-						lNear = RFC2217
-					}
-				}
+				// dssh -Pb9 :
+				// dssh -Ps com3 :
+				lNear = RFC2217
 			}
 		}
 	}
