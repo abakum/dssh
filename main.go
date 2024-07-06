@@ -127,11 +127,11 @@ var (
 	repo       = base()     // Имя репозитория `dssh` оно же имя алиаса в .ssh/config
 	rev        = revision() // Имя для посредника.
 	imag       string       // Имя исполняемого файла `dssh` его можно изменить чтоб не указывать имя для посредника.
-	windows    = runtime.GOOS == "windows"
-	Win        = windows
+	Windows    = runtime.GOOS == "windows"
+	Win        = Windows
 	Cygwin     = isatty.IsCygwinTerminal(os.Stdin.Fd())
-	Telnet     = false
 	once       = false
+	OverSSH    = !(os.Getenv("SSH_TTY") == "" && os.Getenv("SSH_CLIENT") == "" && os.Getenv("SSH_CONNECTION") == "")
 )
 
 //go:generate go run github.com/abakum/version
@@ -239,7 +239,7 @@ func main() {
 	}
 
 	exit := ""
-	if windows {
+	if Windows {
 		exit = " или <^Z>"
 	}
 	if Cygwin {
@@ -248,6 +248,9 @@ func main() {
 
 	bins := []string{PUTTY, PLINK, TELNET}
 	if args.Unix { // Параметр чтоб эмулировать Юникс на хосте с Виндовс
+		Win = false
+	}
+	if OverSSH {
 		Win = false
 	}
 	if !Win {
@@ -293,8 +296,8 @@ func main() {
 					// dssh -Ps com3 :
 					lNear = RFC2217
 					if bin == TELNET {
-						// dssh -Peb9
-						// dssh -Pes com3
+						// dssh -Peb9 :
+						// dssh -Pes com3 :
 						lNear = RFC2217
 					}
 				}
@@ -375,7 +378,9 @@ Host ` + SSHJ + `
 					args.Argument = append(args.Argument, "--exit", exit)
 				}
 				if args.Putty {
-					args.Argument = append(args.Argument, "--putty")
+					if Win {
+						args.Argument = append(args.Argument, "--putty")
+					}
 				}
 			} else {
 				// Локальная последовательная консоль
@@ -578,11 +583,12 @@ Host ` + SSHJ + `
 
 	// Клиенты
 	client(signer, sshj+sshJ(JumpHost, u, "", p), repo, SSHJ)
-	if args.Putty && Win {
+	if args.Putty {
 		opt := ""
 		if args.Destination != "" {
 			if lNear > 0 {
 				// dssh -P20 :
+				// dssh -uP20 :
 				opt = optTelnet(bin == TELNET, lNear)
 			}
 			if opt == "" {
@@ -609,17 +615,36 @@ Host ` + SSHJ + `
 			PrintLn(3, cmd, err)
 			cmd.Wait()
 		}
-		notPutty(bin, cmd)
-		if lNear > 0 {
-			// dssh -P20 :
-			// dssh -eP20 :
-			time.AfterFunc(time.Second*5, func() {
+		if Win || BS {
+			notPutty(bin, cmd)
+			if lNear > 0 {
+				// dssh -P20 :
+				// dssh -eP20 :
+				// dssh -uPb9 :
+				// dssh -Pb9 :
+				// dssh -ePb9 :
+				if !OverSSH {
+					time.AfterFunc(time.Second*5, func() {
+						run()
+						closer.Close()
+					})
+				}
+			} else {
+				// dssh -P :
+				Println(ToExitPress, "<^C>")
 				run()
-				closer.Close()
-			})
+				return
+			}
 		} else {
-			// dssh -P :
-			Println(ToExitPress, "<^C>")
+			// dssh -uP :
+			// dssh -ueP :
+			if bin != TELNET {
+				Println(ToExitPress, "<^C>")
+				ConsoleCP()
+			}
+			cmd.Stdin = os.Stdin
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
 			run()
 			return
 		}
@@ -1236,4 +1261,13 @@ func notPutty(bin string, cmd *exec.Cmd) {
 	if bin != PUTTY {
 		createNewConsole(cmd)
 	}
+}
+
+func IsConsole() bool {
+	for _, s := range []*os.File{os.Stderr, os.Stdout, os.Stdin} {
+		if _, err := console.ConsoleFromFile(s); err == nil {
+			return true
+		}
+	}
+	return false
 }

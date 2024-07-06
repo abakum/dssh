@@ -615,7 +615,7 @@ func SetMode(w *ser2net.SerialWorker, ctx context.Context, r io.Reader, chanByte
 				continue
 			}
 			err := w.SetMode(&mode)
-			msg = fmt.Sprintf("%s%s %v\r", w, msg, err)
+			msg = fmt.Sprintf("%s %s %v\r", w, msg, err)
 			for _, p := range println {
 				p(msg)
 			}

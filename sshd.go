@@ -155,7 +155,7 @@ func server(h, p, repo, use string, signer ssh.Signer, Println func(v ...any), P
 					// Управление режимами последовательного порта через ssh.
 					// Приём передача через putty, plink, telnet.
 					// Протокол дублируется на стороне сервера через putty, plink, telnet.
-					if windows {
+					if Windows && !OverSSH {
 						execPath, bin, err := look(PUTTY, PLINK, TELNET)
 						Println(execPath, bin, err)
 						if err == nil {

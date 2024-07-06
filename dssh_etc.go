@@ -79,3 +79,6 @@ func GlobalSshPath() string {
 }
 
 func createNewConsole(_ *exec.Cmd) {}
+func isWin7() bool                 { return false }
+
+func ConsoleCP() {}
