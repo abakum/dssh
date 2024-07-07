@@ -624,14 +624,18 @@ Host ` + SSHJ + `
 			PrintLn(3, cmd, err)
 			cmd.Wait()
 		}
-		if Win || BS {
+		if Win || lNear > 0 {
 			notPutty(bin, cmd)
 			if lNear > 0 {
+				Println("-------------")
 				// dssh -P20 :
 				// dssh -eP20 :
-				// dssh -uPb9 :
 				// dssh -Pb9 :
 				// dssh -ePb9 :
+				// dssh -uP20 :
+				// dssh -ueP20 :
+				// dssh -uPb9 :
+				// dssh -uePb9 :
 				if !OverSSH {
 					time.AfterFunc(time.Second*5, func() {
 						run()
