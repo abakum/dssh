@@ -384,10 +384,16 @@ Host ` + SSHJ + `
 				// Локальная последовательная консоль
 				if args.Putty {
 					// dssh -Pb9
-					opt := fmt.Sprintln("-serial", serial, "-sercfg", ser2net.BaudRate(strconv.Atoi(args.Baud)))
+					// Хуже чем `dssh -b9` так как нельзя сменить скорость
+					BaudRate := ser2net.BaudRate(strconv.Atoi(args.Baud))
+					opt := fmt.Sprintln("-serial", serial, "-sercfg", BaudRate)
 					if lNear > 0 {
 						// dssh -P20
 						opt = optTelnet(bin == TELNET, lNear)
+					} else if !Windows && exec.Command("busybox", "microcom", "--help").Run() == nil {
+						// plink как и screen иногда чудит с последовательными портами
+						opt = fmt.Sprintln("microcom", "-s", BaudRate, serial)
+						execPath = "busybox"
 					}
 
 					cmd := exec.CommandContext(ctx, execPath, strings.Fields(opt)...)
@@ -428,6 +434,7 @@ Host ` + SSHJ + `
 										Println(err)
 									case <-time.After(time.Second):
 										err := cmd.Start()
+										Println(cmd, err)
 										if err == nil {
 											setRaw(&once)
 											io.Copy(newSideWriter(w, "~", serial, exit, chanByte, Println), os.Stdin)
@@ -465,7 +472,11 @@ Host ` + SSHJ + `
 					if !Win && bin == TELNET && args.Putty {
 						// dssh -uePb9
 					} else {
-						Println(ToExitPress, "<^C>")
+						exit := "<^C>"
+						if execPath == "busybox" {
+							exit = "<^X>"
+						}
+						Println(ToExitPress, exit)
 					}
 					run()
 					return
