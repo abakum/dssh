@@ -96,6 +96,7 @@ type SshArgs struct {
 	Restart        bool    `arg:"-r,--restart" help:"restart daemon"`
 	Unix           bool    `arg:"-z,--unix" help:"unix test"`
 	Telnet         bool    `arg:"-Z,--telnet" help:"telnet test"`
+	EscapeChar     string  `arg:"-e,--escape-char" placeholder:"EscapeChar" help:"set escape character for sessions"` // default:"~"
 }
 
 func (SshArgs) Description() string {

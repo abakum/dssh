@@ -86,7 +86,7 @@ func ser(ctx context.Context, s io.ReadWriteCloser, Serial, Baud, exit string, p
 		SetMode(w, ctx, nil, chanByte, exit, 0, println...)
 	})
 
-	_, err = io.Copy(newSideWriter(port, "~", Serial, exit, chanByte, println...), s)
+	_, err = io.Copy(newSideWriter(port, args.EscapeChar, Serial, exit, chanByte, println...), s)
 	t.Stop()
 	return err
 }
@@ -136,127 +136,6 @@ func getFirstSerial(isUSB bool, Baud string) (name, list string) {
 	list += "\r\n"
 	return
 }
-
-// type baudWriter struct {
-// 	io.Writer
-// 	l       []byte         // last 2 bytes
-// 	t       byte           // EscapeChar
-// 	port    serial.Port    // Для SetMode baud
-// 	name    string         // Имя порта
-// 	println func(v ...any) // log
-// 	mode    serial.Mode
-// 	exit    string
-// }
-
-// func newBaudWriter(port serial.Port, escapeChar, namePort, exit string, baud int, logPrintln func(v ...any)) *baudWriter {
-// 	var t byte
-// 	switch strings.ToLower(escapeChar) {
-// 	case "none", "":
-// 		t = 0
-// 	default:
-// 		t = escapeChar[0]
-// 	}
-// 	logPrintln(mess("<Enter><~>", exit, namePort))
-// 	return &baudWriter{
-// 		port,
-// 		[]byte{'\r', '\r'},
-// 		t,
-// 		port,
-// 		namePort,
-// 		logPrintln,
-// 		serial.Mode{
-// 			BaudRate: baud,
-// 			DataBits: 8,
-// 		},
-// 		exit,
-// 	}
-// }
-
-// // Некоторые устройства имеют короткий буфер или медленно из него читают.
-// // Будем передавать по одному байту за раз.
-// func (w *baudWriter) Write1(p []byte) (int, error) {
-// 	var err error
-// 	for i, b := range p {
-// 		_, err = w.Writer.Write([]byte{b})
-// 		if err != nil {
-// 			return i, err
-// 		}
-// 	}
-// 	return len(p), nil
-// }
-
-// // Изменяем скорость порта  по нажатию`<Enter><EscapeChar>(0-9)`.
-// func (w *baudWriter) Write(pp []byte) (int, error) {
-// 	if w.t == 0 {
-// 		// return w.Writer.Write(pp)
-// 		return w.Write1(pp)
-// 	}
-// 	o := len(pp)
-// 	p := append(w.l, pp...) //+2
-// 	// Println(o, p, 6)
-// 	switch {
-// 	case bytes.Contains(p, []byte{'\r', w.t, CtrlZ}):
-// 		return 0, fmt.Errorf(`<Enter><%c><^Z> was pressed`, w.t)
-// 	case bytes.Contains(p, []byte{'\r', w.t, '.'}):
-// 		if o > 1 {
-// 			p = bytes.ReplaceAll(p, []byte{'\r', w.t, '.'}, []byte{})
-// 		} else {
-// 			p = []byte{BackSpace}
-// 		}
-// 		w.Write1(p)
-// 		return 0, fmt.Errorf(`<Enter><%c><.> was pressed`, w.t)
-// 	case w.name != "" && bytes.Contains(p, []byte{'\r', w.t}):
-// 		// w.println(mess("", w.exit))
-// 		fmt.Fprint(os.Stderr, "\a")
-// 		for _, key := range []byte{'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'z', 'Z', w.t} {
-// 			if bytes.Contains(p, []byte{'\r', w.t, key}) {
-// 				switch key {
-// 				case w.t:
-// 					if o > 1 {
-// 						p = bytes.ReplaceAll(p, []byte{'\r', w.t, key}, []byte{key})
-// 					} else {
-// 						return o, nil
-// 					}
-// 				case 'z', 'Z':
-// 					if o > 1 {
-// 						p = bytes.ReplaceAll(p, []byte{'\r', w.t, key}, []byte{CtrlZ})
-// 					} else {
-// 						p = bytes.ReplaceAll(p, []byte{'\r', w.t, key}, []byte{'\r', w.t, BackSpace, CtrlZ})
-// 					}
-// 				default:
-// 					msg, _ := switchMode(key, &w.mode, w.name, "")
-// 					err := w.port.SetMode(&w.mode)
-// 					w.println(fmt.Sprintf("%s %v\r", msg, err))
-// 					if o > 1 {
-// 						p = bytes.ReplaceAll(p, []byte{'\r', w.t, key}, []byte{})
-// 					} else {
-// 						w.l = []byte{'\r', w.t}
-// 						return w.Writer.Write([]byte{BackSpace})
-// 					}
-// 				}
-// 				break
-// 			}
-// 		}
-// 	}
-// 	if len(p) > 1 {
-// 		p = p[2:] //-2
-// 	}
-// 	n := len(p)
-// 	// Println(n, p)
-
-// 	switch n {
-// 	case 0:
-// 		w.l = []byte{'\r', '\r'}
-// 		return o, nil
-// 	case 1:
-// 		w.l = []byte{w.l[1], p[0]}
-// 	default:
-// 		w.l = []byte{p[n-2], p[n-1]}
-// 	}
-// 	// _, err := w.Writer.Write(p)
-// 	_, err := w.Write1(p)
-// 	return o, err
-// }
 
 // Телнет сервер RFC2217 ждёт на порту Ser2net.
 // SetMode использует r или chanByte для смены serial.Mode порта Serial.
@@ -319,7 +198,7 @@ func newSideWriter(w io.WriteCloser, escapeChar, name, exit string, chanByte cha
 		logPrintln = p
 		break
 	}
-	logPrintln(mess("<Enter><~>", exit, name))
+	logPrintln(mess("<Enter><"+escapeChar+">", exit, name))
 	return &sideWriter{
 		w,
 		[]byte{'\r', '\r'},
@@ -353,8 +232,6 @@ func (w *sideWriter) Write(pp []byte) (int, error) {
 	o := len(pp)
 	p := append(w.l, pp...) //+2
 	switch {
-	case bytes.Contains(p, []byte{'\r', w.t, CtrlZ}):
-		return 0, fmt.Errorf(`<Enter><%c><^Z> was pressed`, w.t)
 	case bytes.Contains(p, []byte{'\r', w.t, '.'}):
 		w.chanByte <- '.'
 		if o > 1 {
@@ -507,7 +384,7 @@ func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial string, Ser2net i
 	defer conn.Close()
 
 	go io.Copy(s, conn)
-	_, err = io.Copy(newSideWriter(conn, "~", Serial, exit, chanByte, println...), s)
+	_, err = io.Copy(newSideWriter(conn, args.EscapeChar, Serial, exit, chanByte, println...), s)
 	return err
 }
 

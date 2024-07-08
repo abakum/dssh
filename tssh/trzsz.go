@@ -109,13 +109,20 @@ func enableTrzsz(args *SshArgs, ss *sshSession) error {
 		return nil
 	}
 
-	disableTrzsz := strings.ToLower(getExOptionConfig(args, "EnableTrzsz")) == "no"
+	escapeChar := getOptionConfig(args, "EscapeChar")
+	disableTrzsz := strings.ToLower(escapeChar) != "none"
+
+	switch strings.ToLower(getExOptionConfig(args, "EnableTrzsz")) {
+	case "no":
+		disableTrzsz = true
+	case "yes":
+		disableTrzsz = false
+	}
 	enableZmodem := args.Zmodem || strings.ToLower(getExOptionConfig(args, "EnableZmodem")) == "yes"
 	enableDragFile := args.DragFile || strings.ToLower(getExOptionConfig(args, "EnableDragFile")) == "yes"
 
 	// disable trzsz ( trz / tsz )
 	if disableTrzsz && !enableZmodem && !enableDragFile {
-		escapeChar := getOptionConfig(args, "EscapeChar")
 		wrapStdIO(ss.serverIn, ss.serverOut, ss.serverErr, ss.tty, escapeChar)
 		onTerminalResize(func(width, height int) { _ = ss.session.WindowChange(height, width) })
 		return nil
@@ -204,7 +211,7 @@ func newTildaReader(r io.Reader, escapeChar string) *tildaReader {
 }
 
 // Заменяем `<Enter><EscapeChar><EscapeChar>` на `<Enter><EscapeChar>`.
-// Реагируем на `<Enter><EscapeChar><^Z>` и `<Enter><EscapeChar><.>`
+// Реагируем на `<Enter><EscapeChar><.>`
 func (r *tildaReader) Read(pp []byte) (int, error) {
 	if r.t == 0 {
 		return r.Reader.Read(pp)
@@ -214,14 +221,9 @@ func (r *tildaReader) Read(pp []byte) (int, error) {
 	if err != nil {
 		return n, err
 	}
-	const (
-		CtrlZ = 0x1A
-	)
 
 	p = append(r.l, p[:n]...) //+2
 	switch {
-	case bytes.Contains(p, []byte{'\r', r.t, CtrlZ}):
-		return 0, fmt.Errorf(`<Enter><%c><^Z> was pressed`, r.t)
 	case bytes.Contains(p, []byte{'\r', r.t, '.'}):
 		return 0, fmt.Errorf(`<Enter><%c><.> was pressed`, r.t)
 	case bytes.Contains(p, []byte{'\r', r.t, r.t}):

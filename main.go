@@ -200,8 +200,7 @@ func main() {
 	}
 
 	a2s := make([]string, 0) // Без встроенных параметров -h -v
-	cli := false
-	enableTrzsz := "yes"
+	// cli := false
 	for i, arg := range os.Args[1:] {
 		switch strings.ToLower(arg) {
 		case "-help", "--help":
@@ -223,12 +222,12 @@ func main() {
 			}
 			a2s = append(a2s, "--debug")
 		default:
-			if strings.HasPrefix(arg, "-") {
-				switch arg[len(arg)-1:] {
-				case "i", "c", "F", "J", "o", "W", "D", "L", "R":
-					cli = true
-				}
-			}
+			// if strings.HasPrefix(arg, "-") {
+			// 	switch arg[len(arg)-1:] {
+			// 	case "c", "F", "J", "W": //"i", "o", "D", "L", "R"
+			// 		cli = true
+			// 	}
+			// }
 			a2s = append(a2s, arg)
 		}
 	}
@@ -241,6 +240,17 @@ func main() {
 		Println(args.Version())
 		return
 	}
+
+	cli := fmt.Sprint(args.Option) != "{map[]}"
+	enableTrzsz := "yes"
+	switch strings.ToLower(args.EscapeChar) {
+	case "":
+		args.EscapeChar = "~"
+	case "none":
+	default:
+		enableTrzsz = "no"
+	}
+	args.Option.UnmarshalText([]byte("EscapeChar=" + args.EscapeChar))
 
 	exit := ""
 	if Windows {
@@ -277,6 +287,7 @@ func main() {
 	serial := args.Serial
 	BS := args.Baud != "" || serial != ""
 	if BS || lNear > 0 {
+		enableTrzsz = "no"
 		switch args.Destination {
 		case "", ".", repo:
 			// Локальный последовательный порт
@@ -316,10 +327,11 @@ func main() {
 			lFar++
 			fallthrough
 		default:
-			a2s = append(a2s, "-L", fmt.Sprintf("%d:%s:%d", lNear, LH, lFar))
-			if err := parser.Parse(a2s); err != nil {
-				Fatal(err)
-			}
+			args.LocalForward.UnmarshalText([]byte(fmt.Sprintf("%d:%s:%d", lNear, LH, lFar)))
+			// a2s = append(a2s, "-L", fmt.Sprintf("%d:%s:%d", lNear, LH, lFar))
+			// if err := parser.Parse(a2s); err != nil {
+			// 	Fatal(err)
+			// }
 		}
 	}
 
@@ -355,7 +367,6 @@ Host ` + SSHJ + `
 	if args.Restart || BS || lNear > 0 {
 		// CGI
 		cli = true
-		enableTrzsz = "no"
 		args.Command = repo
 		// args.ForceTTY = true
 		args.Argument = nil
@@ -441,7 +452,7 @@ Host ` + SSHJ + `
 										Println(cmd, err)
 										if err == nil {
 											setRaw(&once)
-											io.Copy(newSideWriter(w, "~", serial, exit, chanByte, Println), os.Stdin)
+											io.Copy(newSideWriter(w, args.EscapeChar, serial, exit, chanByte, Println), os.Stdin)
 											if cmd.Process != nil {
 												cmd.Process.Release()
 											}
@@ -499,6 +510,10 @@ Host ` + SSHJ + `
 	}
 
 	cli = cli ||
+		fmt.Sprint(args.Identity) != "{[]}" ||
+		fmt.Sprint(args.DynamicForward) != "{[]}" ||
+		fmt.Sprint(args.LocalForward) != "{[]}" ||
+		fmt.Sprint(args.RemoteForward) != "{[]}" ||
 		args.Command != "" ||
 		args.ForwardAgent ||
 		args.NoForwardAgent ||
@@ -669,6 +684,9 @@ Host ` + SSHJ + `
 	// dssh --2217 0 :
 	// Лучше чем `dssh --baud 9 :` - можно и скорость менять и с разных хостов управлять
 	setRaw(&once)
+	if (enableTrzsz == "no" || args.Destination == repo) && !(BS || lNear > 0) {
+		Println(ToExitPress, "<Enter><"+args.EscapeChar+"><.>")
+	}
 	code := TsshMain(&args)
 	if args.Background {
 		Println("tssh started in background with code:", code)
@@ -785,7 +803,7 @@ func ints() (ips []string) {
 func cleanup() {
 	winssh.KidsDone(os.Getpid())
 	Println("cleanup done")
-	// if Win {
+	// if !IsConsole() {
 	// 	menu.PressAnyKey("Press any key - Нажмите любую клавишу", TOW)
 	// }
 }
@@ -916,7 +934,7 @@ Host ` + repo + `
  UserKnownHostsFile ~/.ssh/` + repo + `
  KbdInteractiveAuthentication no
  PasswordAuthentication no
- EnableTrzsz ` + enableTrzsz
+ ` // EnableTrzsz ` + enableTrzsz
 	return alias
 }
 
