@@ -131,7 +131,9 @@ var (
 	Win        = Windows
 	Cygwin     = isatty.IsCygwinTerminal(os.Stdin.Fd())
 	once       = false
-	OverSSH    = !(os.Getenv("SSH_TTY") == "" && os.Getenv("SSH_CLIENT") == "" && os.Getenv("SSH_CONNECTION") == "")
+	OverSSH    = os.Getenv("SSH_CONNECTION") != ""
+	BUSYBOX    = "busybox"
+	MICROCOM   = false
 )
 
 //go:generate go run github.com/abakum/version
@@ -206,8 +208,11 @@ func main() {
 			parser.WriteHelp(Std)
 			return
 		case "-h":
-			parser.WriteUsage(Std)
-			return
+			if os.Args[i+1:][i] != "-H" {
+				parser.WriteUsage(Std)
+				return
+			}
+			a2s = append(a2s, "--path")
 		case "-version", "--version":
 			Println(args.Version())
 			return
@@ -215,9 +220,8 @@ func main() {
 			if os.Args[i+1:][i] == "-V" {
 				Println(args.Version())
 				return
-			} else {
-				a2s = append(a2s, "--debug")
 			}
+			a2s = append(a2s, "--debug")
 		default:
 			if strings.HasPrefix(arg, "-") {
 				switch arg[len(arg)-1:] {
@@ -281,23 +285,24 @@ func main() {
 				Println(ErrNotFoundFreeSerial)
 				Println("we will try to use RFC2217 - будем пробовать использовать RFC2217")
 				if lNear < 0 {
-					// dssh -b9
-					// dssh -s com3
+					// dssh --baud 9
+					// dssh --path com3
 					lNear = RFC2217
 				}
 			}
 		}
 		if lNear < 0 && args.Putty {
-			if bin == TELNET {
-				// dssh -Peb9 [:]
-				// dssh -Pes com3 [:]
-				lNear = RFC2217
-			}
 			switch args.Destination {
-			case "", ".", repo:
+			case "":
+				if !Windows && bin == TELNET && exec.Command("busybox", "microcom", "--help").Run() == nil {
+					// Если нет plink но есть busybox с аплетом microcom
+					MICROCOM = true
+				} else {
+					lNear = RFC2217
+				}
 			default:
-				// dssh -Pb9 :
-				// dssh -Ps com3 :
+				// dssh --putty --baud 9 :
+				// dssh --putty --path com3 :
 				lNear = RFC2217
 			}
 		}
@@ -383,17 +388,16 @@ Host ` + SSHJ + `
 			} else {
 				// Локальная последовательная консоль
 				if args.Putty {
-					// dssh -Pb9
-					// Хуже чем `dssh -b9` так как нельзя сменить скорость
+					// dssh --putty --baud 9
+					// Хуже чем `dssh --baud 9` так как нельзя сменить скорость
 					BaudRate := ser2net.BaudRate(strconv.Atoi(args.Baud))
-					opt := fmt.Sprintln("-serial", serial, "-sercfg", BaudRate)
+					opt := fmt.Sprintln("-serial", serial, "-sercfg", fmt.Sprintf("%d,8,1,N,N", BaudRate))
 					if lNear > 0 {
-						// dssh -P20
+						// dssh --putty --2217 0
 						opt = optTelnet(bin == TELNET, lNear)
-					} else if !Windows && exec.Command("busybox", "microcom", "--help").Run() == nil {
-						// plink как и screen иногда чудит с последовательными портами
+					} else if MICROCOM {
 						opt = fmt.Sprintln("microcom", "-s", BaudRate, serial)
-						execPath = "busybox"
+						execPath = BUSYBOX
 					}
 
 					cmd := exec.CommandContext(ctx, execPath, strings.Fields(opt)...)
@@ -404,12 +408,12 @@ Host ` + SSHJ + `
 					}
 
 					if !Win {
-						// dssh -uPb9
+						// dssh --unix --putty --baud 9
 						cmd.Stdout = os.Stdout
 						cmd.Stderr = os.Stdout
 						if lNear > 0 {
 							if bin == TELNET {
-								// dssh -euP20
+								// dssh --telnet --unix --putty --2217 0
 								time.AfterFunc(time.Second, func() {
 									exit := "<^]><q><Enter>"
 									if Cygwin {
@@ -418,7 +422,7 @@ Host ` + SSHJ + `
 									Println(ToExitPress, exit)
 								})
 							} else {
-								// dssh -uP20
+								// dssh --unix --putty --2217 0
 								// Microsoft Telnet выпадает
 								// Linux Telnet виснет
 								w, err := cmd.StdinPipe()
@@ -454,11 +458,11 @@ Host ` + SSHJ + `
 						cmd.Stdin = os.Stdin
 					} else {
 						// Win
-						// dssh -Pb9
-						notPutty(bin, cmd) // dssh -eP20
+						// dssh --putty --baud 9
+						notPutty(bin, cmd) // dssh --telnet -putty --2217 0
 						if lNear > 0 {
-							// dssh -P20
-							// dssh -ePb0
+							// dssh --putty --2217 0
+							// dssh --telnet --putty --baud 0
 							t := time.AfterFunc(time.Second, func() {
 								run()
 								closer.Close()
@@ -470,7 +474,7 @@ Host ` + SSHJ + `
 						}
 					}
 					if !Win && bin == TELNET && args.Putty {
-						// dssh -uePb9
+						// dssh --unix --telnet --putty --baud 9
 					} else {
 						exit := "<^C>"
 						if execPath == "busybox" {
@@ -483,11 +487,11 @@ Host ` + SSHJ + `
 				}
 				setRaw(&once)
 				if lNear > 0 {
-					// dssh -20
+					// dssh --2217 0
 					Println(rfc2217(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, serial, lNear, args.Baud, exit, Println))
 					return
 				}
-				// dssh -b9
+				// dssh --baud 9
 				Println(ser(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, serial, args.Baud, exit, Println))
 				return
 			}
@@ -596,28 +600,28 @@ Host ` + SSHJ + `
 		opt := ""
 		if args.Destination != "" {
 			if lNear > 0 {
-				// dssh -P20 :
-				// dssh -uP20 :
+				// dssh --putty --2217 0 :
+				// dssh --unix --putty --2217 0 :
 				opt = optTelnet(bin == TELNET, lNear)
 			}
 			if opt == "" {
-				// dssh -P :
+				// dssh --putty  :
 				switch bin {
 				case PUTTY:
 					opt = "@" + args.Destination
 				case PLINK:
 					opt = fmt.Sprintln("-no-antispoof", "-load", args.Destination)
 				case TELNET:
-					// dssh -eP :
+					// dssh --telnet --putty :
 					// За неимением...
 					execPath = "ssh"
 					opt = args.Destination
 				}
 			}
 		}
-		// dssh -P
-		// dssh -eP :
-		// dssh -eP20 :
+		// dssh --putty
+		// dssh --telnet --putty :
+		// dssh --telnet --putty --2217 0 :
 		cmd := exec.CommandContext(ctx, execPath, strings.Fields(opt)...)
 		run := func() {
 			err = cmd.Start()
@@ -627,15 +631,14 @@ Host ` + SSHJ + `
 		if Win || lNear > 0 {
 			notPutty(bin, cmd)
 			if lNear > 0 {
-				Println("-------------")
-				// dssh -P20 :
-				// dssh -eP20 :
-				// dssh -Pb9 :
-				// dssh -ePb9 :
-				// dssh -uP20 :
-				// dssh -ueP20 :
-				// dssh -uPb9 :
-				// dssh -uePb9 :
+				// dssh --putty --2217 0 :
+				// dssh --telnet --putty --2217 0 :
+				// dssh --putty --baud 9 :
+				// dssh --telnet --putty --baud 9 :
+				// dssh --unix --putty --2217 0 :
+				// dssh --unix --telnet --putty --2217 0 :
+				// dssh --unix --putty --baud 9 :
+				// dssh --unix --telnet --putty --baud 9 :
 				if !OverSSH {
 					time.AfterFunc(time.Second*5, func() {
 						run()
@@ -643,14 +646,14 @@ Host ` + SSHJ + `
 					})
 				}
 			} else {
-				// dssh -P :
+				// dssh --putty  :
 				Println(ToExitPress, "<^C>")
 				run()
 				return
 			}
 		} else {
-			// dssh -uP :
-			// dssh -ueP :
+			// dssh --unix --putty  :
+			// dssh --unix --telnet --putty :
 			if bin != TELNET {
 				Println(ToExitPress, "<^C>")
 				ConsoleCP()
@@ -662,8 +665,9 @@ Host ` + SSHJ + `
 			return
 		}
 	}
-	// dssh -b9 :
-	// dssh -20 :
+	// dssh --baud 9 :
+	// dssh --2217 0 :
+	// Лучше чем `dssh --baud 9 :` - можно и скорость менять и с разных хостов управлять
 	setRaw(&once)
 	code := TsshMain(&args)
 	if args.Background {
@@ -1264,7 +1268,7 @@ func look(bins ...string) (path, bin string, err error) {
 func optTelnet(telnet bool, lNear int) (opt string) {
 	opt = fmt.Sprintln("-telnet", LH, "-P", lNear)
 	if telnet {
-		// dssh -eP20 :
+		// dssh --telnet --putty --2217 0 :
 		opt = fmt.Sprintln(LH, lNear)
 	}
 	return

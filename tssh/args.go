@@ -88,14 +88,14 @@ type SshArgs struct {
 	TrzszBinPath   string      `arg:"--trzsz-bin-path" placeholder:"path" help:"[tools] trzsz binary installation package path"`
 	originalDest   string
 	Config         *Config `arg:"-"`
-	Putty          bool    `arg:"-P,--putty" help:"write config from ~/.ssh/config to ~/.putty or CURRENT_USER\\SOFTWARE\\SimonTatham\\PuTTY and run putty"`
-	Baud           string  `arg:"-b,--baud" placeholder:"baud" help:"set serial console baud rate"`
-	Serial         string  `arg:"-s,--serial" placeholder:"serial" help:"serial port for console"`
+	Putty          bool    `arg:"-u,--putty" help:"write config from ~/.ssh/config to ~/.putty or CURRENT_USER\\SOFTWARE\\SimonTatham\\PuTTY and run PuTTY"`
+	Baud           string  `arg:"-U,--baud" placeholder:"baUd" help:"set serial console baud rate"`
+	Serial         string  `arg:"-H,--path" placeholder:"patH" help:"device path for serial console"`
 	Ser2net        int     `arg:"-2,--2217" placeholder:"port" help:"RFC2217 telnet port for serial port console over telnet" default:"-1"`
 	Daemon         bool    `arg:"-d,--daemon" help:"run as ssh daemon, destination as [bind_addr][:port]\nif bind_addr is omit then 127.0.0.1\nif bind_addr is * then 0.0.0.0\nif bind_addr is _ then ip of first interface like 192.168.0.2\nif port is omit then 2222\nor just 'dssh'"`
 	Restart        bool    `arg:"-r,--restart" help:"restart daemon"`
-	Unix           bool    `arg:"-u,--unix" help:"unix test"`
-	Telnet         bool    `arg:"-e,--telnet" help:"telnet test"`
+	Unix           bool    `arg:"-z,--unix" help:"unix test"`
+	Telnet         bool    `arg:"-Z,--telnet" help:"telnet test"`
 }
 
 func (SshArgs) Description() string {
