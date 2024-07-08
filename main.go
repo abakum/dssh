@@ -305,11 +305,17 @@ func main() {
 		if lNear < 0 && args.Putty {
 			switch args.Destination {
 			case "":
-				// dssh --putty --unix --telnet --baud 9
-				MICROCOM = !Windows && bin == TELNET && exec.Command("busybox", "microcom", "--help").Run() == nil
-				if !MICROCOM {
-					// dssh --putty --telnet --baud 9
-					lNear = RFC2217
+				if bin == TELNET {
+					if Win {
+						// dssh --putty --telnet --baud 9
+						lNear = RFC2217
+					} else {
+						// dssh --putty --telnet --baud 9 --unix
+						MICROCOM = exec.Command("busybox", "microcom", "--help").Run() == nil
+						if !MICROCOM {
+							lNear = RFC2217
+						}
+					}
 				}
 			default:
 				// dssh --putty --baud 9 :
