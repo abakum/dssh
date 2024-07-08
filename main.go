@@ -307,6 +307,10 @@ func main() {
 			case "":
 				// dssh --putty --unix --telnet --baud 9
 				MICROCOM = !Windows && bin == TELNET && exec.Command("busybox", "microcom", "--help").Run() == nil
+				if !MICROCOM {
+					// dssh --putty --telnet --baud 9
+					lNear = RFC2217
+				}
 			default:
 				// dssh --putty --baud 9 :
 				// dssh --putty --path com3 :
@@ -458,7 +462,7 @@ Host ` + SSHJ + `
 								}
 							}
 							go func() {
-								s2n(ctx, nil, nil, serial, lNear, "", args.Baud, Println)
+								s2n(ctx, nil, nil, serial, lNear, args.Baud, "", Println)
 								closer.Close()
 							}()
 						}
