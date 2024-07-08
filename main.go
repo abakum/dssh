@@ -305,12 +305,8 @@ func main() {
 		if lNear < 0 && args.Putty {
 			switch args.Destination {
 			case "":
-				if !Windows && bin == TELNET && exec.Command("busybox", "microcom", "--help").Run() == nil {
-					// Если нет plink но есть busybox с аплетом microcom
-					MICROCOM = true
-				} else {
-					lNear = RFC2217
-				}
+				// dssh --putty --unix --telnet --baud 9
+				MICROCOM = !Windows && bin == TELNET && exec.Command("busybox", "microcom", "--help").Run() == nil
 			default:
 				// dssh --putty --baud 9 :
 				// dssh --putty --path com3 :
@@ -484,15 +480,11 @@ Host ` + SSHJ + `
 							return
 						}
 					}
-					if !Win && bin == TELNET && args.Putty {
-						// dssh --unix --telnet --putty --baud 9
-					} else {
-						exit := "<^C>"
-						if execPath == "busybox" {
-							exit = "<^X>"
-						}
-						Println(ToExitPress, exit)
+					exit := "<^C>"
+					if MICROCOM {
+						exit = "<^X>"
 					}
+					Println(ToExitPress, exit)
 					run()
 					return
 				}
@@ -667,12 +659,17 @@ Host ` + SSHJ + `
 				return
 			}
 		} else {
-			// dssh --unix --putty  :
-			// dssh --unix --telnet --putty :
-			if bin != TELNET {
-				Println(ToExitPress, "<^C>")
+			exit := "<Enter><e><x><i><t><Enter>"
+			if bin == TELNET {
+				// dssh --unix --telnet --putty :
+				// ssh ssh-j
+				exit += " или <Enter><~><.>"
+			} else {
+				// dssh --unix --putty :
+				// plink -load ssh-j
 				ConsoleCP()
 			}
+			Println(ToExitPress, exit)
 			cmd.Stdin = os.Stdin
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
