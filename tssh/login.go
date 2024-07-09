@@ -445,6 +445,109 @@ func getHostKeyCallback(args *SshArgs, param *sshParam) (ssh.HostKeyCallback, kn
 	return caKeysCallback(cb, caKeys(files...)), kh, nil
 }
 
+func getHostKeyCallbackDB(args *SshArgs, param *sshParam) (ssh.HostKeyCallback, *knownhosts.HostKeyDB, error) {
+	primaryPath := ""
+	var files []string
+	addKnownHostsFiles := func(key string, user bool) error {
+		knownHostsFiles := getOptionConfigSplits(args, key)
+		if len(knownHostsFiles) == 0 {
+			debug("%s is empty", key)
+			return nil
+		}
+		if len(knownHostsFiles) == 1 && strings.ToLower(knownHostsFiles[0]) == "none" {
+			debug("%s is none", key)
+			return nil
+		}
+		for _, path := range knownHostsFiles {
+			var resolvedPath string
+			if user {
+				path = expandEnv(path)
+				expandedPath, err := expandTokens(path, args, param, "%CdhijkLlnpru")
+				if err != nil {
+					return fmt.Errorf("expand UserKnownHostsFile [%s] failed: %v", path, err)
+				}
+				resolvedPath = resolveHomeDir(expandedPath)
+				if primaryPath == "" {
+					primaryPath = resolvedPath
+				}
+			} else {
+				resolvedPath = resolveEtcDir(path)
+			}
+			if !isFileExist(resolvedPath) {
+				debug("%s [%s] does not exist", key, resolvedPath)
+				continue
+			}
+			if !canReadFile(resolvedPath) {
+				if user {
+					warning("%s [%s] can't be read", key, resolvedPath)
+				} else {
+					debug("%s [%s] can't be read", key, resolvedPath)
+				}
+				continue
+			}
+			debug("add %s: %s", key, resolvedPath)
+			files = append(files, resolvedPath)
+		}
+		return nil
+	}
+
+	if err := addKnownHostsFiles("UserKnownHostsFile", true); err != nil {
+		return nil, nil, err
+	}
+	if err := addKnownHostsFiles("GlobalKnownHostsFile", false); err != nil {
+		return nil, nil, err
+	}
+
+	khDB, err := knownhosts.NewDB(files...)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("new knownhosts failed: %v", err)
+	}
+
+	cb := func(host string, remote net.Addr, key ssh.PublicKey) error {
+		kh := khDB.HostKeyCallback()
+		err := kh(host, remote, key)
+		if err == nil {
+			return nil
+		}
+		strictHostKeyChecking := strings.ToLower(getOptionConfig(args, "StrictHostKeyChecking"))
+		if knownhosts.IsHostKeyChanged(err) {
+			path := primaryPath
+			if path == "" {
+				path = "~/.ssh/known_hosts"
+			}
+			fmt.Fprintf(os.Stderr, "\033[0;31m@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\r\n"+
+				"@    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!     @\r\n"+
+				"@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\r\n"+
+				"IT IS POSSIBLE THAT SOMEONE IS DOING SOMETHING NASTY!\r\n"+
+				"Someone could be eavesdropping on you right now (man-in-the-middle attack)!\033[0m\r\n"+
+				"It is also possible that a host key has just been changed.\r\n"+
+				"The fingerprint for the %s key sent by the remote host is\r\n"+
+				"%s\r\n"+
+				"Please contact your system administrator.\r\n"+
+				"Add correct host key in %s to get rid of this message.\r\n",
+				key.Type(), ssh.FingerprintSHA256(key), path)
+		} else if knownhosts.IsHostUnknown(err) && primaryPath != "" {
+			ask := true
+			switch strictHostKeyChecking {
+			case "yes":
+				return err
+			case "accept-new", "no", "off":
+				ask = false
+			}
+			return addHostKey(primaryPath, host, remote, key, ask)
+		}
+		switch strictHostKeyChecking {
+		case "no", "off":
+			return nil
+		default:
+			return err
+		}
+	}
+
+	return caKeysCallback(cb, caKeys(files...)), khDB, nil
+}
+
 type sshSigner struct {
 	path   string
 	priKey []byte
@@ -1131,7 +1234,8 @@ func sshConnect(args *SshArgs, client *ssh.Client, proxy string) (*ssh.Client, *
 	// >If hostkeys are known for the destination host then this default is modified to prefer their algorithms.
 	debug("HostKeyAlgorithms %v", config.HostKeyAlgorithms)
 	debug("IdKeyAlgorithms %v", idKeyAlgorithms)
-	// kh Не понимает пока @cert-authority поэтому добавим idKeyAlgorithms
+	// kh после https://github.com/skeema/knownhosts/tree/certs-backwards-compat уже понимает @cert-authority
+	// но пока не объединили с main добавим idKeyAlgorithms
 	config.HostKeyAlgorithms = NewStringSet(config.HostKeyAlgorithms...).Add(idKeyAlgorithms...).List()
 	setupHostKeyAlgorithmsConfig(args, config)
 

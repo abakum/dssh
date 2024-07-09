@@ -6,6 +6,7 @@ go 1.21.4
 // toolchain go1.21.4
 // replace github.com/abakum/go-ser2net => ../go-ser2net
 // replace github.com/abakum/embed-encrypt => ../embed-encrypt
+// replace github.com/skeema/knownhosts => ../knownhosts
 
 require (
 	github.com/Microsoft/go-winio v0.6.2

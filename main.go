@@ -271,7 +271,7 @@ func main() {
 		// В Юниксе используем консольные приложения plink или telnet
 		bins = bins[1:]
 	}
-	if args.Telnet { // Параметр чтоб эмулировать отсутствие putty и plink при наличии telnet
+	if args.Telnet { // Параметр чтоб эмулировать отсутствие putty и plink при наличии telnet или busybox microcom
 		bins = []string{TELNET}
 	}
 	execPath, bin, err := look(bins...)
