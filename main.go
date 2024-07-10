@@ -578,7 +578,7 @@ Host ` + SSHJ + `
 		}
 
 		go func() {
-			s := usage(repo, imag)
+			s := usage(imag)
 			for {
 				server(h, p, repo, s, signer, Println, Print)
 				winssh.KidsDone(os.Getpid())
@@ -691,9 +691,20 @@ Host ` + SSHJ + `
 	// dssh --2217 0 :
 	// Лучше чем `dssh --baud 9 :` - можно и скорость менять и с разных хостов управлять
 	setRaw(&once)
-	if (enableTrzsz == "no" || args.Destination == repo) && !(BS || lNear > 0) {
-		Println(ToExitPress, "<Enter><"+args.EscapeChar+"><.>")
+	exit = ""
+	if args.Command == "" {
+		exit = "<Enter><e><x><i><t><Enter>"
 	}
+	if (enableTrzsz == "no" || args.Destination == repo) && !(BS || lNear > 0) {
+		if exit != "" {
+			exit += " или "
+		}
+		exit += "<Enter><" + args.EscapeChar + "><.>"
+	}
+	if exit != "" {
+		Println(ToExitPress, exit)
+	}
+
 	code := TsshMain(&args)
 	if args.Background {
 		Println("tssh started in background with code:", code)
@@ -819,21 +830,17 @@ func FingerprintSHA256(pubKey ssh.PublicKey) string {
 	return pubKey.Type() + " " + ssh.FingerprintSHA256(pubKey)
 }
 
-func usage(repo, imag string) string {
+func usage(imag string) string {
 	s := fmt.Sprintf(
 		"\n\tlocal - локально `%s .` or over jump host - или через посредника `%s :`"+
-			"\n\tlocal - локально `ssh %s` or over jump host - или через посредника `ssh %s`",
+			"\n\tPuTTY `ssh %s -u .` `ssh %s -u :`"+
+			"\n\tplink `ssh %s -uz .` `ssh %s -uz :`"+
+			"\n\tssh `ssh %s -Z .` `ssh %s -Z :`",
 		imag, imag,
-		repo, SSHJ,
+		imag, imag,
+		imag, imag,
+		imag, imag,
 	)
-	if args.Putty {
-		s += fmt.Sprintf(
-			"\n\tlocal - локально `putty @%s` or over jump host - или через посредника `putty @%s`"+
-				"\n\tlocal - локально `plink -no-antispoof -load %s` or over jump host - или через посредника и агента `plink -no-antispoof -load %s`",
-			repo, SSHJ,
-			repo, SSHJ,
-		)
-	}
 	return s
 }
 

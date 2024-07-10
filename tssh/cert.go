@@ -160,8 +160,12 @@ func addCertSigner(args *SshArgs, param *sshParam, signer ssh.Signer, fingerprin
 			// Пишем авторизацию хоста для tssh, ssh и putty.
 			// Авторизация tssh через caKeys.
 			if fpSigner == fpCA {
+				hosts := "127.0.0.1"
+				if param.addr != hosts+":22" {
+					hosts += "," + param.addr
+				}
 				pref = "ca"
-				bb := bytes.NewBufferString(fmt.Sprintf("%s %s,127.0.0.1 ", markerCert, param.addr))
+				bb := bytes.NewBufferString(fmt.Sprintf("%s %s ", markerCert, hosts))
 				bb.Write(ssh.MarshalAuthorizedKey(pubKey))
 				err = writeFile(filepath.Join(userHomeSsh, cert.KeyId), bb.Bytes(), 0644)
 				if err != nil {
