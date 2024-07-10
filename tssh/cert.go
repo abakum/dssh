@@ -4,9 +4,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"fmt"
-	"io"
 	"io/fs"
-	"net"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -17,82 +15,85 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-type HostsCerts map[string]string
-
 const markerCert = "@cert-authority"
 
+/*
+type HostsCerts map[string]string
+
 // Ищем сертификаты хостов в KnownHosts файлах
-func caKeys(files ...string) HostsCerts {
-	hostCerts := make(HostsCerts)
-	var (
-		marker string
-		hosts  []string
-		pubKey ssh.PublicKey
-	)
-	for _, file := range files {
-		rest, err := os.ReadFile(file)
-		if err != nil {
-			continue
-		}
-		if !bytes.Contains(rest, []byte(markerCert+" ")) {
-			continue
-		}
-	parse:
-		for {
-			marker, hosts, pubKey, _, rest, err = ssh.ParseKnownHosts(rest)
+
+	func caKeys(files ...string) HostsCerts {
+		hostCerts := make(HostsCerts)
+		var (
+			marker string
+			hosts  []string
+			pubKey ssh.PublicKey
+		)
+		for _, file := range files {
+			rest, err := os.ReadFile(file)
 			if err != nil {
-				if err == io.EOF {
-					break parse
+				continue
+			}
+			if !bytes.Contains(rest, []byte(markerCert+" ")) {
+				continue
+			}
+		parse:
+			for {
+				marker, hosts, pubKey, _, rest, err = ssh.ParseKnownHosts(rest)
+				if err != nil {
+					if err == io.EOF {
+						break parse
+					}
+					continue parse
 				}
-				continue parse
+				if "@"+marker != markerCert {
+					continue parse
+				}
+				csHosts := strings.Join(hosts, ",")
+				debug("@%s %s %s", marker, csHosts, ssh.FingerprintSHA256(pubKey))
+				hostCerts[ssh.FingerprintSHA256(pubKey)] = csHosts
 			}
-			if "@"+marker != markerCert {
-				continue parse
-			}
-			csHosts := strings.Join(hosts, ",")
-			debug("@%s %s %s", marker, csHosts, ssh.FingerprintSHA256(pubKey))
-			hostCerts[ssh.FingerprintSHA256(pubKey)] = csHosts
 		}
+		return hostCerts
 	}
-	return hostCerts
-}
 
 // Если найдены сертификаты хостов то возвращаем ssh.CertChecker.CheckHostKey иначе cb
-func caKeysCallback(cb ssh.HostKeyCallback, hostCerts HostsCerts) ssh.HostKeyCallback {
-	if len(hostCerts) == 0 {
-		return cb
-	}
-	certCheck := &ssh.CertChecker{
-		IsHostAuthority: func(p ssh.PublicKey, addr string) bool {
-			fingerprint := ssh.FingerprintSHA256(p)
-			hosts, ok := hostCerts[fingerprint]
-			if ok {
-				if hosts != "*" {
-					h, _, err := net.SplitHostPort(addr)
-					ok = false
-					if err == nil {
-						for _, host := range strings.Split(hosts, ",") {
-							if h != host {
-								continue
+
+	func caKeysCallback(cb ssh.HostKeyCallback, hostCerts HostsCerts) ssh.HostKeyCallback {
+		if len(hostCerts) == 0 {
+			return cb
+		}
+		certCheck := &ssh.CertChecker{
+			IsHostAuthority: func(p ssh.PublicKey, addr string) bool {
+				fingerprint := ssh.FingerprintSHA256(p)
+				hosts, ok := hostCerts[fingerprint]
+				if ok {
+					if hosts != "*" {
+						h, _, err := net.SplitHostPort(addr)
+						ok = false
+						if err == nil {
+							for _, host := range strings.Split(hosts, ",") {
+								if h != host {
+									continue
+								}
+								ok = true
+								break
 							}
-							ok = true
-							break
 						}
 					}
 				}
-			}
-			s := ""
-			if !ok {
-				s = "not "
-			}
-			debug("host %s %sknown by certificate %s", addr, s, fingerprint)
-			return ok
-		},
-		HostKeyFallback: cb,
+				s := ""
+				if !ok {
+					s = "not "
+				}
+				debug("host %s %sknown by certificate %s", addr, s, fingerprint)
+				return ok
+			},
+			HostKeyFallback: cb,
+		}
+		return certCheck.CheckHostKey
 	}
-	return certCheck.CheckHostKey
-}
-
+*/
 var KeyAlgo2id = map[string]string{
 	ssh.KeyAlgoRSA:        "id_rsa",
 	ssh.KeyAlgoDSA:        "id_dsa",
@@ -160,7 +161,7 @@ func addCertSigner(args *SshArgs, param *sshParam, signer ssh.Signer, fingerprin
 			// Авторизация tssh через caKeys.
 			if fpSigner == fpCA {
 				pref = "ca"
-				bb := bytes.NewBufferString(markerCert + " * ")
+				bb := bytes.NewBufferString(fmt.Sprintf("%s %s,127.0.0.1 ", markerCert, param.addr))
 				bb.Write(ssh.MarshalAuthorizedKey(pubKey))
 				err = writeFile(filepath.Join(userHomeSsh, cert.KeyId), bb.Bytes(), 0644)
 				if err != nil {

@@ -442,11 +442,12 @@ func getHostKeyCallback(args *SshArgs, param *sshParam) (ssh.HostKeyCallback, kn
 		}
 	}
 
-	return caKeysCallback(cb, caKeys(files...)), kh, nil
+	// return caKeysCallback(cb, caKeys(files...)), kh, nil
+	return cb, kh, nil
 }
 
 /*
-func getHostKeyCallbackDB(args *SshArgs, param *sshParam) (ssh.HostKeyCallback, *knownhosts.HostKeyDB, error) {
+	func getHostKeyCallback(args *SshArgs, param *sshParam) (ssh.HostKeyCallback, *knownhosts.HostKeyDB, error) {
 	primaryPath := ""
 	var files []string
 	addKnownHostsFiles := func(key string, user bool) error {
@@ -546,8 +547,10 @@ func getHostKeyCallbackDB(args *SshArgs, param *sshParam) (ssh.HostKeyCallback, 
 		}
 	}
 
-	return caKeysCallback(cb, caKeys(files...)), khDB, nil
+	// return caKeysCallback(cb, caKeys(files...)), khDB, nil
+	return cb, khDB, nil
 }
+
 */
 
 type sshSigner struct {

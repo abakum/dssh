@@ -93,12 +93,12 @@ const (
 	OSSH     = "OpenSSH_for_Windows"
 	RESTART  = "--restart"
 	SSHJ     = "ssh-j"
-	SSHJ2    = "127.0.0.2"
+	SSHJ2    = LH //"127.0.0.2"
 	JumpHost = SSHJ + ".com"
 	EQ       = "="
 	TERM     = "xterm-256color"
 	PUTTY    = "putty" // signed https://www.chiark.greenend.org.uk/~sgtatham/putty/latest.html
-	LISTEN   = "2222"
+	LISTEN   = PORT + PORT
 	TELNET   = "telnet"
 	PLINK    = "plink"
 	RFC2217  = 22170
