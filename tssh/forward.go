@@ -32,6 +32,7 @@ import (
 	"net"
 	"os"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -305,13 +306,18 @@ func (d sshResolver) Resolve(ctx context.Context, name string) (context.Context,
 }
 
 func dynamicForward(client *ssh.Client, b *bindCfg, args *SshArgs) {
+	socks4Support := false // Для Юникс используем 5 версию
+	if runtime.GOOS == "windows" {
+		// Для Виндовс обращаем внимания на параметр -5
+		socks4Support = !args.Socks5
+	}
 	server, err := socks5.New(&socks5.Config{
 		Resolver: &sshResolver{},
 		Dial: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			return dialWithTimeout(client, network, addr, 10*time.Second)
 		},
 		Logger:        log.New(io.Discard, "", log.LstdFlags),
-		Socks4Support: true,
+		Socks4Support: socks4Support,
 	})
 	if err != nil {
 		warning("dynamic forward failed: %v", err)

@@ -302,15 +302,17 @@ func main() {
 				}
 			}
 		}
-		if lNear < 0 && args.Putty {
+		if lNear < 0 && (args.Putty || args.Telnet) {
 			switch args.Destination {
 			case "":
 				if bin == TELNET {
 					if Win {
 						// dssh --putty --telnet --baud 9
+						// dssh --telnet --baud 9
 						lNear = RFC2217
 					} else {
 						// dssh --putty --telnet --baud 9 --unix
+						// dssh --telnet --baud 9 --unix
 						MICROCOM = exec.Command("busybox", "microcom", "--help").Run() == nil
 						if !MICROCOM {
 							lNear = RFC2217
@@ -404,7 +406,7 @@ Host ` + SSHJ + `
 				}
 			} else {
 				// Локальная последовательная консоль
-				if args.Putty {
+				if args.Putty || args.Telnet {
 					// dssh --putty --baud 9
 					// Хуже чем `dssh --baud 9` так как нельзя сменить скорость
 					BaudRate := ser2net.BaudRate(strconv.Atoi(args.Baud))
@@ -613,7 +615,7 @@ Host ` + SSHJ + `
 
 	// Клиенты
 	client(signer, sshj+sshJ(JumpHost, u, "", p), repo, SSHJ)
-	if args.Putty {
+	if args.Putty || args.Telnet {
 		opt := ""
 		if args.Destination != "" {
 			if lNear > 0 {
@@ -686,23 +688,13 @@ Host ` + SSHJ + `
 			run()
 			return
 		}
+		setRaw(&once)
 	}
 	// dssh --baud 9 :
 	// dssh --2217 0 :
 	// Лучше чем `dssh --baud 9 :` - можно и скорость менять и с разных хостов управлять
-	setRaw(&once)
-	exit = ""
-	if args.Command == "" {
-		exit = "<Enter><e><x><i><t><Enter>"
-	}
 	if (enableTrzsz == "no" || args.Destination == repo) && !(BS || lNear > 0) {
-		if exit != "" {
-			exit += " или "
-		}
-		exit += "<Enter><" + args.EscapeChar + "><.>"
-	}
-	if exit != "" {
-		Println(ToExitPress, exit)
+		Println(ToExitPress, "<Enter><"+args.EscapeChar+"><.>")
 	}
 
 	code := TsshMain(&args)
@@ -833,9 +825,9 @@ func FingerprintSHA256(pubKey ssh.PublicKey) string {
 func usage(imag string) string {
 	s := fmt.Sprintf(
 		"\n\tlocal - локально `%s .` or over jump host - или через посредника `%s :`"+
-			"\n\tPuTTY `ssh %s -u .` `ssh %s -u :`"+
-			"\n\tplink `ssh %s -uz .` `ssh %s -uz :`"+
-			"\n\tssh `ssh %s -Z .` `ssh %s -Z :`",
+			"\n\tPuTTY `%s -u .` `%s -u :`"+
+			"\n\tplink `%s -uz .` `%s -uz :`"+
+			"\n\tssh `%s -Z .` `%s -Z :`",
 		imag, imag,
 		imag, imag,
 		imag, imag,

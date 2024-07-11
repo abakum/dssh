@@ -68,7 +68,7 @@ type SshArgs struct {
 	ProxyJump      string      `arg:"-J,--" placeholder:"destination" help:"jump hosts separated by comma characters"`
 	Option         sshOption   `arg:"-o,--" placeholder:"key=value" help:"options in the format used in ~/.ssh/config\ne.g., tssh -o ProxyCommand=\"ssh proxy nc %h %p\""`
 	StdioForward   string      `arg:"-W,--" placeholder:"host:port" help:"forward stdin and stdout to host on port"`
-	DynamicForward bindArgs    `arg:"-D,--" placeholder:"[bind_addr:]port" help:"dynamic port forwarding ( socks5 proxy )"`
+	DynamicForward bindArgs    `arg:"-D,--" placeholder:"[bind_addr:]port" help:"dynamic port forwarding (socks4 proxy for Windows)"`
 	LocalForward   forwardArgs `arg:"-L,--" placeholder:"[bind_addr:]port:host:hostport" help:"local port forwarding"`
 	RemoteForward  forwardArgs `arg:"-R,--" placeholder:"[bind_addr:]port:host:hostport" help:"remote port forwarding"`
 	X11Untrusted   bool        `arg:"-X,--" help:"enables X11 forwarding"`
@@ -97,6 +97,7 @@ type SshArgs struct {
 	Unix           bool    `arg:"-z,--unix" help:"zero new window"`
 	Telnet         bool    `arg:"-Z,--telnet" help:"telnet for serial console or ssh for shell - the sign of Zorro"`
 	EscapeChar     string  `arg:"-e,--escape-char" placeholder:"EscapeChar" help:"set escape character for sessions"` // default:"~"
+	Socks5         bool    `arg:"-5,--socks5" help:"for dynamic port forwarding forces ssh to use version 5 of socks"`
 }
 
 func (SshArgs) Description() string {
