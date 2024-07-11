@@ -688,12 +688,13 @@ Host ` + SSHJ + `
 			run()
 			return
 		}
-		setRaw(&once)
 	}
 	// dssh --baud 9 :
 	// dssh --2217 0 :
 	// Лучше чем `dssh --baud 9 :` - можно и скорость менять и с разных хостов управлять
-	if (enableTrzsz == "no" || args.Destination == repo) && !(BS || lNear > 0) {
+	if BS || lNear > 0 {
+		setRaw(&once)
+	} else if enableTrzsz == "no" || args.Destination == repo {
 		Println(ToExitPress, "<Enter><"+args.EscapeChar+"><.>")
 	}
 
