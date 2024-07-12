@@ -19,7 +19,7 @@ var (
 	le  = log.New(Std, menu.BUG, 0)
 	lf  = log.New(Std, menu.GT, log.Lshortfile)
 	l   = log.New(Std, menu.GT, 0)
-	lt  = log.New(Std, "\t", 0)
+	// lt  = log.New(Std, "\t", 0)
 )
 
 // Colorable log
@@ -49,12 +49,12 @@ func Errorf(format string, args ...any) error {
 }
 
 // Wrap source of code and error to error
-func srcError(err error) error {
-	if err == nil {
-		return nil
-	}
-	return fmt.Errorf(src(8)+" %w", err)
-}
+// func srcError(err error) error {
+// 	if err == nil {
+// 		return nil
+// 	}
+// 	return fmt.Errorf(src(8)+" %w", err)
+// }
 
 // Вывод Ok если нет ошибки
 func PrintOk(s string, err error) (ok bool) {

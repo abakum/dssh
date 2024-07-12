@@ -31,7 +31,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
 	"crypto/x509"
 	_ "embed"
 	"errors"
@@ -130,6 +129,7 @@ var (
 	Windows    = runtime.GOOS == "windows"
 	Win        = Windows
 	Cygwin     = isatty.IsCygwinTerminal(os.Stdin.Fd())
+	Win7       = isWin7() && !Cygwin // Виндовс7 не поддерживает ENABLE_VIRTUAL_TERMINAL_INPUT и ENABLE_VIRTUAL_TERMINAL_PROCESSING
 	once       = false
 	OverSSH    = os.Getenv("SSH_CONNECTION") != ""
 	BUSYBOX    = "busybox"
@@ -173,6 +173,15 @@ func main() {
 
 	ips := ints()
 	Println(build(Ver, ips))
+	if Cygwin {
+		// cygpath -w ~/.ssh
+		cygUserDir, err := cygpath("~")
+		if err != nil {
+			cygUserDir = "~"
+		}
+		cygUserDir = filepath.Join(cygUserDir, ".ssh")
+		Println(fmt.Sprintf(`You can make a link - Можно сделать ссылку 'mklink /d "%s" "%s"'`, cygUserDir, SshUserDir))
+	}
 	FatalOr("not connected - нет сети", len(ips) == 0)
 
 	anyKey, err := x509.ParsePKCS8PrivateKey(CA)
@@ -391,7 +400,7 @@ Host ` + SSHJ + `
 					args.Argument = append(args.Argument, "--baud", args.Baud)
 				}
 				if serial != "" {
-					args.Argument = append(args.Argument, "--serial", serial)
+					args.Argument = append(args.Argument, "--path", serial)
 				}
 				if lFar > 0 {
 					args.Argument = append(args.Argument, "--2217", strconv.Itoa(lFar))
@@ -400,15 +409,12 @@ Host ` + SSHJ + `
 					args.Argument = append(args.Argument, "--exit", exit)
 				}
 				if args.Putty {
-					if Win {
-						args.Argument = append(args.Argument, "--putty")
-					}
+					args.Argument = append(args.Argument, "--putty")
 				}
 			} else {
 				// Локальная последовательная консоль
 				if args.Putty || args.Telnet {
-					// dssh --putty --baud 9
-					// Хуже чем `dssh --baud 9` так как нельзя сменить скорость
+					// dssh --putty --baud 9 это хуже чем `dssh --baud 9` так как нельзя сменить скорость
 					BaudRate := ser2net.BaudRate(strconv.Atoi(args.Baud))
 					opt := fmt.Sprintln("-serial", serial, "-sercfg", fmt.Sprintf("%d,8,1,N,N", BaudRate))
 					if lNear > 0 {
@@ -595,7 +601,7 @@ Host ` + SSHJ + `
 		rc += JumpHost
 		args.Destination = JumpHost
 		args.DisableTTY = true
-		client(signer, local(hh, p, repo, enableTrzsz)+sshj+sshJ(JumpHost, u, hh, p))
+		client(signer, local(hh, p, repo)+sshj+sshJ(JumpHost, u, hh, p))
 		s := fmt.Sprintf("`tssh %s`", rc)
 		i := 0
 		for {
@@ -615,15 +621,14 @@ Host ` + SSHJ + `
 
 	// Клиенты
 	client(signer, sshj+sshJ(JumpHost, u, "", p), repo, SSHJ)
-	if args.Putty || args.Telnet {
+	if args.Putty || args.Telnet || Win7 {
 		opt := ""
 		if args.Destination != "" {
 			if lNear > 0 {
 				// dssh --putty --2217 0 :
 				// dssh --unix --putty --2217 0 :
 				opt = optTelnet(bin == TELNET, lNear)
-			}
-			if opt == "" {
+			} else {
 				// dssh --putty  :
 				switch bin {
 				case PUTTY:
@@ -671,17 +676,17 @@ Host ` + SSHJ + `
 				return
 			}
 		} else {
-			exit := "<Enter><e><x><i><t><Enter>"
 			if bin == TELNET {
 				// dssh --unix --telnet --putty :
 				// ssh ssh-j
-				exit += " или <Enter><~><.>"
+				if enableTrzsz == "no" || args.Destination == repo {
+					Println(ToExitPress, "<Enter><"+args.EscapeChar+"><.>")
+				}
 			} else {
 				// dssh --unix --putty :
 				// plink -load ssh-j
 				ConsoleCP()
 			}
-			Println(ToExitPress, exit)
 			cmd.Stdin = os.Stdin
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
@@ -724,7 +729,10 @@ func client(signer ssh.Signer, config string, hosts ...string) {
 		Println(err)
 		return
 	}
-	Println(config)
+	switch args.Destination {
+	case SSHJ, JumpHost:
+		Println(config)
+	}
 	args.Config = NewConfig(cfg)
 
 	cert := NewCertificate(0, ssh.UserCert, repo, ssh.CertTimeInfinity, 0, repo)
@@ -734,7 +742,7 @@ func client(signer ssh.Signer, config string, hosts ...string) {
 		args.Config.CASigner[alias] = caSigner
 		args.Config.Include.Add(alias)
 
-		if args.Putty {
+		if args.Putty || Win7 {
 			if i == 0 {
 				Conf(filepath.Join(Sessions, "Default%20Settings"), EQ, newMap(Keys, Defs))
 				data := ssh.MarshalAuthorizedKey(signer.PublicKey())
@@ -774,7 +782,7 @@ func client(signer ssh.Signer, config string, hosts ...string) {
 	if err != nil {
 		Println(err)
 	}
-	if args.Putty {
+	if args.Putty || Win7 {
 		Println("SshToPutty", SshToPutty())
 	}
 }
@@ -892,7 +900,7 @@ func sshJ(host, u, h, p string) string {
 ssh-j.com ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBPXSkWZ8MqLVM68cMjm+YR4geDGfqKPEcIeC9aKVyUW32brmgUrFX2b0I+z4g6rHYRwGeqrnAqLmJ6JJY0Ufm80=
 ssh-j.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIiyFQuTwegicQ+8w7dLA7A+4JMZkCk8TLWrKPklWcRt
 `
-	if args.Putty {
+	if args.Putty || Win7 {
 		for _, line := range strings.Split(s, "\n") {
 			if line == "" {
 				continue
@@ -932,7 +940,7 @@ Host ` + host + `
 }
 
 // Алиас для локального доступа. Попробовать sshd.
-func local(h, p, repo, enableTrzsz string) string {
+func local(h, p, repo string) string {
 	alias := `
 Host ` + repo + `
  User _
@@ -1000,111 +1008,6 @@ func newMap(keys, defs []string, values ...string) (kv map[string]string) {
 	return
 }
 
-// Если установлен sshd от OpenSSH обновляем TrustedUserCAKeys (ssh/trusted_user_ca_keys) и HostCertificate.
-// Пишем конфиг I_verify_them_by_key_they_verify_me_by_certificate.
-// Пишем конфиг I_verify_them_by_certificate_they_verify_me_by_certificate.
-// Предлагаем включить один из этих конфигов в __PROGRAMDATA__/ssh/sshd_config.
-func certHost(caSigner ssh.Signer, id string) (err error) {
-	// ssh-keygen -s ca -I ngrokSSH -h -V always:forever c:\ProgramData\ssh\ssh_host_ecdsa_key.pub
-	// move c:\ProgramData\ssh\ssh_host_ecdsa_key-cert.pub c:\ProgramData\ssh\host_certificate
-	sshHostKeyPub := GetHostPub()
-	if sshHostKeyPub == "" {
-		return fmt.Errorf("not found OpenSSH keys")
-	}
-	//type ca.pub>>c:\ProgramData\ssh\trusted_user_ca_keys
-	sshHostDir := filepath.Dir(sshHostKeyPub)
-	TrustedUserCAKeys := filepath.Join(sshHostDir, "trusted_user_ca_keys")
-	ca := caSigner.PublicKey()
-	data := ssh.MarshalAuthorizedKey(ca)
-	old, err := os.ReadFile(TrustedUserCAKeys)
-	newCA := err != nil || !bytes.Equal(data, old)
-	if newCA {
-		err = WriteFile(TrustedUserCAKeys, data, FILEMODE)
-		Println(TrustedUserCAKeys, err)
-		if err != nil {
-			return
-		}
-	}
-
-	pub, err := os.Stat(sshHostKeyPub)
-	if err != nil {
-		return
-	}
-	in, err := os.ReadFile(sshHostKeyPub)
-	if err != nil {
-		return
-	}
-	out, _, _, _, err := ssh.ParseAuthorizedKey(in)
-	if err != nil {
-		out, err = ssh.ParsePublicKey(in)
-	}
-	if err != nil {
-		return
-	}
-	HostCertificate := filepath.Join(sshHostDir, "host_certificate")
-	cert, err := os.Stat(HostCertificate)
-	newPub := true
-	if err == nil {
-		newPub = cert.ModTime().Unix() < pub.ModTime().Unix()
-	}
-	if !(newCA || newPub) {
-		return nil
-	}
-
-	//newCA || newPub
-	mas, err := ssh.NewSignerWithAlgorithms(caSigner.(ssh.AlgorithmSigner), []string{ca.Type()})
-	if err != nil {
-		return
-	}
-	certificate := ssh.Certificate{
-		Key:         out,
-		CertType:    ssh.HostCert,
-		KeyId:       id,
-		ValidBefore: ssh.CertTimeInfinity,
-		// ValidAfter:  uint64(time.Now().Unix()),
-		// ValidBefore: uint64(time.Now().AddDate(1, 0, 0).Unix()),
-	}
-	err = certificate.SignCert(rand.Reader, mas)
-	if err != nil {
-		return
-	}
-	data = ssh.MarshalAuthorizedKey(&certificate)
-	err = WriteFile(HostCertificate, data, FILEMODE)
-	Println(HostCertificate, err)
-	if err != nil {
-		return
-	}
-
-	include := filepath.Join(sshHostDir, "I_verify_them_by_key_they_verify_me_by_certificate")
-	s := programData2etc(`HostCertificate __PROGRAMDATA__/ssh/host_certificate
-Match Group administrators
-AuthorizedKeysFile __PROGRAMDATA__/ssh/administrators_authorized_keys
-`)
-	err = WriteFile(include, []byte(s), FILEMODE)
-	Println(include, err)
-	if err != nil {
-		return
-	}
-	Println(programData2etc("Insert to __PROGRAMDATA__/ssh/sshd_config line `Include I_verify_them_by_key_they_verify_me_by_certificate`."))
-
-	include = filepath.Join(sshHostDir, "authorized_principals")
-	err = WriteFile(include, []byte(id), FILEMODE)
-	Println(include, err)
-	if err != nil {
-		return
-	}
-
-	include = filepath.Join(sshHostDir, "I_verify_them_by_certificate_they_verify_me_by_certificate")
-	s = programData2etc(`TrustedUserCAKeys __PROGRAMDATA__/ssh/trusted_user_ca_keys
-AuthorizedPrincipalsFile __PROGRAMDATA__/ssh/authorized_principals
-HostCertificate __PROGRAMDATA__/ssh/host_certificate
-`)
-	err = WriteFile(include, []byte(s), FILEMODE)
-	Println(include, err)
-	Println(programData2etc("Or insert to __PROGRAMDATA__/ssh/sshd_config line `I_verify_them_by_certificate_they_verify_me_by_certificate`."))
-	return
-}
-
 // Получить один замок
 func GetHostPub() (pub string) {
 	for _, id := range KeyAlgo2id {
@@ -1116,13 +1019,6 @@ func GetHostPub() (pub string) {
 		}
 	}
 	return ""
-}
-
-func programData2etc(s string) string {
-	if !Win {
-		return strings.ReplaceAll(s, "__PROGRAMDATA__", "/etc")
-	}
-	return s
 }
 
 func MergeConfigs(items ...*ssh_config.Config) (target *ssh_config.Config) {
@@ -1312,4 +1208,14 @@ func IsConsole() bool {
 		}
 	}
 	return false
+}
+
+func cygpath(path string) (string, error) {
+	cmd := exec.Command("cygpath", "-w", path)
+	cmd.Stdin = os.Stdin
+	out, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
 }

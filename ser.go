@@ -32,11 +32,11 @@ var (
 )
 
 type cgiArgs struct {
-	Baud    string `arg:"-b,--baud" placeholder:"baud" help:"set serial console baud rate"`
-	Serial  string `arg:"-s,--serial" placeholder:"serial" help:"serial port for console"`
-	Ser2net int    `arg:"-2,--2217" placeholder:"port" help:"RFC2217 telnet port for serial port console over telnet" default:"-1"`
-	Putty   bool   `arg:"-P,--putty" help:"run putty"`
-	Exit    string `arg:"-x,--exit" help:"exit message"`
+	Baud    string `arg:"-U,--baud" placeholder:"baUd" help:"set baud rate of serial console"`
+	Serial  string `arg:"-H,--path" placeholder:"patH" help:"device path (name for Windows) of serial console"`
+	Ser2net int    `arg:"-2,--2217" placeholder:"port" help:"RFC2217 telnet port for serial console over telnet" default:"-1"`
+	Putty   bool   `arg:"-u,--putty" help:"run PuTTY"`
+	Exit    string `arg:"--exit" help:"exit shortcut"`
 	Restart bool   `arg:"-r,--restart" help:"restart daemon"`
 }
 
@@ -65,14 +65,14 @@ func ser(ctx context.Context, s io.ReadWriteCloser, Serial, Baud, exit string, p
 		}
 		return err
 	}
-	msg := fmt.Sprintf("%s opened - открыт\r", ser2net.Mode{mode, Serial})
+	msg := fmt.Sprintf("%s opened - открыт\r", ser2net.Mode{Mode: mode, Name: Serial})
 	for _, p := range println {
 		p(msg)
 	}
 	w.SetSerial(port)
 
 	defer func() {
-		msg = fmt.Sprintf("%s closed - закрыт %v\r", ser2net.Mode{w.Mode(), w.Path()}, err)
+		msg = fmt.Sprintf("%s closed - закрыт %v\r", ser2net.Mode{Mode: w.Mode(), Name: w.Path()}, err)
 		err = ser2net.SerialClose(port)
 		for _, p := range println {
 			p(msg)

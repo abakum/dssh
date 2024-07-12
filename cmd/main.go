@@ -6,9 +6,10 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"flag"
-	"internal/tool"
 	"os"
 	"path/filepath"
+
+	"github.com/abakum/dssh/internal/tool"
 )
 
 func main() {

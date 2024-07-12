@@ -7,10 +7,12 @@ go 1.21.4
 // replace github.com/abakum/go-ser2net => ../go-ser2net
 // replace github.com/abakum/embed-encrypt => ../embed-encrypt
 // replace github.com/skeema/knownhosts => ../knownhosts
+replace github.com/abakum/dssh/internal/tool => ./internal/tool
 
 require (
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/PatrickRudolph/telnet v0.0.0-20210301083732-6a03c1f7971f
+	github.com/abakum/dssh/internal/tool v0.0.0-00010101000000-000000000000
 	github.com/abakum/embed-encrypt v0.0.0-20240702185525-ce39189b0597
 	github.com/abakum/go-ansiterm v0.0.0-20240209124652-4fc46d492442
 	github.com/abakum/go-netstat v0.0.0-20240426061934-05d15dfd4d6c
