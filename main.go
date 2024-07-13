@@ -386,7 +386,7 @@ Host ` + SSHJ + `
 		cli = true
 		args.Command = repo
 		// args.ForceTTY = true
-		args.Argument = nil
+		args.Argument = []string{}
 		if args.Restart {
 			// dssh --restart
 			if args.Destination == "" {
@@ -621,6 +621,7 @@ Host ` + SSHJ + `
 
 	// Клиенты
 	client(signer, sshj+sshJ(JumpHost, u, "", p), repo, SSHJ)
+	// Println(fmt.Sprintf("%+v",args))
 	if args.Putty || args.Telnet || Win7 {
 		opt := ""
 		if args.Destination != "" {
