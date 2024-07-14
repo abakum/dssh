@@ -187,21 +187,21 @@ func server(h, p, repo, use string, signer ssh.Signer, Println func(v ...any), P
 					} else {
 						err = s2n(s.Context(), s, nil, serial, args.Ser2net, args.Baud, " или <^C>", log.Println, Println)
 						if err != nil {
-							log.Println(err, "\r")
-							Println(err)
+							log.Println("s2n", err, "\r")
+							Println("s2n", err)
 						}
 					}
 					return
 				}
 				// dssh -20 :
 				err = rfc2217(s.Context(), s, serial, args.Ser2net, args.Baud, args.Exit, log.Println, Println)
-				log.Println(err, "\r")
-				Println(err)
+				log.Println("rfc2217", err, "\r")
+				Println("rfc2217", err)
 				return
 			}
 			err = ser(s.Context(), s, serial, args.Baud, args.Exit, log.Println, Println)
-			log.Println(err, "\r")
-			Println(err)
+			log.Println("ser", err, "\r")
+			Println("ser", err)
 		}
 	})
 

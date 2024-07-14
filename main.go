@@ -275,7 +275,15 @@ func main() {
 	}
 
 	bins := []string{PUTTY, PLINK, TELNET}
-	if args.Unix { // Параметр чтоб эмулировать Юникс на хосте с Виндовс
+
+	closerBug := false
+	if args.Putty && Win7 && Cygwin {
+		args.Unix = false
+		closerBug = true
+	}
+	if args.Unix {
+		// Параметр чтоб эмулировать Юникс на хосте с Виндовс.
+		// Не создаёт новую консоль для запуска консольных приложений.
 		Win = false
 	}
 	if OverSSH {
@@ -296,6 +304,10 @@ func main() {
 	if args.Putty && bin == TELNET {
 		Println(fmt.Errorf("not found - не найдены PuTTY, plink"))
 	}
+	// if closerBug && bin != TELNET {
+	// 	Println(fmt.Errorf("%s for Cygwin in Windows7 can't close windows PuTTY, plink", repo))
+	// 	Println(fmt.Errorf("%s для Cygwin в Windows7 не может закрывать окна PuTTY, plink", repo))
+	// }
 
 	lNear := args.Ser2net
 	if lNear == 0 {
@@ -468,7 +480,7 @@ Host ` + SSHJ + `
 									}()
 									select {
 									case err = <-chanError:
-										Println(err)
+										Println("s2n", err)
 									case <-time.After(time.Second):
 										err := cmd.Start()
 										Println(cmd, err)
@@ -505,6 +517,12 @@ Host ` + SSHJ + `
 							t.Stop() // Если не успел стартануть то и не надо
 							return
 						}
+					}
+					if closerBug && bin != TELNET {
+						setRaw(&once)
+						Println("To exit press [X] button of window " + bin + " - Чтоб выйти нажми  кнопку [X] окна " + bin)
+						run()
+						return
 					}
 					exit := "<^C>"
 					if MICROCOM {
