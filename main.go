@@ -276,24 +276,19 @@ func main() {
 
 	bins := []string{PUTTY, PLINK, TELNET}
 
-	closerBug := false
-	if args.Putty && Win7 && Cygwin {
+	closerBug := args.Putty && Win7 && Cygwin
+	if closerBug {
 		args.Unix = false
-		closerBug = true
 	}
-	if args.Unix {
-		// Параметр чтоб эмулировать Юникс на хосте с Виндовс.
+
+	if OverSSH || args.Unix {
+		// В Юниксе используем консольные приложения plink или telnet
+		bins = bins[1:]
 		// Не создаёт новую консоль для запуска консольных приложений.
 		Win = false
 	}
-	if OverSSH {
-		Win = false
-	}
-	if !Win {
-		// В Юниксе используем консольные приложения plink или telnet
-		bins = bins[1:]
-	}
-	if args.Telnet { // Параметр чтоб эмулировать отсутствие putty и plink при наличии telnet или busybox microcom
+	if args.Telnet {
+		// Параметр чтоб эмулировать отсутствие putty и plink при наличии telnet или busybox microcom
 		bins = []string{TELNET}
 	}
 	execPath, bin, err := look(bins...)
@@ -452,7 +447,7 @@ Host ` + SSHJ + `
 						PrintLn(3, cmd, err)
 						cmd.Wait()
 					}
-					if !Win || Win7 && bin == TELNET {
+					if !Win || Win7 && bin == TELNET { //!closerBug && !Win || Win7 && bin == TELNET
 						// dssh --unix --putty --baud 9
 						cmd.Stdout = os.Stdout
 						cmd.Stderr = os.Stdout
@@ -519,7 +514,7 @@ Host ` + SSHJ + `
 						}
 					}
 					if closerBug && bin != TELNET {
-						setRaw(&once)
+						setRaw(&once) //Отключаем ^C
 						Println("To exit press [X] button of window " + bin + " - Чтоб выйти нажми  кнопку [X] окна " + bin)
 						run()
 						return
