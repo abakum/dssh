@@ -33,7 +33,6 @@ require (
 	github.com/mattn/go-runewidth v0.0.15
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/pquerna/otp v1.4.0
-	github.com/skeema/knownhosts v1.2.2
 	github.com/smeinecke/go-socks5 v0.0.0-20180316091040-4880db608f18
 	github.com/stretchr/testify v1.9.0
 	github.com/trzsz/go-arg v1.5.3
@@ -52,6 +51,7 @@ require (
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
 	github.com/UserExistsError/conpty v0.1.2 // indirect
 	github.com/abakum/go-console v0.0.1 // indirect
+	github.com/abakum/knownhosts v1.2.4-lw // indirect
 	github.com/akavel/rsrc v0.10.2 // indirect
 	github.com/alexflint/go-scalar v1.2.0 // indirect
 	github.com/andybrewer/mack v0.0.0-20220307193339-22e922cc18af // indirect

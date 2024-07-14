@@ -41,8 +41,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/abakum/knownhosts"
 	"github.com/alessio/shellescape"
-	"github.com/skeema/knownhosts"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/term"
 )
@@ -344,7 +344,7 @@ func addHostKey(path, host string, remote net.Addr, key ssh.PublicKey, ask bool)
 	return nil
 }
 
-func getHostKeyCallback(args *SshArgs, param *sshParam) (ssh.HostKeyCallback, knownhosts.HostKeyCallback, error) {
+func getHostKeyCallback(args *SshArgs, param *sshParam) (ssh.HostKeyCallback, *knownhosts.HostKeyDB, error) {
 	primaryPath := ""
 	var files []string
 	addKnownHostsFiles := func(key string, user bool) error {
@@ -397,12 +397,13 @@ func getHostKeyCallback(args *SshArgs, param *sshParam) (ssh.HostKeyCallback, kn
 		return nil, nil, err
 	}
 
-	kh, err := knownhosts.New(files...)
+	khDB, err := knownhosts.NewDB(files...)
 	if err != nil {
 		return nil, nil, fmt.Errorf("new knownhosts failed: %v", err)
 	}
 
 	cb := func(host string, remote net.Addr, key ssh.PublicKey) error {
+		kh := khDB.HostKeyCallback()
 		err := kh(host, remote, key)
 		if err == nil {
 			return nil
@@ -443,7 +444,7 @@ func getHostKeyCallback(args *SshArgs, param *sshParam) (ssh.HostKeyCallback, kn
 	}
 
 	// return caKeysCallback(cb, caKeys(files...)), kh, nil
-	return cb, kh, nil
+	return cb, khDB, nil
 }
 
 /*
@@ -1241,7 +1242,7 @@ func sshConnect(args *SshArgs, client *ssh.Client, proxy string) (*ssh.Client, *
 	debug("IdKeyAlgorithms %v", idKeyAlgorithms)
 	// kh после https://github.com/skeema/knownhosts/tree/certs-backwards-compat уже понимает @cert-authority
 	// но пока не объединили с main добавим idKeyAlgorithms
-	config.HostKeyAlgorithms = NewStringSet(config.HostKeyAlgorithms...).Add(idKeyAlgorithms...).List()
+	// config.HostKeyAlgorithms = NewStringSet(config.HostKeyAlgorithms...).Add(idKeyAlgorithms...).List()
 	setupHostKeyAlgorithmsConfig(args, config)
 
 	if err := setupCiphersConfig(args, config); err != nil {
