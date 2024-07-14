@@ -129,7 +129,7 @@ var (
 	Windows    = runtime.GOOS == "windows"
 	Win        = Windows
 	Cygwin     = isatty.IsCygwinTerminal(os.Stdin.Fd())
-	Win7       = isWin7() && !Cygwin // Виндовс7 не поддерживает ENABLE_VIRTUAL_TERMINAL_INPUT и ENABLE_VIRTUAL_TERMINAL_PROCESSING
+	Win7       = isWin7() // Виндовс7 не поддерживает ENABLE_VIRTUAL_TERMINAL_INPUT и ENABLE_VIRTUAL_TERMINAL_PROCESSING
 	once       = false
 	OverSSH    = os.Getenv("SSH_CONNECTION") != ""
 	BUSYBOX    = "busybox"
@@ -155,6 +155,7 @@ var Ver string
 //	подготовит алиас `ssh-j` для подключения к серверу через `dssh@ssh-j.com`.
 //	`dssh .` `dssh dssh` `ssh dssh` подключится к серверу локально.
 //	`dssh :` `dssh ssh-j` `revision :` `dssh -l revision ssh-j` `ssh ssh-j` подключится к серверу через посредника `revision@ssh-j.com`.
+
 func main() {
 	SetColor()
 
@@ -173,15 +174,6 @@ func main() {
 
 	ips := ints()
 	Println(build(Ver, ips))
-	if Cygwin {
-		// cygpath -w ~/.ssh
-		cygUserDir, err := cygpath("~")
-		if err != nil {
-			cygUserDir = "~"
-		}
-		cygUserDir = filepath.Join(cygUserDir, ".ssh")
-		Println(fmt.Sprintf(`You can make a link - Можно сделать ссылку 'mklink /d "%s" "%s"'`, cygUserDir, SshUserDir))
-	}
 	FatalOr("not connected - нет сети", len(ips) == 0)
 
 	anyKey, err := x509.ParsePKCS8PrivateKey(CA)
@@ -250,6 +242,16 @@ func main() {
 		return
 	}
 
+	if Cygwin {
+		// cygpath -w ~/.ssh
+		cygUserDir, err := cygpath("~")
+		if err != nil {
+			cygUserDir = "~"
+		}
+		cygUserDir = filepath.Join(cygUserDir, ".ssh")
+		Println(fmt.Sprintf(`You can make a link - Можно сделать ссылку 'mklink /d "%s" "%s"'`, cygUserDir, SshUserDir))
+	}
+
 	cli := fmt.Sprint(args.Option) != "{map[]}"
 	enableTrzsz := "yes"
 	switch strings.ToLower(args.EscapeChar) {
@@ -262,11 +264,14 @@ func main() {
 	args.Option.UnmarshalText([]byte("EscapeChar=" + args.EscapeChar))
 
 	exit := ""
-	if Windows {
-		exit = " или <^Z>"
-	}
-	if Cygwin {
-		exit = " или <^C>"
+	if Win7 && Cygwin {
+	} else {
+		if Windows {
+			exit = " или <^Z>"
+		}
+		if Cygwin {
+			exit = " или <^C>"
+		}
 	}
 
 	bins := []string{PUTTY, PLINK, TELNET}
@@ -286,6 +291,10 @@ func main() {
 	execPath, bin, err := look(bins...)
 	if args.Putty && err != nil {
 		Fatal(fmt.Errorf("not found - не найдены %v", bins))
+	}
+
+	if args.Putty && bin == TELNET {
+		Println(fmt.Errorf("not found - не найдены PuTTY, plink"))
 	}
 
 	lNear := args.Ser2net
@@ -431,17 +440,16 @@ Host ` + SSHJ + `
 						PrintLn(3, cmd, err)
 						cmd.Wait()
 					}
-
-					if !Win {
+					if !Win || Win7 && bin == TELNET {
 						// dssh --unix --putty --baud 9
 						cmd.Stdout = os.Stdout
 						cmd.Stderr = os.Stdout
 						if lNear > 0 {
 							if bin == TELNET {
 								// dssh --telnet --unix --putty --2217 0
-								time.AfterFunc(time.Second, func() {
+								time.AfterFunc(time.Second*2, func() {
 									exit := "<^]><q><Enter>"
-									if Cygwin {
+									if Cygwin && !Win7 {
 										exit = "<^C>"
 									}
 									Println(ToExitPress, exit)
@@ -476,7 +484,7 @@ Host ` + SSHJ + `
 								}
 							}
 							go func() {
-								s2n(ctx, nil, nil, serial, lNear, args.Baud, "", Println)
+								Println("s2n", s2n(ctx, nil, nil, serial, lNear, args.Baud, "", Println))
 								closer.Close()
 							}()
 						}
@@ -488,12 +496,12 @@ Host ` + SSHJ + `
 						if lNear > 0 {
 							// dssh --putty --2217 0
 							// dssh --telnet --putty --baud 0
-							t := time.AfterFunc(time.Second, func() {
+							t := time.AfterFunc(time.Second*2, func() {
 								run()
 								closer.Close()
 							})
 							setRaw(&once)
-							Println(s2n(ctx, os.Stdin, nil, serial, lNear, args.Baud, " или <^C>", Println))
+							Println("s2n", s2n(ctx, os.Stdin, nil, serial, lNear, args.Baud, " или <^C>", Println))
 							t.Stop() // Если не успел стартануть то и не надо
 							return
 						}
@@ -502,18 +510,20 @@ Host ` + SSHJ + `
 					if MICROCOM {
 						exit = "<^X>"
 					}
-					Println(ToExitPress, exit)
+					if bin != TELNET || MICROCOM {
+						Println(ToExitPress, exit)
+					}
 					run()
 					return
 				}
 				setRaw(&once)
 				if lNear > 0 {
 					// dssh --2217 0
-					Println(rfc2217(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, serial, lNear, args.Baud, exit, Println))
+					Println("rfc2217", rfc2217(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, serial, lNear, args.Baud, exit, Println))
 					return
 				}
 				// dssh --baud 9
-				Println(ser(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, serial, args.Baud, exit, Println))
+				Println("ser", ser(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, serial, args.Baud, exit, Println))
 				return
 			}
 		}
@@ -743,7 +753,7 @@ func client(signer ssh.Signer, config string, hosts ...string) {
 		args.Config.CASigner[alias] = caSigner
 		args.Config.Include.Add(alias)
 
-		if args.Putty || Win7 {
+		if args.Putty || Win7 && !Cygwin {
 			if i == 0 {
 				Conf(filepath.Join(Sessions, "Default%20Settings"), EQ, newMap(Keys, Defs))
 				data := ssh.MarshalAuthorizedKey(signer.PublicKey())
@@ -783,7 +793,7 @@ func client(signer ssh.Signer, config string, hosts ...string) {
 	if err != nil {
 		Println(err)
 	}
-	if args.Putty || Win7 {
+	if args.Putty || Win7 && !Cygwin {
 		Println("SshToPutty", SshToPutty())
 	}
 }
@@ -901,7 +911,7 @@ func sshJ(host, u, h, p string) string {
 ssh-j.com ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBPXSkWZ8MqLVM68cMjm+YR4geDGfqKPEcIeC9aKVyUW32brmgUrFX2b0I+z4g6rHYRwGeqrnAqLmJ6JJY0Ufm80=
 ssh-j.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIiyFQuTwegicQ+8w7dLA7A+4JMZkCk8TLWrKPklWcRt
 `
-	if args.Putty || Win7 {
+	if args.Putty || Win7 && !Cygwin {
 		for _, line := range strings.Split(s, "\n") {
 			if line == "" {
 				continue
