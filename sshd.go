@@ -205,8 +205,8 @@ func server(h, p, repo, use string, signer ssh.Signer, Println func(v ...any), P
 		}
 	})
 
-	Println(fmt.Sprintf("%s daemon waiting on - сервер ожидает на %s", repo, server.Addr))
-	Println("to connect use - чтоб подключится используй", use)
+	// Println(fmt.Sprintf("%s daemon waiting on - сервер ожидает на %s", repo, server.Addr))
+	// Println("to connect use - чтоб подключится используй", use)
 
 	switch runtime.GOOS {
 	case "windows", "linux":

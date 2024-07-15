@@ -21,7 +21,7 @@ package main
 Если указан параметр `-v` или `--debug` то на всякий случай создаются копии старых файлов .old
 Создаются файлы `~/.ssh/ssh-j` и `~/.ssh/dssh`
 
-Если указан параметр `-P` или `--putty` то:
+Если указан параметр `-u` или `--putty` то:
 Создаются файлы сессий из `~/.ssh/config` в `~/.putty/sessions`
 Создаются файлы сертификатов хостов  в `~/.putty/sshhostcas`
 Дописывается файл `~/.putty/sshhostkeys` замками ssh-j.com
@@ -569,6 +569,7 @@ Host ` + SSHJ + `
 		args.Relay ||
 		args.Zmodem ||
 		args.Putty ||
+		args.DirectJump != "" ||
 		false
 	if cli && args.Destination == "" {
 		args.Destination = "@"
@@ -583,8 +584,15 @@ Host ` + SSHJ + `
 	case ".", repo: // `dssh .` как `dssh dssh` или `foo -l dssh .` как `foo -l dssh dssh`
 		args.Destination = repo
 		args.LoginName = "_"
+	case "*", "_":
+		daemon = true
 	default:
-		daemon = h+p == ""
+		switch h {
+		case "*", "_":
+			daemon = true
+		default:
+			daemon = h+p == ""
+		}
 	}
 	if args.Daemon || !cli && daemon {
 		args.Daemon = true
@@ -607,16 +615,48 @@ Host ` + SSHJ + `
 				p = strconv.Itoa(args.Port)
 			}
 		}
-
-		go func() {
-			s := usage(imag)
+		loop := func() {
+			// s := usage(imag)
+			s := ""
+			if hh == LH {
+				s = fmt.Sprintf(
+					"\n\tlocal - локально `%s .` or over jump host - или через посредника `%s :`"+
+						"\n\tPuTTY `%s -u .`  `%s -u :`"+
+						"\n\tplink `%s -uz .` `%s -uz :`"+
+						"\n\tssh   `%s -Z .`  `%s -Z :`",
+					imag, imag,
+					imag, imag,
+					imag, imag,
+					imag, imag,
+				)
+			} else {
+				hp := hh + ":" + p
+				s = fmt.Sprintf(
+					"\n\tlocal - локально `%s .` or direct - напрямую `%s -j %s .`"+
+						"\n\tPuTTY `%s -u .`  `%s -uj %s .`"+
+						"\n\tplink `%s -uz .` `%s -uzj %s ."+
+						"\n\tssh   `%s -Z .`  `%s -Zj %s .`",
+					imag, imag, hp,
+					imag, imag, hp,
+					imag, imag, hp,
+					imag, imag, hp,
+				)
+			}
 			for {
+				Println(fmt.Sprintf("%s daemon waiting on - сервер ожидает на %s:%s", repo, hh, p))
+				Println("to connect use - чтоб подключится используй", s)
 				server(h, p, repo, s, signer, Println, Print)
 				winssh.KidsDone(os.Getpid())
 				Println("server has been stopped - сервер остановлен")
 				time.Sleep(TOR)
 			}
-		}()
+		}
+		client(signer, local(hh, p, repo))
+		if hh != LH {
+			loop()
+			return
+		}
+		go loop()
 		rc := ""
 		if args.Debug {
 			rc += "-v "
@@ -643,7 +683,22 @@ Host ` + SSHJ + `
 	} // Сервис
 
 	// Клиенты
-	client(signer, sshj+sshJ(JumpHost, u, "", p), repo, SSHJ)
+	loc := ""
+	if args.DirectJump != "" && args.Destination == repo {
+		hh, p, err := net.SplitHostPort(args.DirectJump)
+		if err == nil {
+			if hh == "" {
+				hh = LH
+			}
+			if p == "" {
+				p = LISTEN
+			}
+			loc = local(hh, p, repo)
+		} else {
+			Println(fmt.Errorf("error in param - ошибка в параметре '%s -j %s .' %v", repo, args.DirectJump, err))
+		}
+	}
+	client(signer, loc+sshj+sshJ(JumpHost, u, "", p), repo, SSHJ)
 	// Println(fmt.Sprintf("%+v",args))
 	if args.Putty || args.Telnet || Win7 {
 		opt := ""
@@ -754,7 +809,7 @@ func client(signer ssh.Signer, config string, hosts ...string) {
 		return
 	}
 	switch args.Destination {
-	case SSHJ, JumpHost:
+	case repo, SSHJ, JumpHost:
 		Println(config)
 	}
 	args.Config = NewConfig(cfg)
@@ -808,6 +863,7 @@ func client(signer ssh.Signer, config string, hosts ...string) {
 	}
 	if args.Putty || Win7 && !Cygwin {
 		Println("SshToPutty", SshToPutty())
+		time.Sleep(time.Second * 2)
 	}
 }
 
@@ -857,7 +913,7 @@ func FingerprintSHA256(pubKey ssh.PublicKey) string {
 
 func usage(imag string) string {
 	s := fmt.Sprintf(
-		"\n\tlocal - локально `%s .` or over jump host - или через посредника `%s :`"+
+		"\n\tdirect - напрямую `%s .` or over jump host - или через посредника `%s :`"+
 			"\n\tPuTTY `%s -u .` `%s -u :`"+
 			"\n\tplink `%s -uz .` `%s -uz :`"+
 			"\n\tssh `%s -Z .` `%s -Z :`",
