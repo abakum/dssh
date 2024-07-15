@@ -15,6 +15,7 @@ require (
 	github.com/abakum/go-ansiterm v0.0.1
 	github.com/abakum/go-netstat v0.0.1
 	github.com/abakum/go-ser2net v0.0.2-0.20240705170055-63116315e1bb
+	github.com/abakum/knownhosts v1.2.4-lw
 	github.com/abakum/menu v0.0.2-lw
 	github.com/abakum/pageant v0.0.1
 	github.com/abakum/putty_hosts v0.0.1
@@ -51,7 +52,6 @@ require (
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
 	github.com/UserExistsError/conpty v0.1.2 // indirect
 	github.com/abakum/go-console v0.0.1 // indirect
-	github.com/abakum/knownhosts v1.2.4-lw // indirect
 	github.com/akavel/rsrc v0.10.2 // indirect
 	github.com/alexflint/go-scalar v1.2.0 // indirect
 	github.com/andybrewer/mack v0.0.0-20220307193339-22e922cc18af // indirect

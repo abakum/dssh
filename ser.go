@@ -312,55 +312,6 @@ func mess(esc, exit, namePort string) string {
 	)
 }
 
-// Меняет mode по b возвращает протокол
-// func switchMode(b byte, mode *serial.Mode, name, prefix string) (msg string, quit bool) {
-// 	switch b {
-// 	case '.', CtrlC, CtrlZ:
-// 		quit = true
-// 		return
-// 	case '6':
-// 		switch mode.DataBits {
-// 		case 7:
-// 			mode.DataBits = 8
-// 		case 8:
-// 			mode.DataBits = 7
-// 		}
-// 		msg = "set data bits - установлено кол-во бит"
-// 	case '7':
-// 		switch mode.Parity {
-// 		case serial.NoParity:
-// 			mode.Parity = serial.OddParity
-// 		case serial.OddParity:
-// 			mode.Parity = serial.EvenParity
-// 		case serial.EvenParity:
-// 			mode.Parity = serial.MarkParity
-// 		case serial.MarkParity:
-// 			mode.Parity = serial.SpaceParity
-// 		case serial.SpaceParity:
-// 			mode.Parity = serial.NoParity
-// 		}
-// 		msg = "set parity - установлена чётность"
-// 	case '8':
-// 		switch mode.StopBits {
-// 		case serial.OneStopBit:
-// 			mode.StopBits = serial.OnePointFiveStopBits
-// 		case serial.OnePointFiveStopBits:
-// 			mode.StopBits = serial.TwoStopBits
-// 		case serial.TwoStopBits:
-// 			mode.StopBits = serial.OneStopBit
-// 		}
-// 		msg = "set stop bits - установлено кол-во стоповых бит"
-// 	case '0', '1', '2', '3', '4', '5', '9':
-// 		mode.BaudRate = ser2net.BaudRate(int(b-'0'), nil)
-// 		msg = "set baud - установлена скорость"
-// 	}
-// 	if prefix == "" {
-// 		prefix = ser2net.Mode{*mode, name}.String() + " "
-// 	}
-// 	msg = fmt.Sprintf("%s%s", prefix, msg)
-// 	return
-// }
-
 // Запускает ser2net server на 127.0.0.1:Ser2net подключает к нему s через телнет клиента
 func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial string, Ser2net int, Baud, exit string, println ...func(v ...any)) error {
 	chanByte := make(chan byte, B16)
@@ -427,7 +378,7 @@ func SetMode(w *ser2net.SerialWorker, ctx context.Context, r io.Reader, chanByte
 						return
 					}
 					for _, b := range buffer[:n] {
-						// Если фильтровать ошибочный ввод то какже дать понять что он ошибочен
+						// Если фильтровать ошибочный ввод то как же дать понять что он ошибочен
 						// if b < '0' || b > '9' {
 						// 	continue
 						// }
@@ -443,7 +394,6 @@ func SetMode(w *ser2net.SerialWorker, ctx context.Context, r io.Reader, chanByte
 			return
 		case b := <-chanByte:
 			mode := w.Mode()
-			// msg, quit := switchMode(b, &mode, w.Path(), " ")
 			msg := ""
 			switch b {
 			case '.', CtrlC, CtrlZ:

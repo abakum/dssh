@@ -20,8 +20,6 @@ github.com/abakum/go-ser2net v0.0.2-0.20240705170055-63116315e1bb h1:oz9nIeq3AaQ
 github.com/abakum/go-ser2net v0.0.2-0.20240705170055-63116315e1bb/go.mod h1:T/p7u+4oa54PklIt+wk4M5bM6uLGxGPdILOpeONrRME=
 github.com/abakum/knownhosts v1.2.4-lw h1:h0u7d5hObI3I3Y/3PU4C8S0ah/L/WAsrPrYiNi1OVQk=
 github.com/abakum/knownhosts v1.2.4-lw/go.mod h1:Zirck6JrE8AiPUx0Wp1AI7ASEtB+6PKPWiX6rvXpogI=
-github.com/abakum/menu v0.0.1 h1:Up3qIrPp8axllPUD3u8HZ2btATSQ3PrjrZlRj9h8pzo=
-github.com/abakum/menu v0.0.1/go.mod h1:vS5nn5zECBdprSrDSq2Com7R98qBYiIDTWqXpftQ1lM=
 github.com/abakum/menu v0.0.2-lw h1:iHzkBf9DwXXmVR0iFUBMetI6rnDHltA3LPLxlnCWLZg=
 github.com/abakum/menu v0.0.2-lw/go.mod h1:vS5nn5zECBdprSrDSq2Com7R98qBYiIDTWqXpftQ1lM=
 github.com/abakum/pageant v0.0.1 h1:2EpMzAmTBWD3V5FBRkoWBhSZzlU6kt2pA22DGip483w=
@@ -166,8 +164,6 @@ github.com/russross/blackfriday/v2 v2.0.1/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQD
 github.com/russross/blackfriday/v2 v2.1.0 h1:JIOH55/0cWyOuilr9/qlrm0BSXldqnqwMsf35Ld67mk=
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
 github.com/shurcooL/sanitized_anchor_name v1.0.0/go.mod h1:1NzhyTcUVG4SuEtjjoZeVRXNmyL/1OwPU0+IJeTBvfc=
-github.com/skeema/knownhosts v1.2.2 h1:Iug2P4fLmDw9f41PB6thxUkNUkJzB5i+1/exaj40L3A=
-github.com/skeema/knownhosts v1.2.2/go.mod h1:xYbVRSPxqBZFrdmDyMmsOs+uX1UZC3nTN3ThzgDxUwo=
 github.com/smeinecke/go-socks5 v0.0.0-20180316091040-4880db608f18 h1:X0clpAT5iPusO45xn6fl4mxQE7xU0x+9Lbc6eg8li8Q=
 github.com/smeinecke/go-socks5 v0.0.0-20180316091040-4880db608f18/go.mod h1:RqgBZ/wMS9vx3/bWEdZNRlbDKwm3vwI2dN0x/4WR5hs=
 github.com/sorenisanerd/gotty v1.3.1-0.20210604044157-f61763f7160b h1:TVrXtw7mk2hrTkT4jLw4ucNBb8DP+VFI+eKCwONp7gk=
