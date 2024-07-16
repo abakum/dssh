@@ -779,6 +779,13 @@ func canReadFile(path string) bool {
 	return true
 }
 
+func isFileExist(path string) bool {
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return false
+	}
+	return true
+}
+
 // Пишем config для ssh клиентов
 func client(signer ssh.Signer, config string, hosts ...string) {
 	cfg, err := ssh_config.Decode(strings.NewReader(config))
@@ -799,7 +806,7 @@ func client(signer ssh.Signer, config string, hosts ...string) {
 		args.Config.CASigner[alias] = caSigner
 		args.Config.Include.Add(alias)
 
-		if args.Putty || Win7 && !Cygwin {
+		if args.Putty || (Win7 && !Cygwin) {
 			if i == 0 {
 				Conf(filepath.Join(Sessions, "Default%20Settings"), EQ, newMap(Keys, Defs))
 				data := ssh.MarshalAuthorizedKey(signer.PublicKey())
@@ -812,7 +819,11 @@ func client(signer ssh.Signer, config string, hosts ...string) {
 				})
 			}
 			for _, pref := range KeyAlgo2id {
-				name := filepath.Join(SshUserDir, pref+"-cert.pub")
+				name := filepath.Join(SshUserDir, pref+".pub")
+				if !isFileExist(name) {
+					continue
+				}
+				name = filepath.Join(SshUserDir, pref+"-cert.pub")
 				if canReadFile(name) {
 					Conf(filepath.Join(Sessions, alias), EQ, map[string]string{"DetachedCertificate": name})
 					break
@@ -839,9 +850,8 @@ func client(signer ssh.Signer, config string, hosts ...string) {
 	if err != nil {
 		Println(err)
 	}
-	if args.Putty || Win7 && !Cygwin {
+	if args.Putty || (Win7 && !Cygwin) {
 		Println("SshToPutty", SshToPutty())
-		time.Sleep(time.Second * 2)
 	}
 }
 
@@ -944,7 +954,7 @@ func sshJ(host, u, h, p string) string {
 ssh-j.com ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBPXSkWZ8MqLVM68cMjm+YR4geDGfqKPEcIeC9aKVyUW32brmgUrFX2b0I+z4g6rHYRwGeqrnAqLmJ6JJY0Ufm80=
 ssh-j.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIiyFQuTwegicQ+8w7dLA7A+4JMZkCk8TLWrKPklWcRt
 `
-	if args.Putty || Win7 && !Cygwin {
+	if args.Putty || (Win7 && !Cygwin) {
 		for _, line := range strings.Split(s, "\n") {
 			if line == "" {
 				continue
