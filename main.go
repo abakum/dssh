@@ -130,6 +130,7 @@ var (
 	Win        = Windows
 	Cygwin     = isatty.IsCygwinTerminal(os.Stdin.Fd())
 	Win7       = isWin7() // Виндовс7 не поддерживает ENABLE_VIRTUAL_TERMINAL_INPUT и ENABLE_VIRTUAL_TERMINAL_PROCESSING
+	usePuTTY   = Win7 && !Cygwin
 	once       = false
 	OverSSH    = os.Getenv("SSH_CONNECTION") != ""
 	BUSYBOX    = "busybox"
@@ -341,6 +342,8 @@ func main() {
 					lNear = RFC2217
 				}
 			}
+		default:
+			usePuTTY = false
 		}
 		if lNear < 0 && (args.Putty || args.Telnet) {
 			switch args.Destination {
@@ -458,7 +461,7 @@ Host ` + SSHJ + `
 						PrintLn(3, cmd, err)
 						cmd.Wait()
 					}
-					if !Win || Win7 && bin == TELNET { //!closerBug && !Win || Win7 && bin == TELNET
+					if !Win || Win7 && bin == TELNET {
 						// dssh --unix --putty --baud 9
 						cmd.Stdout = os.Stdout
 						cmd.Stderr = os.Stdout
@@ -678,7 +681,7 @@ Host ` + SSHJ + `
 		client(signer, sshj+sshJ(JumpHost, u, "", p), repo, SSHJ)
 	}
 	// Println(fmt.Sprintf("%+v",args))
-	if args.Putty || args.Telnet || Win7 {
+	if args.Putty || args.Telnet || usePuTTY {
 		opt := ""
 		if args.Destination != "" {
 			if lNear > 0 {
@@ -697,6 +700,9 @@ Host ` + SSHJ + `
 					// За неимением...
 					execPath = "ssh"
 					opt = args.Destination
+					if Win7 {
+						Win = false
+					}
 				}
 			}
 		}
@@ -806,7 +812,7 @@ func client(signer ssh.Signer, config string, hosts ...string) {
 		args.Config.CASigner[alias] = caSigner
 		args.Config.Include.Add(alias)
 
-		if args.Putty || (Win7 && !Cygwin) {
+		if args.Putty || usePuTTY {
 			if i == 0 {
 				Conf(filepath.Join(Sessions, "Default%20Settings"), EQ, newMap(Keys, Defs))
 				data := ssh.MarshalAuthorizedKey(signer.PublicKey())
@@ -954,7 +960,7 @@ func sshJ(host, u, h, p string) string {
 ssh-j.com ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBPXSkWZ8MqLVM68cMjm+YR4geDGfqKPEcIeC9aKVyUW32brmgUrFX2b0I+z4g6rHYRwGeqrnAqLmJ6JJY0Ufm80=
 ssh-j.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIiyFQuTwegicQ+8w7dLA7A+4JMZkCk8TLWrKPklWcRt
 `
-	if args.Putty || (Win7 && !Cygwin) {
+	if args.Putty || usePuTTY {
 		for _, line := range strings.Split(s, "\n") {
 			if line == "" {
 				continue
