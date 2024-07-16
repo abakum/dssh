@@ -27,7 +27,7 @@ import (
 // signer ключ ЦС,
 // authorizedKeys замки разрешённых пользователей,
 // CertCheck имя разрешённого пользователя в сертификате.
-func server(h, p, repo, use string, signer ssh.Signer, Println func(v ...any), Print func(v ...any)) { //, authorizedKeys []gl.PublicKey
+func server(h, p, repo string, signer ssh.Signer, Println func(v ...any), Print func(v ...any)) { //, authorizedKeys []gl.PublicKey
 	Println(ToExitPress, "<^C>")
 
 	authorizedKeys := FileToAuthorized(filepath.Join(SshUserDir, "authorized_keys"), signer.PublicKey())
@@ -204,9 +204,6 @@ func server(h, p, repo, use string, signer ssh.Signer, Println func(v ...any), P
 			Println("ser", err)
 		}
 	})
-
-	// Println(fmt.Sprintf("%s daemon waiting on - сервер ожидает на %s", repo, server.Addr))
-	// Println("to connect use - чтоб подключится используй", use)
 
 	switch runtime.GOOS {
 	case "windows", "linux":

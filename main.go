@@ -223,12 +223,6 @@ func main() {
 			}
 			a2s = append(a2s, "--debug")
 		default:
-			// if strings.HasPrefix(arg, "-") {
-			// 	switch arg[len(arg)-1:] {
-			// 	case "c", "F", "J", "W": //"i", "o", "D", "L", "R"
-			// 		cli = true
-			// 	}
-			// }
 			a2s = append(a2s, arg)
 		}
 	}
@@ -299,14 +293,35 @@ func main() {
 	if args.Putty && bin == TELNET {
 		Println(fmt.Errorf("not found - не найдены PuTTY, plink"))
 	}
-	// if closerBug && bin != TELNET {
-	// 	Println(fmt.Errorf("%s for Cygwin in Windows7 can't close windows PuTTY, plink", repo))
-	// 	Println(fmt.Errorf("%s для Cygwin в Windows7 не может закрывать окна PuTTY, plink", repo))
-	// }
 
 	lNear := args.Ser2net
 	if lNear == 0 {
 		lNear = RFC2217
+	}
+
+	djh := ""
+	djp := ""
+	if args.DirectJump != "" {
+		djh, djp, err = net.SplitHostPort(args.DirectJump)
+		if err == nil {
+			args.Destination = repo // Не локальный
+			if djh == "" {
+				djh = LH
+				args.Destination = "." // Локальный
+			}
+
+			for _, ip := range ips {
+				if ip == djp {
+					args.Destination = "." // Локальный
+					break
+				}
+			}
+			if djp == "" {
+				djp = LISTEN
+			}
+		} else {
+			Println(fmt.Errorf("error in param - ошибка в параметре '%s -j %s' %v", repo, args.DirectJump, err))
+		}
 	}
 
 	serial := args.Serial
@@ -314,7 +329,7 @@ func main() {
 	if BS || lNear > 0 {
 		enableTrzsz = "no"
 		switch args.Destination {
-		case "", ".", repo:
+		case "", ".":
 			// Локальный последовательный порт
 			serial = getFirstUsbSerial(serial, args.Baud, Print)
 			if serial == "" {
@@ -356,15 +371,11 @@ func main() {
 	if lNear > -1 {
 		switch args.Destination {
 		case "":
-		case ".", repo:
+		case ".":
 			lFar++
 			fallthrough
 		default:
 			args.LocalForward.UnmarshalText([]byte(fmt.Sprintf("%d:%s:%d", lNear, LH, lFar)))
-			// a2s = append(a2s, "-L", fmt.Sprintf("%d:%s:%d", lNear, LH, lFar))
-			// if err := parser.Parse(a2s); err != nil {
-			// 	Fatal(err)
-			// }
 		}
 	}
 
@@ -615,90 +626,57 @@ Host ` + SSHJ + `
 				p = strconv.Itoa(args.Port)
 			}
 		}
-		loop := func() {
-			// s := usage(imag)
-			s := ""
-			if hh == LH {
-				s = fmt.Sprintf(
-					"\n\tlocal - локально `%s .` or over jump host - или через посредника `%s :`"+
-						"\n\tPuTTY `%s -u .`  `%s -u :`"+
-						"\n\tplink `%s -uz .` `%s -uz :`"+
-						"\n\tssh   `%s -Z .`  `%s -Z :`",
-					imag, imag,
-					imag, imag,
-					imag, imag,
-					imag, imag,
-				)
-			} else {
-				hp := hh + ":" + p
-				s = fmt.Sprintf(
-					"\n\tlocal - локально `%s .` or direct - напрямую `%s -j %s .`"+
-						"\n\tPuTTY `%s -u .`  `%s -uj %s .`"+
-						"\n\tplink `%s -uz .` `%s -uzj %s ."+
-						"\n\tssh   `%s -Z .`  `%s -Zj %s .`",
-					imag, imag, hp,
-					imag, imag, hp,
-					imag, imag, hp,
-					imag, imag, hp,
-				)
-			}
-			for {
-				Println(fmt.Sprintf("%s daemon waiting on - сервер ожидает на %s:%s", repo, hh, p))
-				Println("to connect use - чтоб подключится используй", s)
-				server(h, p, repo, s, signer, Println, Print)
-				winssh.KidsDone(os.Getpid())
-				Println("server has been stopped - сервер остановлен")
-				time.Sleep(TOR)
-			}
-		}
-		client(signer, local(hh, p, repo))
-		if hh != LH {
-			loop()
-			return
-		}
-		go loop()
-		rc := ""
-		if args.Debug {
-			rc += "-v "
-		}
-		rc += JumpHost
-		args.Destination = JumpHost
-		args.DisableTTY = true
 		client(signer, local(hh, p, repo)+sshj+sshJ(JumpHost, u, hh, p))
-		s := fmt.Sprintf("`tssh %s`", rc)
-		i := 0
-		for {
-			Println(s, "has been started")
-			code := TsshMain(&args)
-			if code == 0 {
-				i = 0
-			} else {
-				if i > 3 || i == 0 {
+		args.Destination = JumpHost
+		go func() {
+			s := fmt.Sprintf("`tssh %s`", JumpHost)
+			i := 0
+			hp := hh + ":" + p
+			for {
+				Println(s, "has been started - запущен")
+				Println("to connect use - чтоб подключится используй:")
+				Println(fmt.Sprintf("local - локально `%s .` direct - напрямую `%s -j%s` over jump host - через посредника `%s :`", imag, imag, hp, imag))
+				Println(fmt.Sprintf("\tPuTTY\t`%s -u .`\t`%s -uj%s`\t`%s -u :`", imag, imag, hp, imag))
+				Println(fmt.Sprintf("\tplink\t`%s -uz .`\t`%s -uzj%s`\t`%s -uz :`", imag, imag, hp, imag))
+				Println(fmt.Sprintf("\tssh\t`%s -Z .`\t`%s -Zj%s`\t`%s -Z :`", imag, imag, hp, imag))
+				code := TsshMain(&args)
+				Println("to connect use - чтоб подключится используй:")
+				Println(fmt.Sprintf("local - локально `%s .` direct - напрямую `%s -j%s`", imag, imag, hp))
+				Println(fmt.Sprintf("\tPuTTY\t`%s -u .`\t`%s -uj%s`", imag, imag, hp))
+				Println(fmt.Sprintf("\tplink\t`%s -uz .`\t`%s -uzj%s`", imag, imag, hp))
+				Println(fmt.Sprintf("\tssh\t`%s -Z .`\t`%s -Zj%s`", imag, imag, hp))
+				if code == 0 {
+					Println(s, code)
+					i = 0
+				} else {
+					Println(fmt.Errorf("%s %d", s, code))
+					if i > 3 || i == 0 {
+						return
+					}
+					i++
+				}
+				if hh != LH {
+					// Не получается через ssh-j.com будем подключаться напрямую через dssh -j host:port .
 					return
 				}
-				i++
+				time.Sleep(TOR)
 			}
+		}()
+		for {
+			Println(fmt.Sprintf("%s daemon waiting on - сервер ожидает на %s:%s", repo, hh, p))
+			server(h, p, repo, signer, Println, Print)
+			winssh.KidsDone(os.Getpid())
+			Println("server has been stopped - сервер остановлен")
 			time.Sleep(TOR)
 		}
 	} // Сервис
 
 	// Клиенты
-	loc := ""
-	if args.DirectJump != "" && args.Destination == repo {
-		hh, p, err := net.SplitHostPort(args.DirectJump)
-		if err == nil {
-			if hh == "" {
-				hh = LH
-			}
-			if p == "" {
-				p = LISTEN
-			}
-			loc = local(hh, p, repo)
-		} else {
-			Println(fmt.Errorf("error in param - ошибка в параметре '%s -j %s .' %v", repo, args.DirectJump, err))
-		}
+	if djh != "" && djp != "" {
+		client(signer, local(djh, djp, repo)+sshj+sshJ(JumpHost, u, djh, djp), repo, SSHJ)
+	} else {
+		client(signer, sshj+sshJ(JumpHost, u, "", p), repo, SSHJ)
 	}
-	client(signer, loc+sshj+sshJ(JumpHost, u, "", p), repo, SSHJ)
 	// Println(fmt.Sprintf("%+v",args))
 	if args.Putty || args.Telnet || Win7 {
 		opt := ""
@@ -911,20 +889,6 @@ func FingerprintSHA256(pubKey ssh.PublicKey) string {
 	return pubKey.Type() + " " + ssh.FingerprintSHA256(pubKey)
 }
 
-func usage(imag string) string {
-	s := fmt.Sprintf(
-		"\n\tdirect - напрямую `%s .` or over jump host - или через посредника `%s :`"+
-			"\n\tPuTTY `%s -u .` `%s -u :`"+
-			"\n\tplink `%s -uz .` `%s -uz :`"+
-			"\n\tssh `%s -Z .` `%s -Z :`",
-		imag, imag,
-		imag, imag,
-		imag, imag,
-		imag, imag,
-	)
-	return s
-}
-
 func SshToPutty() (err error) {
 	bs, err := os.ReadFile(Cfg)
 	if err != nil {
@@ -1013,6 +977,8 @@ Host ` + host + `
  SessionType none
  ExitOnForwardFailure yes
  StdinNull no
+ LogLevel debug
+ RequestTTY no
  RemoteForward ` + SSHJ2 + `:` + PORT + ` ` + h + `:` + p + `
 `
 	}
