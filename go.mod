@@ -15,7 +15,6 @@ require (
 	github.com/abakum/go-ansiterm v0.0.1
 	github.com/abakum/go-netstat v0.0.1
 	github.com/abakum/go-ser2net v0.0.2-0.20240705170055-63116315e1bb
-	github.com/abakum/knownhosts v1.2.4-lw
 	github.com/abakum/menu v0.0.2-lw
 	github.com/abakum/pageant v0.0.1
 	github.com/abakum/putty_hosts v0.0.1
@@ -34,6 +33,7 @@ require (
 	github.com/mattn/go-runewidth v0.0.15
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/pquerna/otp v1.4.0
+	github.com/skeema/knownhosts v1.3.0
 	github.com/smeinecke/go-socks5 v0.0.0-20180316091040-4880db608f18
 	github.com/stretchr/testify v1.9.0
 	github.com/trzsz/go-arg v1.5.3

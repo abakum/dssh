@@ -26,6 +26,7 @@ package tssh
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/x509"
 	"encoding/hex"
 	"fmt"
@@ -41,8 +42,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/abakum/knownhosts"
 	"github.com/alessio/shellescape"
+	"github.com/skeema/knownhosts"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/term"
 )
@@ -270,6 +271,162 @@ func ensureNewline(file *os.File) error {
 	return nil
 }
 
+func scanHostKeys(hostPort, firstHostKeyAlgorithm string) (HostPublicKeys []ssh.PublicKey) {
+	const (
+		BadAlgoritm = "no such algorithm"
+		TO          = time.Second * 2
+	)
+	KeyScanCallback := func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+		HostPublicKeys = append(HostPublicKeys, key)
+		return fmt.Errorf(BadAlgoritm)
+	}
+	config := &ssh.ClientConfig{
+		HostKeyCallback:   KeyScanCallback,
+		HostKeyAlgorithms: []string{BadAlgoritm},
+		Timeout:           TO,
+	}
+	// Get HostKeyAlgorithms.
+	client, err := ssh.Dial("tcp", hostPort, config)
+	if err != nil {
+		ss := strings.Split(err.Error(), "server offered: [")
+		if len(ss) < 2 {
+			return
+		}
+		ss = strings.Split(ss[1], "]")
+		if len(ss) < 2 {
+			return
+		}
+		HostKeyAlgorithms := strings.Fields(ss[0])
+
+		// Do not search first algorithm.
+		CertAlgoRSA := false
+		KeyAlgoRSA := false
+		switch firstHostKeyAlgorithm {
+		case ssh.CertAlgoRSASHA256v01, ssh.CertAlgoRSASHA512v01, ssh.CertAlgoRSAv01:
+			CertAlgoRSA = true
+		case ssh.KeyAlgoRSASHA256, ssh.KeyAlgoRSASHA512, ssh.KeyAlgoRSA:
+			KeyAlgoRSA = true
+		}
+		for _, HostKeyAlgorithm := range HostKeyAlgorithms {
+			switch HostKeyAlgorithm {
+			case ssh.CertAlgoRSASHA256v01, ssh.CertAlgoRSASHA512v01, ssh.CertAlgoRSAv01:
+				if CertAlgoRSA {
+					continue
+				}
+				CertAlgoRSA = true
+			case ssh.KeyAlgoRSASHA256, ssh.KeyAlgoRSASHA512, ssh.KeyAlgoRSA:
+				if KeyAlgoRSA {
+					continue
+				}
+				KeyAlgoRSA = true
+			default:
+				if HostKeyAlgorithm == firstHostKeyAlgorithm {
+					continue
+				}
+			}
+			// This is not first algoritm.
+			config.HostKeyAlgorithms = []string{HostKeyAlgorithm}
+			client, err := ssh.Dial("tcp", hostPort, config)
+			if err != nil {
+				continue
+			}
+			client.Close()
+		}
+		return
+	}
+	client.Close()
+	return
+}
+
+func goScanHostKeys(hostPort string, firstHostPublicKey ssh.PublicKey) (otherHostPublicKeys []ssh.PublicKey) {
+	const (
+		BadAlgoritm = "no such algorithm"
+		TO          = time.Second * 2
+	)
+	ch := make(chan ssh.PublicKey, 10)
+	chDone := make(chan bool)
+	go func() {
+		firstHostPublicKeyFound := false
+		for key := range ch {
+			if bytes.Equal(key.Marshal(), firstHostPublicKey.Marshal()) {
+				firstHostPublicKeyFound = true // Try detect MIM atack
+			} else {
+				otherHostPublicKeys = append(otherHostPublicKeys, key)
+			}
+		}
+		chDone <- firstHostPublicKeyFound
+	}()
+	KeyScanCallback := func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+		ch <- key
+		return fmt.Errorf(BadAlgoritm)
+	}
+
+	config := &ssh.ClientConfig{
+		HostKeyCallback:   KeyScanCallback,
+		HostKeyAlgorithms: []string{BadAlgoritm},
+		Timeout:           TO,
+	}
+	// Get HostKeyAlgorithms.
+	client, err := ssh.Dial("tcp", hostPort, config)
+	if err != nil {
+		// Look findAgreedAlgorithms from ~\go\pkg\mod\golang.org\x\crypto@v0.23.0\ssh\common.go
+		if !strings.Contains(err.Error(), "ssh: no common algorithm for host key;") {
+			return
+		}
+		ss := strings.Split(err.Error(), "server offered: [")
+		if len(ss) < 2 {
+			return
+		}
+		ss = strings.Split(ss[1], "]")
+		if len(ss) < 2 {
+			return
+		}
+		HostKeyAlgorithms := strings.Fields(ss[0])
+
+		// Do not search RSA again.
+		CertAlgoRSA := false
+		KeyAlgoRSA := false
+		var wg sync.WaitGroup
+		for _, HostKeyAlgorithm := range HostKeyAlgorithms {
+			switch HostKeyAlgorithm {
+			case ssh.CertAlgoRSASHA256v01, ssh.CertAlgoRSASHA512v01, ssh.CertAlgoRSAv01:
+				if CertAlgoRSA {
+					continue
+				}
+				CertAlgoRSA = true
+			case ssh.KeyAlgoRSASHA256, ssh.KeyAlgoRSASHA512, ssh.KeyAlgoRSA:
+				if KeyAlgoRSA {
+					continue
+				}
+				KeyAlgoRSA = true
+			}
+
+			wg.Add(1)
+			go func(HostKeyAlgorithm string) {
+				defer wg.Done()
+				config := &ssh.ClientConfig{
+					HostKeyCallback:   KeyScanCallback,
+					HostKeyAlgorithms: []string{HostKeyAlgorithm},
+					Timeout:           TO,
+				}
+				client, err := ssh.Dial("tcp", hostPort, config)
+				if err == nil {
+					client.Close()
+				}
+			}(HostKeyAlgorithm)
+		}
+		wg.Wait()
+		close(ch)
+		if <-chDone {
+			return
+		}
+		// Not found first key - no trust to other keys
+		return []ssh.PublicKey{}
+	}
+	client.Close()
+	return []ssh.PublicKey{}
+}
+
 func writeKnownHost(path, host string, _ net.Addr, key ssh.PublicKey) error {
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0600)
 	if err != nil {
@@ -285,6 +442,10 @@ func writeKnownHost(path, host string, _ net.Addr, key ssh.PublicKey) error {
 		return fmt.Errorf("host '%s' contains spaces", hostNormalized)
 	}
 	line := knownhosts.Line([]string{hostNormalized}, key) + "\n"
+	for _, key := range goScanHostKeys(host, key) {
+		warning("Permanently added '%s' (%s) to the list of known hosts.", host, key.Type())
+		line += knownhosts.Line([]string{hostNormalized}, key) + "\n"
+	}
 	return writeAll(file, []byte(line))
 }
 
@@ -446,113 +607,6 @@ func getHostKeyCallback(args *SshArgs, param *sshParam) (ssh.HostKeyCallback, *k
 	// return caKeysCallback(cb, caKeys(files...)), kh, nil
 	return cb, khDB, nil
 }
-
-/*
-	func getHostKeyCallback(args *SshArgs, param *sshParam) (ssh.HostKeyCallback, *knownhosts.HostKeyDB, error) {
-	primaryPath := ""
-	var files []string
-	addKnownHostsFiles := func(key string, user bool) error {
-		knownHostsFiles := getOptionConfigSplits(args, key)
-		if len(knownHostsFiles) == 0 {
-			debug("%s is empty", key)
-			return nil
-		}
-		if len(knownHostsFiles) == 1 && strings.ToLower(knownHostsFiles[0]) == "none" {
-			debug("%s is none", key)
-			return nil
-		}
-		for _, path := range knownHostsFiles {
-			var resolvedPath string
-			if user {
-				path = expandEnv(path)
-				expandedPath, err := expandTokens(path, args, param, "%CdhijkLlnpru")
-				if err != nil {
-					return fmt.Errorf("expand UserKnownHostsFile [%s] failed: %v", path, err)
-				}
-				resolvedPath = resolveHomeDir(expandedPath)
-				if primaryPath == "" {
-					primaryPath = resolvedPath
-				}
-			} else {
-				resolvedPath = resolveEtcDir(path)
-			}
-			if !isFileExist(resolvedPath) {
-				debug("%s [%s] does not exist", key, resolvedPath)
-				continue
-			}
-			if !canReadFile(resolvedPath) {
-				if user {
-					warning("%s [%s] can't be read", key, resolvedPath)
-				} else {
-					debug("%s [%s] can't be read", key, resolvedPath)
-				}
-				continue
-			}
-			debug("add %s: %s", key, resolvedPath)
-			files = append(files, resolvedPath)
-		}
-		return nil
-	}
-
-	if err := addKnownHostsFiles("UserKnownHostsFile", true); err != nil {
-		return nil, nil, err
-	}
-	if err := addKnownHostsFiles("GlobalKnownHostsFile", false); err != nil {
-		return nil, nil, err
-	}
-
-	khDB, err := knownhosts.NewDB(files...)
-
-	if err != nil {
-		return nil, nil, fmt.Errorf("new knownhosts failed: %v", err)
-	}
-
-	cb := func(host string, remote net.Addr, key ssh.PublicKey) error {
-		kh := khDB.HostKeyCallback()
-		err := kh(host, remote, key)
-		if err == nil {
-			return nil
-		}
-		strictHostKeyChecking := strings.ToLower(getOptionConfig(args, "StrictHostKeyChecking"))
-		if knownhosts.IsHostKeyChanged(err) {
-			path := primaryPath
-			if path == "" {
-				path = "~/.ssh/known_hosts"
-			}
-			fmt.Fprintf(os.Stderr, "\033[0;31m@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\r\n"+
-				"@    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!     @\r\n"+
-				"@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\r\n"+
-				"IT IS POSSIBLE THAT SOMEONE IS DOING SOMETHING NASTY!\r\n"+
-				"Someone could be eavesdropping on you right now (man-in-the-middle attack)!\033[0m\r\n"+
-				"It is also possible that a host key has just been changed.\r\n"+
-				"The fingerprint for the %s key sent by the remote host is\r\n"+
-				"%s\r\n"+
-				"Please contact your system administrator.\r\n"+
-				"Add correct host key in %s to get rid of this message.\r\n",
-				key.Type(), ssh.FingerprintSHA256(key), path)
-		} else if knownhosts.IsHostUnknown(err) && primaryPath != "" {
-			ask := true
-			switch strictHostKeyChecking {
-			case "yes":
-				return err
-			case "accept-new", "no", "off":
-				ask = false
-			}
-			return addHostKey(primaryPath, host, remote, key, ask)
-		}
-		switch strictHostKeyChecking {
-		case "no", "off":
-			return nil
-		default:
-			return err
-		}
-	}
-
-	// return caKeysCallback(cb, caKeys(files...)), khDB, nil
-	return cb, khDB, nil
-}
-
-*/
 
 type sshSigner struct {
 	path   string
