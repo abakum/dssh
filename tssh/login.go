@@ -442,10 +442,6 @@ func writeKnownHost(path, host string, _ net.Addr, key ssh.PublicKey) error {
 		return fmt.Errorf("host '%s' contains spaces", hostNormalized)
 	}
 	line := knownhosts.Line([]string{hostNormalized}, key) + "\n"
-	for _, key := range goScanHostKeys(host, key) {
-		warning("Permanently added '%s' (%s) to the list of known hosts.", host, key.Type())
-		line += knownhosts.Line([]string{hostNormalized}, key) + "\n"
-	}
 	return writeAll(file, []byte(line))
 }
 
@@ -465,7 +461,15 @@ func addHostKey(path, host string, remote net.Addr, key ssh.PublicKey, ask bool)
 
 		fingerprint := ssh.FingerprintSHA256(key)
 		fmt.Fprintf(os.Stderr, "The authenticity of host '%s' can't be established.\r\n"+
-			"%s key fingerprint is %s.\r\n", host, key.Type(), fingerprint)
+			"%s key fingerprint is %s\r\n", host, key.Type(), fingerprint)
+		keys := goScanHostKeys(host, key)
+
+		// List other keys for select by fingerprint. Without dot at the end for copyPaste.
+		for _, key := range keys {
+			fingerprint := ssh.FingerprintSHA256(key)
+			fmt.Fprintf(os.Stderr,
+				"%s key fingerprint is %s\r\n", key.Type(), fingerprint)
+		}
 
 		stdin, closer, err := getKeyboardInput()
 		if err != nil {
@@ -474,23 +478,41 @@ func addHostKey(path, host string, remote net.Addr, key ssh.PublicKey, ask bool)
 		defer closer()
 
 		reader := bufio.NewReader(stdin)
-		fmt.Fprintf(os.Stderr, "Are you sure you want to continue connecting (yes/no/[fingerprint])? ")
+		fmt.Fprintf(os.Stderr, "Are you sure you want to continue connecting (yes/no/all/[fingerprint])? ")
+
+	readInput:
 		for {
 			input, err := reader.ReadString('\n')
 			if err != nil {
 				return err
 			}
 			input = strings.TrimSpace(input)
-			if input == fingerprint {
-				break
+
+			for _, keyByFingerprint := range append(keys, key) {
+				if input == ssh.FingerprintSHA256(keyByFingerprint) {
+					key = keyByFingerprint
+					break readInput
+				}
 			}
 			input = strings.ToLower(input)
 			if input == "yes" {
 				break
 			} else if input == "no" {
 				return fmt.Errorf("host key not trusted")
+			} else if input == "all" {
+				for _, otherKey := range keys {
+					acceptHostKeys = append(acceptHostKeys, knownhosts.Line([]string{host}, otherKey))
+
+					if err := writeKnownHost(path, host, remote, otherKey); err != nil {
+						warning("Failed to add the host to the list of known hosts (%s): %v", path, err)
+						return nil
+					}
+
+					warning("Permanently added '%s' (%s) to the list of known hosts.", host, otherKey.Type())
+				}
+				break
 			}
-			fmt.Fprintf(os.Stderr, "Please type 'yes', 'no' or the fingerprint: ")
+			fmt.Fprintf(os.Stderr, "Please type 'yes', 'no', 'all' or the fingerprint: ")
 		}
 	}
 
