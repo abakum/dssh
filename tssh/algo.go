@@ -85,6 +85,16 @@ var supportedHostKeyAlgos = NewStringSet(
 	ssh.KeyAlgoED25519,
 )
 
+var defaultOpenSSH = NewStringSet(
+	ssh.CertAlgoED25519v01, ssh.CertAlgoECDSA256v01, ssh.CertAlgoECDSA384v01, ssh.CertAlgoECDSA521v01,
+	// ssh.CertAlgoSKED25519v01, ssh.CertAlgoSKECDSA256v01,
+	ssh.CertAlgoRSASHA512v01, ssh.CertAlgoRSASHA256v01,
+
+	ssh.KeyAlgoED25519, ssh.KeyAlgoECDSA256, ssh.KeyAlgoECDSA384, ssh.KeyAlgoECDSA521,
+	// ssh.KeyAlgoSKED25519, ssh.KeyAlgoSKECDSA256,
+	ssh.KeyAlgoRSASHA512, ssh.KeyAlgoRSASHA256,
+)
+
 func setSupported(config *ssh.ClientConfig) {
 	newSet := NewStringSet()
 	for _, algo := range config.HostKeyAlgorithms {
@@ -102,13 +112,15 @@ func setupHostKeyAlgorithmsConfig(args *SshArgs, config *ssh.ClientConfig) {
 		if len(config.HostKeyAlgorithms) == 0 {
 			// Нет алгоритмов из know_host и authorized_keys тогда пусть x/crypto/ssh присвоит дефолтные
 			config.HostKeyAlgorithms = nil
+			// Лучше пусть дефолтными будут такие как OpenSSH
+			config.HostKeyAlgorithms = defaultOpenSSH.List()
 		}
 		debug("client supported algorithms: %v", config.HostKeyAlgorithms)
 	}()
 	algoSpec := getOptionConfig(args, "HostKeyAlgorithms")
 	if algoSpec == ssh_config.Default("HostKeyAlgorithms") || algoSpec == "" {
 		// Нет  -o HostKeyAlgorithms=a,b,...
-		debug("default algorithms: %v", config.HostKeyAlgorithms)
+		debug("algorithms from known_hosts: %v", config.HostKeyAlgorithms)
 		return
 	}
 	defer func() {

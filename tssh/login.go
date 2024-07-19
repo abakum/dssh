@@ -271,13 +271,17 @@ func ensureNewline(file *os.File) error {
 	return nil
 }
 
-func scanHostKeys(hostPort, firstHostKeyAlgorithm string) (HostPublicKeys []ssh.PublicKey) {
+func orderedScanHostKeys(hostPort string, firstHostPublicKey ssh.PublicKey) (otherHostPublicKeys []ssh.PublicKey) {
 	const (
 		BadAlgoritm = "no such algorithm"
 		TO          = time.Second * 2
 	)
+	firstHostPublicKeyFound := false
 	KeyScanCallback := func(hostname string, remote net.Addr, key ssh.PublicKey) error {
-		HostPublicKeys = append(HostPublicKeys, key)
+		if bytes.Equal(key.Marshal(), firstHostPublicKey.Marshal()) {
+			firstHostPublicKeyFound = true // Try detect MIM atack
+		}
+		otherHostPublicKeys = append(otherHostPublicKeys, key)
 		return fmt.Errorf(BadAlgoritm)
 	}
 	config := &ssh.ClientConfig{
@@ -288,6 +292,10 @@ func scanHostKeys(hostPort, firstHostKeyAlgorithm string) (HostPublicKeys []ssh.
 	// Get HostKeyAlgorithms.
 	client, err := ssh.Dial("tcp", hostPort, config)
 	if err != nil {
+		// Look findAgreedAlgorithms from ~\go\pkg\mod\golang.org\x\crypto@v0.23.0\ssh\common.go
+		if !strings.Contains(err.Error(), "ssh: no common algorithm for host key;") {
+			return
+		}
 		ss := strings.Split(err.Error(), "server offered: [")
 		if len(ss) < 2 {
 			return
@@ -298,15 +306,9 @@ func scanHostKeys(hostPort, firstHostKeyAlgorithm string) (HostPublicKeys []ssh.
 		}
 		HostKeyAlgorithms := strings.Fields(ss[0])
 
-		// Do not search first algorithm.
+		// Do not search RSA again.
 		CertAlgoRSA := false
 		KeyAlgoRSA := false
-		switch firstHostKeyAlgorithm {
-		case ssh.CertAlgoRSASHA256v01, ssh.CertAlgoRSASHA512v01, ssh.CertAlgoRSAv01:
-			CertAlgoRSA = true
-		case ssh.KeyAlgoRSASHA256, ssh.KeyAlgoRSASHA512, ssh.KeyAlgoRSA:
-			KeyAlgoRSA = true
-		}
 		for _, HostKeyAlgorithm := range HostKeyAlgorithms {
 			switch HostKeyAlgorithm {
 			case ssh.CertAlgoRSASHA256v01, ssh.CertAlgoRSASHA512v01, ssh.CertAlgoRSAv01:
@@ -319,12 +321,8 @@ func scanHostKeys(hostPort, firstHostKeyAlgorithm string) (HostPublicKeys []ssh.
 					continue
 				}
 				KeyAlgoRSA = true
-			default:
-				if HostKeyAlgorithm == firstHostKeyAlgorithm {
-					continue
-				}
 			}
-			// This is not first algoritm.
+
 			config.HostKeyAlgorithms = []string{HostKeyAlgorithm}
 			client, err := ssh.Dial("tcp", hostPort, config)
 			if err != nil {
@@ -332,10 +330,14 @@ func scanHostKeys(hostPort, firstHostKeyAlgorithm string) (HostPublicKeys []ssh.
 			}
 			client.Close()
 		}
-		return
+		if firstHostPublicKeyFound {
+			return
+		}
+		// Not found first key - no trust to other keys
+		return []ssh.PublicKey{}
 	}
 	client.Close()
-	return
+	return []ssh.PublicKey{}
 }
 
 func goScanHostKeys(hostPort string, firstHostPublicKey ssh.PublicKey) (otherHostPublicKeys []ssh.PublicKey) {
@@ -350,9 +352,8 @@ func goScanHostKeys(hostPort string, firstHostPublicKey ssh.PublicKey) (otherHos
 		for key := range ch {
 			if bytes.Equal(key.Marshal(), firstHostPublicKey.Marshal()) {
 				firstHostPublicKeyFound = true // Try detect MIM atack
-			} else {
-				otherHostPublicKeys = append(otherHostPublicKeys, key)
 			}
+			otherHostPublicKeys = append(otherHostPublicKeys, key)
 		}
 		chDone <- firstHostPublicKeyFound
 	}()
@@ -453,22 +454,21 @@ func addHostKey(path, host string, remote net.Addr, key ssh.PublicKey, ask bool)
 		}
 	}
 
+	once := true
+	keys := []ssh.PublicKey{key}
 	if ask {
 		if sshLoginSuccess.Load() {
 			fmt.Fprintf(os.Stderr, "\r\n\033[0;31mThe public key of the remote server has changed after login.\033[0m\r\n")
 			return fmt.Errorf("host key changed")
 		}
 
-		fingerprint := ssh.FingerprintSHA256(key)
-		fmt.Fprintf(os.Stderr, "The authenticity of host '%s' can't be established.\r\n"+
-			"%s key fingerprint is %s\r\n", host, key.Type(), fingerprint)
-		keys := goScanHostKeys(host, key)
+		fmt.Fprintf(os.Stderr, "The authenticity of host '%s' can't be established.\r\n", host)
+		keys = orderedScanHostKeys(host, key)
 
 		// List other keys for select by fingerprint. Without dot at the end for copyPaste.
 		for _, key := range keys {
 			fingerprint := ssh.FingerprintSHA256(key)
-			fmt.Fprintf(os.Stderr,
-				"%s key fingerprint is %s\r\n", key.Type(), fingerprint)
+			fmt.Fprintf(os.Stderr, "%s key fingerprint is %s\r\n", key.Type(), fingerprint)
 		}
 
 		stdin, closer, err := getKeyboardInput()
@@ -488,9 +488,9 @@ func addHostKey(path, host string, remote net.Addr, key ssh.PublicKey, ask bool)
 			}
 			input = strings.TrimSpace(input)
 
-			for _, keyByFingerprint := range append(keys, key) {
+			for _, keyByFingerprint := range keys {
 				if input == ssh.FingerprintSHA256(keyByFingerprint) {
-					key = keyByFingerprint
+					keys = []ssh.PublicKey{keyByFingerprint}
 					break readInput
 				}
 			}
@@ -500,30 +500,26 @@ func addHostKey(path, host string, remote net.Addr, key ssh.PublicKey, ask bool)
 			} else if input == "no" {
 				return fmt.Errorf("host key not trusted")
 			} else if input == "all" {
-				for _, otherKey := range keys {
-					acceptHostKeys = append(acceptHostKeys, knownhosts.Line([]string{host}, otherKey))
-
-					if err := writeKnownHost(path, host, remote, otherKey); err != nil {
-						warning("Failed to add the host to the list of known hosts (%s): %v", path, err)
-						return nil
-					}
-
-					warning("Permanently added '%s' (%s) to the list of known hosts.", host, otherKey.Type())
-				}
+				once = false
 				break
 			}
 			fmt.Fprintf(os.Stderr, "Please type 'yes', 'no', 'all' or the fingerprint: ")
 		}
 	}
 
-	acceptHostKeys = append(acceptHostKeys, keyNormalizedLine)
+	for _, key := range keys {
+		acceptHostKeys = append(acceptHostKeys, keyNormalizedLine)
 
-	if err := writeKnownHost(path, host, remote, key); err != nil {
-		warning("Failed to add the host to the list of known hosts (%s): %v", path, err)
-		return nil
+		if err := writeKnownHost(path, host, remote, key); err != nil {
+			warning("Failed to add the host to the list of known hosts (%s): %v", path, err)
+			return nil
+		}
+
+		warning("Permanently added '%s' (%s) to the list of known hosts.", host, key.Type())
+		if once {
+			break
+		}
 	}
-
-	warning("Permanently added '%s' (%s) to the list of known hosts.", host, key.Type())
 	return nil
 }
 
@@ -1314,7 +1310,7 @@ func sshConnect(args *SshArgs, client *ssh.Client, proxy string) (*ssh.Client, *
 	}
 	// Перед вызовом setupHostKeyAlgorithmsConfig должен быть установлен HostKeyAlgorithms.
 	// >If hostkeys are known for the destination host then this default is modified to prefer their algorithms.
-	debug("HostKeyAlgorithms %v", config.HostKeyAlgorithms)
+	// debug("HostKeyAlgorithms %v", config.HostKeyAlgorithms)
 	debug("IdKeyAlgorithms %v", idKeyAlgorithms)
 	// kh после https://github.com/skeema/knownhosts/tree/certs-backwards-compat уже понимает @cert-authority
 	// но пока не объединили с main добавим idKeyAlgorithms
