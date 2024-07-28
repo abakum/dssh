@@ -340,25 +340,31 @@ func orderedScanHostKeys(hostPort string, firstHostPublicKey ssh.PublicKey) (oth
 	return []ssh.PublicKey{}
 }
 
-func goScanHostKeys(hostPort string, firstHostPublicKey ssh.PublicKey) (otherHostPublicKeys []ssh.PublicKey) {
+func goScanHostKeys(hostPort string, firstHostPublicKey ssh.PublicKey, args *SshArgs) (allHostPublicKeys []ssh.PublicKey) {
 	const (
 		BadAlgoritm = "no such algorithm"
 		TO          = time.Second * 2
 	)
-	ch := make(chan ssh.PublicKey, 10)
-	chDone := make(chan bool)
+	chIn := make(chan ssh.PublicKey, 12)
+	chOut := make(chan map[string]ssh.PublicKey)
 	go func() {
-		firstHostPublicKeyFound := false
-		for key := range ch {
-			if bytes.Equal(key.Marshal(), firstHostPublicKey.Marshal()) {
-				firstHostPublicKeyFound = true // Try detect MIM atack
+		keys := make(map[string]ssh.PublicKey)
+		ok := false
+		for key := range chIn {
+			if bytes.Equal(firstHostPublicKey.Marshal(), key.Marshal()) {
+				ok = true
 			}
-			otherHostPublicKeys = append(otherHostPublicKeys, key)
+			keys[key.Type()] = key
 		}
-		chDone <- firstHostPublicKeyFound
+		if !ok {
+			// Not found firstHostPublicKey - no trust to other keys
+			keys = nil
+		}
+		// debug("%+v", keys)
+		chOut <- keys
 	}()
 	KeyScanCallback := func(hostname string, remote net.Addr, key ssh.PublicKey) error {
-		ch <- key
+		chIn <- key
 		return fmt.Errorf(BadAlgoritm)
 	}
 
@@ -382,12 +388,13 @@ func goScanHostKeys(hostPort string, firstHostPublicKey ssh.PublicKey) (otherHos
 		if len(ss) < 2 {
 			return
 		}
-		HostKeyAlgorithms := strings.Fields(ss[0])
+		HostKeyAlgorithms := strings.Fields(ss[0]) // Ordered by supportedHostKeyAlgos
 
+		var wg sync.WaitGroup
 		// Do not search RSA again.
 		CertAlgoRSA := false
 		KeyAlgoRSA := false
-		var wg sync.WaitGroup
+		algoritms := NewStringSet(getHostKeyAlgorithms(args)...)
 		for _, HostKeyAlgorithm := range HostKeyAlgorithms {
 			switch HostKeyAlgorithm {
 			case ssh.CertAlgoRSASHA256v01, ssh.CertAlgoRSASHA512v01, ssh.CertAlgoRSAv01:
@@ -395,11 +402,13 @@ func goScanHostKeys(hostPort string, firstHostPublicKey ssh.PublicKey) (otherHos
 					continue
 				}
 				CertAlgoRSA = true
+				algoritms.Add(ssh.CertAlgoRSAv01)
 			case ssh.KeyAlgoRSASHA256, ssh.KeyAlgoRSASHA512, ssh.KeyAlgoRSA:
 				if KeyAlgoRSA {
 					continue
 				}
 				KeyAlgoRSA = true
+				algoritms.Add(ssh.KeyAlgoRSA)
 			}
 
 			wg.Add(1)
@@ -416,16 +425,26 @@ func goScanHostKeys(hostPort string, firstHostPublicKey ssh.PublicKey) (otherHos
 				}
 			}(HostKeyAlgorithm)
 		}
-		wg.Wait()
-		close(ch)
-		if <-chDone {
-			return
+		wg.Wait()                         // Last dial.
+		time.Sleep(time.Millisecond * 10) // Wait last KeyScanCallback.
+		// Return result
+		close(chIn)
+		keys := <-chOut
+		if keys == nil {
+			return []ssh.PublicKey{firstHostPublicKey}
 		}
-		// Not found first key - no trust to other keys
-		return []ssh.PublicKey{}
+
+		for _, algorithm := range algoritms.List() {
+			key, ok := keys[algorithm]
+			if !ok {
+				continue
+			}
+			allHostPublicKeys = append(allHostPublicKeys, key)
+		}
+		return
 	}
 	client.Close()
-	return []ssh.PublicKey{}
+	return
 }
 
 func writeKnownHost(path, host string, _ net.Addr, key ssh.PublicKey) error {
@@ -446,7 +465,7 @@ func writeKnownHost(path, host string, _ net.Addr, key ssh.PublicKey) error {
 	return writeAll(file, []byte(line))
 }
 
-func addHostKey(path, host string, remote net.Addr, key ssh.PublicKey, ask bool) error {
+func addHostKey(path, host string, remote net.Addr, key ssh.PublicKey, ask bool, args *SshArgs) error {
 	keyNormalizedLine := knownhosts.Line([]string{host}, key)
 	for _, acceptKey := range acceptHostKeys {
 		if acceptKey == keyNormalizedLine {
@@ -463,7 +482,7 @@ func addHostKey(path, host string, remote net.Addr, key ssh.PublicKey, ask bool)
 		}
 
 		fmt.Fprintf(os.Stderr, "The authenticity of host '%s' can't be established.\r\n", host)
-		keys = orderedScanHostKeys(host, key)
+		keys = goScanHostKeys(host, key, args)
 
 		// List other keys for select by fingerprint. Without dot at the end for copyPaste.
 		for _, key := range keys {
@@ -612,7 +631,7 @@ func getHostKeyCallback(args *SshArgs, param *sshParam) (ssh.HostKeyCallback, *k
 			case "accept-new", "no", "off":
 				ask = false
 			}
-			return addHostKey(primaryPath, host, remote, key, ask)
+			return addHostKey(primaryPath, host, remote, key, ask, args)
 		}
 		switch strictHostKeyChecking {
 		case "no", "off":
@@ -1303,7 +1322,7 @@ func sshConnect(args *SshArgs, client *ssh.Client, proxy string) (*ssh.Client, *
 		HostKeyCallback:   cb,
 		HostKeyAlgorithms: kh.HostKeyAlgorithms(param.addr),
 		BannerCallback: func(banner string) error {
-			_, err := fmt.Fprint(os.Stderr, strings.ReplaceAll(banner, "\n", "\r\n"))
+			_, err := fmt.Fprint(os.Stderr, "Banner of ", param.addr, ":", strings.ReplaceAll(banner, "\n", "\r\n"))
 			return err
 		},
 		ClientVersion: "SSH-2.0-" + "tssh_" + kTsshVersion,

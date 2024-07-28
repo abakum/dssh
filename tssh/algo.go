@@ -88,11 +88,11 @@ var supportedHostKeyAlgos = NewStringSet(
 var defaultOpenSSH = NewStringSet(
 	ssh.CertAlgoED25519v01, ssh.CertAlgoECDSA256v01, ssh.CertAlgoECDSA384v01, ssh.CertAlgoECDSA521v01,
 	// ssh.CertAlgoSKED25519v01, ssh.CertAlgoSKECDSA256v01,
-	ssh.CertAlgoRSASHA512v01, ssh.CertAlgoRSASHA256v01,
+	ssh.CertAlgoRSASHA512v01, ssh.CertAlgoRSASHA256v01, // ssh.CertAlgoRSAv01,
 
 	ssh.KeyAlgoED25519, ssh.KeyAlgoECDSA256, ssh.KeyAlgoECDSA384, ssh.KeyAlgoECDSA521,
 	// ssh.KeyAlgoSKED25519, ssh.KeyAlgoSKECDSA256,
-	ssh.KeyAlgoRSASHA512, ssh.KeyAlgoRSASHA256,
+	ssh.KeyAlgoRSASHA512, ssh.KeyAlgoRSASHA256, // ssh.KeyAlgoRSA,
 )
 
 func setSupported(config *ssh.ClientConfig) {
@@ -103,6 +103,37 @@ func setSupported(config *ssh.ClientConfig) {
 		}
 	}
 	config.HostKeyAlgorithms = newSet.List()
+}
+
+func getHostKeyAlgorithms(args *SshArgs) (HostKeyAlgorithms []string) {
+	HostKeyAlgorithms = defaultOpenSSH.List()
+	algoSpec := getOptionConfig(args, "HostKeyAlgorithms")
+	if algoSpec == ssh_config.Default("HostKeyAlgorithms") || algoSpec == "" {
+		// Нет  -o HostKeyAlgorithms=a,b,...
+		debug("default algorithms: %v", HostKeyAlgorithms)
+		return
+	}
+	defer func() {
+		debug("user declared algorithms: %v", HostKeyAlgorithms)
+	}()
+	algos := strings.Split(algoSpec[1:], ",")
+	switch algoSpec[0] {
+	case '+':
+		// If the specified list begins with a ‘+’ character, then the specified items will be appended to the default set instead of replacing them.
+		// a,b + a,c -> b,a,c
+		HostKeyAlgorithms = NewStringSet(HostKeyAlgorithms...).DelRegExp(algos...).Add(algos...).List()
+	case '-':
+		// If the specified list begins with a ‘-’ character, then the specified items (including wildcards) will be removed from the default set instead of replacing them.
+		// a,b -a,c -> b
+		HostKeyAlgorithms = NewStringSet(HostKeyAlgorithms...).DelRegExp(algos...).List()
+	case '^':
+		// If the specified list begins with a ‘^’ character, then the specified items will be placed at the head of the default set.
+		// a,b ^a,c -> a,c,b
+		HostKeyAlgorithms = NewStringSet(algos...).Add(HostKeyAlgorithms...).List()
+	default:
+		HostKeyAlgorithms = NewStringSet(strings.Split(algoSpec, ",")...).List()
+	}
+	return
 }
 
 func setupHostKeyAlgorithmsConfig(args *SshArgs, config *ssh.ClientConfig) {
