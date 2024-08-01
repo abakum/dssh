@@ -216,7 +216,7 @@ func build(a ...any) (s string) {
 		for _, setting := range info.Settings {
 			switch setting.Key {
 			case "vcs.revision":
-				s += " " + setting.Value
+				s += " " + setting.Value[:7]
 			case "vcs.time":
 				s += " " + strings.ReplaceAll(strings.ReplaceAll(setting.Value, "-", ""), ":", "")
 			}
@@ -231,7 +231,7 @@ func revision() (s string) {
 		for _, setting := range info.Settings {
 			switch setting.Key {
 			case "vcs.revision":
-				s = setting.Value
+				s = setting.Value[:7]
 			}
 		}
 	}

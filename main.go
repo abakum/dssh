@@ -148,7 +148,7 @@ var CA []byte // Ключ ЦС
 //go:embed VERSION
 var Ver string
 
-// `dssh` `dssh -d` `dssh -l revision` `revision` Где revision  это что-то типа 59d7a68a020c992ca41819553e888fad8f9684c1 (смотри `dssh -V`)
+// `dssh` `dssh -d` `dssh -l revision` `revision` Где revision  это что-то типа 59d7a68 (смотри `dssh -V`)
 //
 //	запустит сервер ssh на адресе `127.0.0.1:2222`.
 //	подготовит алиас `ssh-j.com` и запустит его для переноса сессии с белого адреса `ssh-j.com:22` на серый `127.0.0.1:2222`.
