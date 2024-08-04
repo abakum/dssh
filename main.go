@@ -175,7 +175,7 @@ func main() {
 
 	ips := ints()
 	Println(build(Ver, ips))
-	FatalOr("not connected - нет сети", len(ips) == 0)
+	// FatalOr("not connected - нет сети", len(ips) == 0)
 
 	anyKey, err := x509.ParsePKCS8PrivateKey(CA)
 	Fatal(err)
@@ -638,16 +638,26 @@ Host ` + SSHJ + `
 			for {
 				Println(s, "has been started - запущен")
 				Println("to connect use - чтоб подключится используй:")
-				Println(fmt.Sprintf("local - локально `%s .` direct - напрямую `%s -j%s` over jump host - через посредника `%s :`", imag, imag, hp, imag))
-				Println(fmt.Sprintf("\tPuTTY\t`%s -u .`\t`%s -uj%s`\t`%s -u :`", imag, imag, hp, imag))
-				Println(fmt.Sprintf("\tplink\t`%s -uz .`\t`%s -uzj%s`\t`%s -uz :`", imag, imag, hp, imag))
-				Println(fmt.Sprintf("\tssh\t`%s -Z .`\t`%s -Zj%s`\t`%s -Z :`", imag, imag, hp, imag))
+				ss := ""
+				if len(ips) != 0 {
+					ss = fmt.Sprintf("over jump host - через посредника `%s :`", imag)
+				}
+				Println(fmt.Sprintf("local - локально `%s .` direct - напрямую `%s -j%s`", imag, imag, hp), ss)
+				ss = ""
+				if len(ips) != 0 {
+					ss = fmt.Sprintf("\t`%s -u :`", imag)
+				}
+				Println(fmt.Sprintf("\tPuTTY\t`%s -u .`\t`%s -uj%s`%s", imag, imag, hp, ss))
+				ss = ""
+				if len(ips) != 0 {
+					ss = fmt.Sprintf("\t`%s -uz :`", imag)
+				}
+				Println(fmt.Sprintf("\tplink\t`%s -uz .`\t`%s -uzj%s`%s", imag, imag, hp, ss))
+				if len(ips) != 0 {
+					ss = fmt.Sprintf("\t`%s -Z :`", imag)
+				}
+				Println(fmt.Sprintf("\tssh\t`%s -Z .`\t`%s -Zj%s`%s", imag, imag, hp, ss))
 				code := TsshMain(&args)
-				Println("to connect use - чтоб подключится используй:")
-				Println(fmt.Sprintf("local - локально `%s .` direct - напрямую `%s -j%s`", imag, imag, hp))
-				Println(fmt.Sprintf("\tPuTTY\t`%s -u .`\t`%s -uj%s`", imag, imag, hp))
-				Println(fmt.Sprintf("\tplink\t`%s -uz .`\t`%s -uzj%s`", imag, imag, hp))
-				Println(fmt.Sprintf("\tssh\t`%s -Z .`\t`%s -Zj%s`", imag, imag, hp))
 				if code == 0 {
 					Println(s, code)
 					i = 0
