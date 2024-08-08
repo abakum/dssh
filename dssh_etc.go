@@ -62,7 +62,7 @@ func mapToConf(name, separator string, p map[string]string) (err error) {
 	return
 }
 
-// Конфиг для putty на linux может и на darwin
+// Конфиг для putty на linux и на MacOS
 func Conf(name, separator string, kv map[string]string) {
 	p := confToMap(name, separator)
 	for k, v := range kv {

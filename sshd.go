@@ -213,8 +213,17 @@ func server(h, p, repo string, signer ssh.Signer, Println func(v ...any), Print 
 			server.Close()
 		}()
 		go established(ctxRWE, server.Addr, false, Print)
+	case "darwin":
+		noidle()
 	}
 	Println("ListenAndServe", server.ListenAndServe())
+}
+
+// Не спать! Товарищи депутаты.
+func noidle() {
+	cmd := exec.Command("pmset", "noidle")
+	err := cmd.Start()
+	Println(cmd.Args, err)
 }
 
 // Подписываем ключём ЦС caSigner замок хоста hostSigner и его принципал
