@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -45,6 +46,11 @@ type ReadWriteCloser struct {
 	io.WriteCloser
 }
 
+type WriteCloser struct {
+	io.Writer
+	io.Closer
+}
+
 // Подключаем последовательный порт к сессии ssh или локально.
 // Завершение сессии через `<Enter>~.`
 // Если name пусто то ищем первый последовательный порт USB
@@ -72,7 +78,7 @@ func ser(ctx context.Context, s io.ReadWriteCloser, Serial, Baud, exit string, p
 	w.SetSerial(port)
 
 	defer func() {
-		msg = fmt.Sprintf("%s closed - закрыт %v\r", ser2net.Mode{Mode: w.Mode(), Name: w.Path()}, err)
+		msg = fmt.Sprintf("%s closed - закрыт %v\r", ser2net.Mode{Mode: w.Mode(), Name: w.Name()}, err)
 		err = ser2net.SerialClose(port)
 		for _, p := range println {
 			p(msg)
@@ -152,6 +158,30 @@ func s2n(ctx context.Context, r io.Reader, chanByte chan byte, Serial string, Se
 	})
 
 	err := w.StartTelnet(LH, Ser2net)
+	if err != nil {
+		t.Stop()
+		for _, p := range println {
+			p(err, "\r")
+		}
+	}
+	return err
+}
+
+// Web сервер ждёт на порту web.
+// SetMode использует r или chanByte для смены serial.Mode порта Serial.
+// На консоль клиента println[0] выводит протокол через ssh канал.
+// Локально println[1] выводит протокол.
+func s2w(ctx context.Context, r io.Reader, chanByte chan byte, Serial string, wp int, Baud, exit string, println ...func(v ...any)) error {
+	if Serial == "" {
+		return ErrNotFoundFreeSerial
+	}
+	w, _ := ser2net.NewSerialWorker(ctx, Serial, ser2net.BaudRate(strconv.Atoi(Baud)))
+	go w.Worker()
+	t := time.AfterFunc(time.Second, func() {
+		SetMode(w, ctx, r, chanByte, exit, wp, println...)
+	})
+
+	err := w.StartGoTTY(LH, wp, "")
 	if err != nil {
 		t.Stop()
 		for _, p := range println {
@@ -305,9 +335,16 @@ func mess(esc, exit, namePort string) string {
 			ToExitPress+" "+esc+"<.>"+exit,
 		)
 	}
+	// Костыль для ser2web
+	enter := ""
+	tep := " " + esc + "<.>"
+	if strings.HasSuffix(exit, " ") {
+		enter = "<Enter>"
+		tep = ""
+	}
 	return rn("",
-		ToExitPress+" "+esc+"<.>"+exit,
-		"To change mode of serial port press - Чтоб сменить режим последовательного порта нажми "+esc+"<x>",
+		ToExitPress+tep+exit,
+		"To change mode of serial port press - Чтоб сменить режим последовательного порта нажми "+esc+"<x>"+enter,
 		"Where x from 0 to 9 - Где 0[115200], 1[19200], 2[2400], 3[38400], 4[4800], 5[57600], 6[DataBits], 7[Parity], 8[StopBits], 9[9600]",
 	)
 }
@@ -341,7 +378,7 @@ func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial string, Ser2net i
 
 // Через r или напрямую по chanByte управляет режимами последовательного порта w
 func SetMode(w *ser2net.SerialWorker, ctx context.Context, r io.Reader, chanByte chan byte, exit string, Ser2net int, println ...func(v ...any)) {
-	press := mess("", exit, w.Path())
+	press := mess("", exit, w.Name())
 	if Ser2net > 0 {
 		for _, p := range println {
 			p(w.String() + "\r")
@@ -448,4 +485,47 @@ func SetMode(w *ser2net.SerialWorker, ctx context.Context, r io.Reader, chanByte
 			}
 		}
 	}
+}
+
+func LocateChrome() string {
+
+	var paths []string
+	switch runtime.GOOS {
+	case "darwin":
+		paths = []string{
+			"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+			"/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary",
+			"/Applications/Chromium.app/Contents/MacOS/Chromium",
+			"/usr/bin/google-chrome-stable",
+			"/usr/bin/google-chrome",
+			"/usr/bin/chromium",
+			"/usr/bin/chromium-browser",
+		}
+	case "windows":
+		paths = []string{
+			os.Getenv("LocalAppData") + "/Google/Chrome/Application/chrome.exe",
+			os.Getenv("ProgramFiles") + "/Google/Chrome/Application/chrome.exe",
+			os.Getenv("ProgramFiles(x86)") + "/Google/Chrome/Application/chrome.exe",
+			os.Getenv("LocalAppData") + "/Chromium/Application/chrome.exe",
+			os.Getenv("ProgramFiles") + "/Chromium/Application/chrome.exe",
+			os.Getenv("ProgramFiles(x86)") + "/Chromium/Application/chrome.exe",
+			os.Getenv("ProgramFiles(x86)") + "/Microsoft/Edge/Application/msedge.exe",
+		}
+	default:
+		paths = []string{
+			"/usr/bin/google-chrome-stable",
+			"/usr/bin/google-chrome",
+			"/usr/bin/chromium",
+			"/usr/bin/chromium-browser",
+			"/snap/bin/chromium",
+		}
+	}
+
+	for _, path := range paths {
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			continue
+		}
+		return path
+	}
+	return ""
 }

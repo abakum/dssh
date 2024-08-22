@@ -32,6 +32,7 @@ dssh:=(tssh from trzsz)+(CA key with embed-encrypt)+(sshd from gliderlabs)+(acce
 
 # 4.    Как использовать на Windows 7:
     1.  Если нет Cygwin, MSYS2/MINGW, git-bash то используем вместе с PuTTY - `dssh -u alias` иначе запускаем из Cygwin, MSYS2/MINGW, git-bash как обычно `dssh alias`
+    2.  Для доступа к локальной последовательной консоли без Cygwin, MSYS2/MINGW, git-bash и PuTTY используем браузер через запуск `dssh -U0 -80` это то же что и `dssh -U0 -8 8080`
 
 # 5.    Как устроена авторизация:
     1.  Авторизация основана на вложенном ключе Центра Сертификации `.\internal\ca`. Его можно обновлять запуском `go run cmd/main.go`
@@ -61,5 +62,5 @@ dssh:=(tssh from trzsz)+(CA key with embed-encrypt)+(sshd from gliderlabs)+(acce
 
 # 7.    Как ещё можно использовать dssh:
     1.  Если запустить на хосте `dssh` то к хосту можно подключится для удалённой разработки через `Remote - SSH extension` выбрав алиас `ssh-j` в `Connect to Host`
-    2.  Благодаря tssh можно прописать в алиасе `proxy` encPassword и DynamicForward 127.0.0.1:1080 чтоб не вводить пароль при запуске `dssh -5 proxy` для организации Socks5 прокси.
+    2.  Благодаря tssh можно прописать в алиасе `proxy` encPassword и DynamicForward 127.0.0.1:1080 чтоб не вводить пароль при запуске `dssh -5 proxy` для организации Socks5 прокси. (смотри 6.11)
     3.  Для системного прокси на Windows для организации Socks4 прокси нужно вызывать `dssh proxy` (смотри 6.14).

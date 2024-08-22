@@ -54,6 +54,7 @@ import (
 	"github.com/abakum/winssh"
 	"github.com/containerd/console"
 	"github.com/mattn/go-isatty"
+	"github.com/pkg/browser"
 	"github.com/trzsz/go-arg"
 	"github.com/trzsz/ssh_config"
 
@@ -543,11 +544,41 @@ Host ` + SSHJ + `
 					run()
 					return
 				}
+				if args.Ser2web > -1 {
+					wp := 8080
+					if args.Ser2web != 0 {
+						wp = args.Ser2web
+					}
+					t := time.AfterFunc(time.Second*2, func() {
+						dest := fmt.Sprintf("http://%s:%d", LH, wp)
+						opt := []string{}
+						if chrome := LocateChrome(); chrome == "" {
+							// opt = append(opt, "cmd", "/c", "start", "chrome")
+							browser.OpenURL(dest)
+							return
+						} else {
+							opt = append(opt, chrome)
+						}
+						cmd := exec.Command(opt[0], append(opt[1:], "--new-window", dest)...)
+						err := cmd.Run()
+						Println(cmd.Args, err)
+						if err != nil {
+							closer.Close()
+						}
+						closer.Bind(func() {
+							hostname, _ := os.Hostname()
+							cmd := exec.Command("taskkill", "/FI", "WINDOWTITLE eq "+serial+"@"+hostname+" - Google Chrome")
+							Println(cmd.Args, cmd.Run())
+						})
+					})
+					Println("s2w", s2w(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, nil, serial, wp, args.Baud, " <^C> ", Println))
+					t.Stop() // Если не успел стартануть то и не надо
+					return
+				}
 				setRaw(&once)
 				if lNear > 0 {
 					// dssh --2217 0
 					Println("rfc2217", rfc2217(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, serial, lNear, args.Baud, exit, Println))
-					return
 				}
 				// dssh --baud 9
 				Println("ser", ser(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, serial, args.Baud, exit, Println))
