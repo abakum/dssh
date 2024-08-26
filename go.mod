@@ -3,6 +3,7 @@ module github.com/abakum/dssh
 go 1.21
 
 // replace github.com/abakum/go-ser2net => ../go-ser2net
+
 // replace github.com/abakum/embed-encrypt => ../embed-encrypt
 // replace github.com/skeema/knownhosts => ../knownhosts
 replace github.com/abakum/dssh/internal/tool => ./internal/tool
@@ -14,7 +15,7 @@ require (
 	github.com/abakum/embed-encrypt v0.0.1
 	github.com/abakum/go-ansiterm v0.0.1
 	github.com/abakum/go-netstat v0.0.1
-	github.com/abakum/go-ser2net v0.0.2-0.20240822135214-6f6e521c3517
+	github.com/abakum/go-ser2net v0.0.2-0.20240826182033-1686e30a7e12
 	github.com/abakum/menu v0.0.2-lw
 	github.com/abakum/pageant v0.0.1
 	github.com/abakum/putty_hosts v0.0.1
@@ -32,6 +33,7 @@ require (
 	github.com/mattn/go-isatty v0.0.20
 	github.com/mattn/go-runewidth v0.0.15
 	github.com/mitchellh/go-homedir v1.1.0
+	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 	github.com/pquerna/otp v1.4.0
 	github.com/skeema/knownhosts v1.3.0
 	github.com/smeinecke/go-socks5 v0.0.0-20180316091040-4880db608f18
@@ -68,7 +70,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dchest/jsmin v0.0.0-20220218165748-59f39799265f // indirect
 	github.com/eiannone/keyboard v0.0.0-20220611211555-0d226195f203 // indirect
-	github.com/elazarl/go-bindata-assetfs v1.0.1 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/fatih/color v1.16.0 // indirect
 	github.com/fatih/structs v1.1.0 // indirect
@@ -88,7 +89,6 @@ require (
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/muesli/termenv v0.15.2 // indirect
 	github.com/ncruces/zenity v0.10.10 // indirect
-	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pkg/sftp v1.13.6 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
@@ -96,6 +96,7 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/sorenisanerd/gotty v1.5.1-0.20240325190845-c69d11d17d83 // indirect
+	github.com/unixist/go-ps v0.0.0-20160415204547-177148200605 // indirect
 	github.com/urfave/cli/v2 v2.24.2 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect

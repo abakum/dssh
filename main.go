@@ -57,6 +57,7 @@ import (
 	"github.com/pkg/browser"
 	"github.com/trzsz/go-arg"
 	"github.com/trzsz/ssh_config"
+	"github.com/unixist/go-ps"
 
 	. "github.com/abakum/dssh/tssh"
 	version "github.com/abakum/version/lib"
@@ -544,6 +545,7 @@ Host ` + SSHJ + `
 					run()
 					return
 				}
+				setRaw(&once)
 				if args.Ser2web > -1 {
 					wp := 8080
 					if args.Ser2web != 0 {
@@ -552,9 +554,27 @@ Host ` + SSHJ + `
 					t := time.AfterFunc(time.Second*2, func() {
 						dest := fmt.Sprintf("http://%s:%d", LH, wp)
 						opt := []string{}
+						after := time.Now()
+						before := after.Add(time.Second * 3)
+						Println(after.Unix())
+						taskKill := func() {
+							hostname, _ := os.Hostname()
+							cmd := exec.Command("taskkill", "/FI", "WINDOWTITLE eq "+serial+"@"+hostname+"*")
+							Println(cmd.Args, cmd.Run())
+						}
 						if chrome := LocateChrome(); chrome == "" {
 							// opt = append(opt, "cmd", "/c", "start", "chrome")
-							browser.OpenURL(dest)
+							switch {
+							case Windows:
+								cmd := exec.CommandContext(ctx, "rundll32.exe", "url.dll", "FileProtocolHandler", dest)
+								Println(cmd.Args, cmd.Run())
+								closer.Bind(taskKill)
+							default:
+								browser.OpenURL(dest)
+								closer.Bind(func() {
+									TimeDone(after, before)
+								})
+							}
 							return
 						} else {
 							opt = append(opt, chrome)
@@ -562,20 +582,21 @@ Host ` + SSHJ + `
 						cmd := exec.Command(opt[0], append(opt[1:], "--new-window", dest)...)
 						err := cmd.Run()
 						Println(cmd.Args, err)
-						if err != nil {
-							closer.Close()
+						if err == nil {
+							if Windows {
+								closer.Bind(taskKill)
+								return
+							}
+							closer.Bind(func() {
+								TimeDone(after, before)
+							})
 						}
-						closer.Bind(func() {
-							hostname, _ := os.Hostname()
-							cmd := exec.Command("taskkill", "/FI", "WINDOWTITLE eq "+serial+"@"+hostname+" - Google Chrome")
-							Println(cmd.Args, cmd.Run())
-						})
 					})
-					Println("s2w", s2w(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, nil, serial, wp, args.Baud, " <^C> ", Println))
+					Println("s2w", s2w(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, nil, serial, wp, args.Baud, " или ^C", Println))
 					t.Stop() // Если не успел стартануть то и не надо
 					return
 				}
-				setRaw(&once)
+				// setRaw(&once)
 				if lNear > 0 {
 					// dssh --2217 0
 					Println("rfc2217", rfc2217(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, serial, lNear, args.Baud, exit, Println))
@@ -1321,4 +1342,30 @@ func cygpath(path string) (string, error) {
 		return "", err
 	}
 	return strings.TrimSpace(string(out)), nil
+}
+
+func PidDone(pid int) {
+	Process, err := os.FindProcess(pid)
+	if err == nil {
+		Println("pid", pid, "done", Process.Kill())
+		return
+	}
+	Println("pid", pid, err)
+}
+
+func TimeDone(after, before time.Time) {
+	pes, err := ps.Processes()
+	if err != nil {
+		return
+	}
+	for _, p := range pes {
+		if p == nil {
+			continue
+		}
+		ct := p.CreationTime().Unix()
+		if ct >= after.Unix() && ct <= before.Unix() {
+			Println(p.Pid(), p.PPid(), p.Executable(), ct)
+			PidDone(p.Pid())
+		}
+	}
 }

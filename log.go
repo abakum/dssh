@@ -15,10 +15,10 @@ import (
 )
 
 var (
-	lef = log.New(Std, menu.BUG, log.Lshortfile)
-	le  = log.New(Std, menu.BUG, 0)
-	lf  = log.New(Std, menu.GT, log.Lshortfile)
-	l   = log.New(Std, menu.GT, 0)
+	lef = log.New(Std, "\r"+menu.BUG, log.Lshortfile)
+	le  = log.New(Std, "\r"+menu.BUG, 0)
+	lf  = log.New(Std, "\r"+menu.GT, log.Lshortfile)
+	l   = log.New(Std, "\r"+menu.GT, 0)
 	// lt  = log.New(Std, "\t", 0)
 )
 
@@ -27,7 +27,7 @@ func SetColor() {
 	bug, _, out := menu.BugGtOut()
 	lef.SetOutput(out)
 	le.SetOutput(out)
-	bug = strings.ReplaceAll(bug, menu.BUG, "<")
+	bug = "\r" + strings.ReplaceAll(bug, menu.BUG, "<")
 	lef.SetPrefix(bug)
 	le.SetPrefix(bug)
 }
@@ -61,10 +61,10 @@ func PrintOk(s string, err error) (ok bool) {
 	ok = err == nil
 	if ok {
 		l.Println(src(8), s, "ok")
-		fmt.Fprint(l.Writer(), "\r")
+		// fmt.Fprint(l.Writer(), "\r")
 	} else {
 		le.Println(src(8), s, err)
-		fmt.Fprint(le.Writer(), "\r")
+		// fmt.Fprint(le.Writer(), "\r")
 	}
 	return ok
 }
@@ -92,11 +92,11 @@ func Println_(v ...any) {
 	if ok {
 		lf.Output(2, fmt.Sprintln(anys...))
 		// l.Println(anys...)
-		fmt.Fprint(l.Writer(), "\r")
+		// fmt.Fprint(l.Writer(), "\r")
 	} else {
 		lef.Output(2, fmt.Sprintln(anys...))
 		// le.Println(anys...)
-		fmt.Fprint(le.Writer(), "\r")
+		// fmt.Fprint(le.Writer(), "\r")
 	}
 }
 
@@ -126,10 +126,10 @@ func PrintLn(level int, v ...any) {
 	}
 	if ok {
 		lf.Output(level, fmt.Sprintln(anys...))
-		fmt.Fprint(l.Writer(), "\r")
+		// fmt.Fprint(l.Writer(), "\r")
 	} else {
 		lef.Output(level, fmt.Sprintln(anys...))
-		fmt.Fprint(le.Writer(), "\r")
+		// fmt.Fprint(le.Writer(), "\r")
 	}
 }
 
@@ -163,7 +163,7 @@ func Print(v ...any) {
 func Fatal(err error) {
 	if err != nil {
 		le.Println(src(8), err)
-		fmt.Fprint(le.Writer(), "\r")
+		// fmt.Fprint(le.Writer(), "\r")
 		closer.Exit(1)
 	}
 }
@@ -173,7 +173,7 @@ func FatalOr(s string, cases ...bool) {
 	for _, c := range cases {
 		if c {
 			le.Println(src(8), s)
-			fmt.Fprint(le.Writer(), "\r")
+			// fmt.Fprint(le.Writer(), "\r")
 			closer.Exit(1)
 			break
 		}
@@ -188,7 +188,7 @@ func FatalAnd(s string, cases ...bool) {
 		}
 	}
 	le.Println(src(8), s)
-	fmt.Fprint(le.Writer(), "\r")
+	// fmt.Fprint(le.Writer(), "\r")
 	closer.Exit(1)
 }
 

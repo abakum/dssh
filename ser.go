@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"runtime"
 	"strconv"
@@ -181,7 +182,10 @@ func s2w(ctx context.Context, r io.Reader, chanByte chan byte, Serial string, wp
 		SetMode(w, ctx, r, chanByte, exit, wp, println...)
 	})
 
-	err := w.StartGoTTY(LH, wp, "")
+	log.SetPrefix("\r>" + log.Prefix())
+	log.SetFlags(log.Lshortfile)
+
+	err := w.StartGoTTY(LH, wp, "", false)
 	if err != nil {
 		t.Stop()
 		for _, p := range println {
@@ -386,10 +390,11 @@ func SetMode(w *ser2net.SerialWorker, ctx context.Context, r io.Reader, chanByte
 
 		defer func() {
 			w.Stop()
-			w.SerialClose()
+			// w.SerialClose()
 			for _, p := range println {
 				p(w.String() + "\r")
 			}
+			// closer.Close()
 		}()
 	}
 
@@ -433,6 +438,8 @@ func SetMode(w *ser2net.SerialWorker, ctx context.Context, r io.Reader, chanByte
 			mode := w.Mode()
 			msg := ""
 			switch b {
+			case '\n':
+				continue
 			case '.', CtrlC, CtrlZ:
 				return
 			case '6':
