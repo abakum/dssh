@@ -27,7 +27,7 @@ import (
 // signer ключ ЦС,
 // authorizedKeys замки разрешённых пользователей,
 // CertCheck имя разрешённого пользователя в сертификате.
-func server(h, p, repo string, signer ssh.Signer, Println func(v ...any), Print func(v ...any)) { //, authorizedKeys []gl.PublicKey
+func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Print func(v ...any)) { //, authorizedKeys []gl.PublicKey
 	Println(ToExitPress, "<^C>")
 
 	authorizedKeys := FileToAuthorized(filepath.Join(SshUserDir, "authorized_keys"), signer.PublicKey())
@@ -185,7 +185,7 @@ func server(h, p, repo string, signer ssh.Signer, Println func(v ...any), Print 
 					if serial == "" {
 						<-s.Context().Done()
 					} else {
-						err = s2n(s.Context(), s, nil, serial, args.Ser2net, args.Baud, " или <^C>", log.Println, Println)
+						err = s2n(s.Context(), s, nil, serial, s2, args.Ser2net, args.Baud, " или <^C>", log.Println, Println)
 						if err != nil {
 							log.Println("s2n", err, "\r")
 							Println("s2n", err)
@@ -194,7 +194,7 @@ func server(h, p, repo string, signer ssh.Signer, Println func(v ...any), Print 
 					return
 				}
 				// dssh -20 :
-				err = rfc2217(s.Context(), s, serial, args.Ser2net, args.Baud, args.Exit, log.Println, Println)
+				err = rfc2217(s.Context(), s, serial, s2, args.Ser2net, args.Baud, args.Exit, log.Println, Println)
 				log.Println("rfc2217", err, "\r")
 				Println("rfc2217", err)
 				return

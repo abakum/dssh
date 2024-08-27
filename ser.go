@@ -148,7 +148,7 @@ func getFirstSerial(isUSB bool, Baud string) (name, list string) {
 // SetMode использует r или chanByte для смены serial.Mode порта Serial.
 // На консоль клиента println[0] выводит протокол через ssh канал.
 // Локально println[1] выводит протокол.
-func s2n(ctx context.Context, r io.Reader, chanByte chan byte, Serial string, Ser2net int, Baud, exit string, println ...func(v ...any)) error {
+func s2n(ctx context.Context, r io.Reader, chanByte chan byte, Serial, host string, Ser2net int, Baud, exit string, println ...func(v ...any)) error {
 	if Serial == "" {
 		return ErrNotFoundFreeSerial
 	}
@@ -158,7 +158,7 @@ func s2n(ctx context.Context, r io.Reader, chanByte chan byte, Serial string, Se
 		SetMode(w, ctx, r, chanByte, exit, Ser2net, println...)
 	})
 
-	err := w.StartTelnet(LH, Ser2net)
+	err := w.StartTelnet(host, Ser2net)
 	if err != nil {
 		t.Stop()
 		for _, p := range println {
@@ -172,7 +172,7 @@ func s2n(ctx context.Context, r io.Reader, chanByte chan byte, Serial string, Se
 // SetMode использует r или chanByte для смены serial.Mode порта Serial.
 // На консоль клиента println[0] выводит протокол через ssh канал.
 // Локально println[1] выводит протокол.
-func s2w(ctx context.Context, r io.Reader, chanByte chan byte, Serial string, wp int, Baud, exit string, println ...func(v ...any)) error {
+func s2w(ctx context.Context, r io.Reader, chanByte chan byte, Serial, host string, wp int, Baud, exit string, println ...func(v ...any)) error {
 	if Serial == "" {
 		return ErrNotFoundFreeSerial
 	}
@@ -185,7 +185,7 @@ func s2w(ctx context.Context, r io.Reader, chanByte chan byte, Serial string, wp
 	log.SetPrefix("\r>" + log.Prefix())
 	log.SetFlags(log.Lshortfile)
 
-	err := w.StartGoTTY(LH, wp, "", false)
+	err := w.StartGoTTY(host, wp, "", false)
 	if err != nil {
 		t.Stop()
 		for _, p := range println {
@@ -354,13 +354,13 @@ func mess(esc, exit, namePort string) string {
 }
 
 // Запускает ser2net server на 127.0.0.1:Ser2net подключает к нему s через телнет клиента
-func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial string, Ser2net int, Baud, exit string, println ...func(v ...any)) error {
+func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial, host string, Ser2net int, Baud, exit string, println ...func(v ...any)) error {
 	chanByte := make(chan byte, B16)
 
 	if Serial != "" {
 		chanError := make(chan error, 1)
 		go func() {
-			chanError <- s2n(ctx, nil, chanByte, Serial, Ser2net, Baud, exit, println...)
+			chanError <- s2n(ctx, nil, chanByte, Serial, host, Ser2net, Baud, exit, println...)
 		}()
 		select {
 		case err := <-chanError:
@@ -369,7 +369,7 @@ func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial string, Ser2net i
 		}
 	}
 
-	conn, err := telnet.Dial(fmt.Sprintf("%s:%d", LH, Ser2net))
+	conn, err := telnet.Dial(fmt.Sprintf("%s:%d", host, Ser2net))
 	if err != nil {
 		return err
 	}

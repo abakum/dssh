@@ -176,8 +176,11 @@ func main() {
 	imag = strings.Split(filepath.Base(exe), ".")[0]
 
 	ips := ints()
+	if len(ips) == 0 {
+		Println(fmt.Errorf("not connected - нет сети"))
+		ips = append(ips, LH)
+	}
 	Println(build(Ver, ips))
-	// FatalOr("not connected - нет сети", len(ips) == 0)
 
 	anyKey, err := x509.ParsePKCS8PrivateKey(CA)
 	Fatal(err)
@@ -332,7 +335,7 @@ func main() {
 	if BS || lNear > 0 {
 		enableTrzsz = "no"
 		switch args.Destination {
-		case "", ".":
+		case "", LH, ".", "_", ips[0], "*", ips[len(ips)-1], ALL:
 			// Локальный последовательный порт
 			serial = getFirstUsbSerial(serial, args.Baud, Print)
 			if serial == "" {
@@ -349,7 +352,7 @@ func main() {
 		}
 		if lNear < 0 && (args.Putty || args.Telnet) {
 			switch args.Destination {
-			case "":
+			case "", LH:
 				if bin == TELNET {
 					if Win {
 						// dssh --putty --telnet --baud 9
@@ -375,7 +378,7 @@ func main() {
 
 	if lNear > -1 {
 		switch args.Destination {
-		case "":
+		case "", LH:
 		case ".":
 			lFar++
 			fallthrough
@@ -392,6 +395,7 @@ func main() {
 	closer.Bind(cancel)
 
 	u, h, p := ParseDestination(args.Destination) //tssh
+	s2, dial := dest2hd(h, ips...)
 	// `dssh` как `dssh -d`
 	// `foo` как `dssh foo@` как `dssh -dl foo`
 
@@ -427,24 +431,10 @@ Host ` + SSHJ + `
 			args.Argument = append(args.Argument, "--restart")
 		} else {
 			// BS || nearL > 0
-			if args.Destination != "" {
-				if args.Baud != "" {
-					args.Argument = append(args.Argument, "--baud", args.Baud)
-				}
-				if serial != "" {
-					args.Argument = append(args.Argument, "--path", serial)
-				}
-				if lFar > 0 {
-					args.Argument = append(args.Argument, "--2217", strconv.Itoa(lFar))
-				}
-				if exit != "" {
-					args.Argument = append(args.Argument, "--exit", exit)
-				}
-				if args.Putty {
-					args.Argument = append(args.Argument, "--putty")
-				}
-			} else {
+			switch args.Destination {
+			case "", LH, "_", ips[0], "*", ips[len(ips)-1], ALL:
 				// Локальная последовательная консоль
+				// Println("Local serial console - Локальная последовательная консоль")
 				if args.Putty || args.Telnet {
 					// dssh --putty --baud 9 это хуже чем `dssh --baud 9` так как нельзя сменить скорость
 					BaudRate := ser2net.BaudRate(strconv.Atoi(args.Baud))
@@ -487,7 +477,7 @@ Host ` + SSHJ + `
 
 									chanError := make(chan error, 1)
 									go func() {
-										chanError <- s2n(ctx, nil, chanByte, serial, lNear, args.Baud, "", Println)
+										chanError <- s2n(ctx, nil, chanByte, serial, s2, lNear, args.Baud, "", Println)
 									}()
 									select {
 									case err = <-chanError:
@@ -507,7 +497,7 @@ Host ` + SSHJ + `
 								}
 							}
 							go func() {
-								Println("s2n", s2n(ctx, nil, nil, serial, lNear, args.Baud, "", Println))
+								Println("s2n", s2n(ctx, nil, nil, serial, s2, lNear, args.Baud, "", Println))
 								closer.Close()
 							}()
 						}
@@ -524,7 +514,7 @@ Host ` + SSHJ + `
 								closer.Close()
 							})
 							setRaw(&once)
-							Println("s2n", s2n(ctx, os.Stdin, nil, serial, lNear, args.Baud, " или <^C>", Println))
+							Println("s2n", s2n(ctx, os.Stdin, nil, serial, s2, lNear, args.Baud, " или <^C>", Println))
 							t.Stop() // Если не успел стартануть то и не надо
 							return
 						}
@@ -552,7 +542,7 @@ Host ` + SSHJ + `
 						wp = args.Ser2web
 					}
 					t := time.AfterFunc(time.Second*2, func() {
-						dest := fmt.Sprintf("http://%s:%d", LH, wp)
+						dest := fmt.Sprintf("http://%s:%d", dial, wp)
 						opt := []string{}
 						after := time.Now()
 						before := after.Add(time.Second * 3)
@@ -592,18 +582,34 @@ Host ` + SSHJ + `
 							})
 						}
 					})
-					Println("s2w", s2w(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, nil, serial, wp, args.Baud, " или ^C", Println))
+					Println("s2w", s2w(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, nil, serial, s2, wp, args.Baud, " или ^C", Println))
 					t.Stop() // Если не успел стартануть то и не надо
 					return
 				}
 				// setRaw(&once)
 				if lNear > 0 {
 					// dssh --2217 0
-					Println("rfc2217", rfc2217(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, serial, lNear, args.Baud, exit, Println))
+					Println("rfc2217", rfc2217(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, serial, s2, lNear, args.Baud, exit, Println))
 				}
 				// dssh --baud 9
 				Println("ser", ser(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, serial, args.Baud, exit, Println))
 				return
+			default:
+				if args.Baud != "" {
+					args.Argument = append(args.Argument, "--baud", args.Baud)
+				}
+				if serial != "" {
+					args.Argument = append(args.Argument, "--path", serial)
+				}
+				if lFar > 0 {
+					args.Argument = append(args.Argument, "--2217", strconv.Itoa(lFar))
+				}
+				if exit != "" {
+					args.Argument = append(args.Argument, "--exit", exit)
+				}
+				if args.Putty {
+					args.Argument = append(args.Argument, "--putty")
+				}
 			}
 		}
 	}
@@ -650,11 +656,11 @@ Host ` + SSHJ + `
 	case ".", repo: // `dssh .` как `dssh dssh` или `foo -l dssh .` как `foo -l dssh dssh`
 		args.Destination = repo
 		args.LoginName = "_"
-	case "*", "_":
+	case "*", ALL, ips[len(ips)-1], "_", ips[0]:
 		daemon = true
 	default:
 		switch h {
-		case "*", "_":
+		case "*", ALL, ips[len(ips)-1], "_", ips[0]:
 			daemon = true
 		default:
 			daemon = h+p == ""
@@ -662,19 +668,20 @@ Host ` + SSHJ + `
 	}
 	if args.Daemon || !cli && daemon {
 		args.Daemon = true
-		hh := ""
-		switch h {
-		case "":
-			h = LH
-		case "*":
-			h = ALL
-			hh = ips[len(ips)-1]
-		case "_":
-			h = ips[0]
-		}
-		if hh == "" {
-			hh = h
-		}
+		hh := dial
+		h = s2
+		// switch h {
+		// case "", LH:
+		// 	h = LH
+		// case "*", ips[len(ips)-1], ALL:
+		// 	h = ALL
+		// 	hh = ips[len(ips)-1]
+		// case "_", ips[0]:
+		// 	h = ips[0]
+		// }
+		// if hh == "" {
+		// 	hh = h
+		// }
 		if p == "" {
 			p = LISTEN
 			if args.Port != 0 {
@@ -729,7 +736,7 @@ Host ` + SSHJ + `
 		}()
 		for {
 			Println(fmt.Sprintf("%s daemon waiting on - сервер ожидает на %s:%s", repo, hh, p))
-			server(h, p, repo, signer, Println, Print)
+			server(h, p, repo, s2, signer, Println, Print)
 			winssh.KidsDone(os.Getpid())
 			Println("server has been stopped - сервер остановлен")
 			time.Sleep(TOR)
@@ -1367,5 +1374,18 @@ func TimeDone(after, before time.Time) {
 			Println(p.Pid(), p.PPid(), p.Executable(), ct)
 			PidDone(p.Pid())
 		}
+	}
+}
+
+func dest2hd(Destination string, ips ...string) (host, dial string) {
+	switch Destination {
+	case "_", ips[0]:
+		return ips[0], ips[0]
+	case "*", ips[len(ips)-1], ALL:
+		return ALL, ips[len(ips)-1]
+	case "", LH:
+		return LH, LH
+	default:
+		return Destination, Destination
 	}
 }

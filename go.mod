@@ -43,6 +43,7 @@ require (
 	github.com/trzsz/promptui v0.10.7
 	github.com/trzsz/ssh_config v1.3.6
 	github.com/trzsz/trzsz-go v1.1.7
+	github.com/unixist/go-ps v0.0.0-20160415204547-177148200605
 	github.com/xlab/closer v1.1.0
 	go.bug.st/serial v1.6.2
 	golang.org/x/crypto v0.24.0
@@ -96,7 +97,6 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/sorenisanerd/gotty v1.5.1-0.20240325190845-c69d11d17d83 // indirect
-	github.com/unixist/go-ps v0.0.0-20160415204547-177148200605 // indirect
 	github.com/urfave/cli/v2 v2.24.2 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
