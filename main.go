@@ -103,6 +103,7 @@ const (
 	TELNET   = "telnet"
 	PLINK    = "plink"
 	RFC2217  = 22170
+	WEB2217  = 2280
 )
 
 var (
@@ -300,11 +301,6 @@ func main() {
 		Println(fmt.Errorf("not found - не найдены PuTTY, plink"))
 	}
 
-	lNear := args.Ser2net
-	if lNear == 0 {
-		lNear = RFC2217
-	}
-
 	djh := ""
 	djp := ""
 	if args.DirectJump != "" {
@@ -330,9 +326,16 @@ func main() {
 		}
 	}
 
+	nNear := portOB(args.Ser2net, RFC2217)
+	wNear := portOB(args.Ser2web, WEB2217)
+	u, h, p := ParseDestination(args.Destination) //tssh
+	s2, dial := dest2hd(h, ips...)
+	nFar := near2far(nNear, &args, s2)
+	wFar := near2far(wNear, &args, s2)
+
 	serial := args.Serial
 	BS := args.Baud != "" || serial != ""
-	if BS || lNear > 0 {
+	if BS || nNear > 0 || wNear > 0 {
 		enableTrzsz = "no"
 		switch args.Destination {
 		case "", LH, ".", "_", ips[0], "*", ips[len(ips)-1], ALL:
@@ -340,50 +343,41 @@ func main() {
 			serial = getFirstUsbSerial(serial, args.Baud, Print)
 			if serial == "" {
 				Println(ErrNotFoundFreeSerial)
-				Println("we will try to use RFC2217 - будем пробовать использовать RFC2217")
-				if lNear < 0 {
+				s := "we will try to use RFC2217 over - будем пробовать использовать RFC2217 через"
+				if nNear < 0 {
 					// dssh --baud 9
 					// dssh --path com3
-					lNear = RFC2217
+					nNear = RFC2217
+					Println(fmt.Sprintf("%s telnet://%s:%d", s, s2, nNear))
+				} else if wNear > 0 {
+					Println(fmt.Sprintf("%s http://%s:%d", s, s2, wNear))
 				}
 			}
 		default:
 			usePuTTY = false
 		}
-		if lNear < 0 && (args.Putty || args.Telnet) {
+		if nNear < 0 && (args.Putty || args.Telnet) {
 			switch args.Destination {
 			case "", LH:
 				if bin == TELNET {
 					if Win {
 						// dssh --putty --telnet --baud 9
 						// dssh --telnet --baud 9
-						lNear = RFC2217
+						nNear = RFC2217
 					} else {
 						// dssh --putty --telnet --baud 9 --unix
 						// dssh --telnet --baud 9 --unix
 						MICROCOM = exec.Command("busybox", "microcom", "--help").Run() == nil
 						if !MICROCOM {
-							lNear = RFC2217
+							nNear = RFC2217
 						}
 					}
 				}
 			default:
 				// dssh --putty --baud 9 :
 				// dssh --putty --path com3 :
-				lNear = RFC2217
+				nNear = RFC2217
 			}
-		}
-	}
-	lFar := lNear
-
-	if lNear > -1 {
-		switch args.Destination {
-		case "", LH:
-		case ".":
-			lFar++
-			fallthrough
-		default:
-			args.LocalForward.UnmarshalText([]byte(fmt.Sprintf("%d:%s:%d", lNear, LH, lFar)))
 		}
 	}
 
@@ -394,8 +388,6 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	closer.Bind(cancel)
 
-	u, h, p := ParseDestination(args.Destination) //tssh
-	s2, dial := dest2hd(h, ips...)
 	// `dssh` как `dssh -d`
 	// `foo` как `dssh foo@` как `dssh -dl foo`
 
@@ -417,7 +409,7 @@ Host ` + SSHJ + `
  PasswordAuthentication no
  ProxyJump ` + u + `@` + JumpHost + `
  EnableTrzsz ` + enableTrzsz
-	if args.Restart || BS || lNear > 0 {
+	if args.Restart || BS || nNear > 0 || wNear > 0 {
 		// CGI
 		cli = true
 		args.Command = repo
@@ -439,9 +431,9 @@ Host ` + SSHJ + `
 					// dssh --putty --baud 9 это хуже чем `dssh --baud 9` так как нельзя сменить скорость
 					BaudRate := ser2net.BaudRate(strconv.Atoi(args.Baud))
 					opt := fmt.Sprintln("-serial", serial, "-sercfg", fmt.Sprintf("%d,8,1,N,N", BaudRate))
-					if lNear > 0 {
+					if nNear > 0 {
 						// dssh --putty --2217 0
-						opt = optTelnet(bin == TELNET, lNear)
+						opt = optTelnet(bin == TELNET, nNear)
 					} else if MICROCOM {
 						opt = fmt.Sprintln("microcom", "-s", BaudRate, serial)
 						execPath = BUSYBOX
@@ -457,7 +449,7 @@ Host ` + SSHJ + `
 						// dssh --unix --putty --baud 9
 						cmd.Stdout = os.Stdout
 						cmd.Stderr = os.Stdout
-						if lNear > 0 {
+						if nNear > 0 {
 							if bin == TELNET {
 								// dssh --telnet --unix --putty --2217 0
 								time.AfterFunc(time.Second*2, func() {
@@ -477,7 +469,7 @@ Host ` + SSHJ + `
 
 									chanError := make(chan error, 1)
 									go func() {
-										chanError <- s2n(ctx, nil, chanByte, serial, s2, lNear, args.Baud, "", Println)
+										chanError <- s2n(ctx, nil, chanByte, serial, s2, nNear, args.Baud, "", Println)
 									}()
 									select {
 									case err = <-chanError:
@@ -497,7 +489,7 @@ Host ` + SSHJ + `
 								}
 							}
 							go func() {
-								Println("s2n", s2n(ctx, nil, nil, serial, s2, lNear, args.Baud, "", Println))
+								Println("s2n", s2n(ctx, nil, nil, serial, s2, nNear, args.Baud, "", Println))
 								closer.Close()
 							}()
 						}
@@ -506,7 +498,7 @@ Host ` + SSHJ + `
 						// Win
 						// dssh --putty --baud 9
 						notPutty(bin, cmd) // dssh --telnet -putty --2217 0
-						if lNear > 0 {
+						if nNear > 0 {
 							// dssh --putty --2217 0
 							// dssh --telnet --putty --baud 0
 							t := time.AfterFunc(time.Second*2, func() {
@@ -514,7 +506,7 @@ Host ` + SSHJ + `
 								closer.Close()
 							})
 							setRaw(&once)
-							Println("s2n", s2n(ctx, os.Stdin, nil, serial, s2, lNear, args.Baud, " или <^C>", Println))
+							Println("s2n", s2n(ctx, os.Stdin, nil, serial, s2, nNear, args.Baud, " или <^C>", Println))
 							t.Stop() // Если не успел стартануть то и не надо
 							return
 						}
@@ -536,60 +528,23 @@ Host ` + SSHJ + `
 					return
 				}
 				setRaw(&once)
-				if args.Ser2web > -1 {
-					wp := 8080
-					if args.Ser2web != 0 {
-						wp = args.Ser2web
-					}
+				if wNear > -1 {
 					t := time.AfterFunc(time.Second*2, func() {
-						dest := fmt.Sprintf("http://%s:%d", dial, wp)
-						opt := []string{}
-						after := time.Now()
-						before := after.Add(time.Second * 3)
-						Println(after.Unix())
-						taskKill := func() {
-							hostname, _ := os.Hostname()
-							cmd := exec.Command("taskkill", "/FI", "WINDOWTITLE eq "+serial+"@"+hostname+"*")
-							Println(cmd.Args, cmd.Run())
-						}
-						if chrome := LocateChrome(); chrome == "" {
-							// opt = append(opt, "cmd", "/c", "start", "chrome")
-							switch {
-							case Windows:
-								cmd := exec.CommandContext(ctx, "rundll32.exe", "url.dll", "FileProtocolHandler", dest)
-								Println(cmd.Args, cmd.Run())
-								closer.Bind(taskKill)
-							default:
-								browser.OpenURL(dest)
-								closer.Bind(func() {
-									TimeDone(after, before)
-								})
-							}
+						dest := fmt.Sprintf("http://%s:%d", dial, wFar)
+						if OverSSH {
+							Println("On remote side open - Открой на дальней стороне", dest)
 							return
-						} else {
-							opt = append(opt, chrome)
 						}
-						cmd := exec.Command(opt[0], append(opt[1:], "--new-window", dest)...)
-						err := cmd.Run()
-						Println(cmd.Args, err)
-						if err == nil {
-							if Windows {
-								closer.Bind(taskKill)
-								return
-							}
-							closer.Bind(func() {
-								TimeDone(after, before)
-							})
-						}
+						browse(dest, serial, ctx)
 					})
-					Println("s2w", s2w(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, nil, serial, s2, wp, args.Baud, " или ^C", Println))
+					Println("s2w", s2w(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, nil, serial, s2, wNear, args.Baud, " или ^C", Println))
 					t.Stop() // Если не успел стартануть то и не надо
 					return
 				}
 				// setRaw(&once)
-				if lNear > 0 {
+				if nNear > 0 {
 					// dssh --2217 0
-					Println("rfc2217", rfc2217(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, serial, s2, lNear, args.Baud, exit, Println))
+					Println("rfc2217", rfc2217(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, serial, s2, nNear, args.Baud, exit, Println))
 				}
 				// dssh --baud 9
 				Println("ser", ser(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, serial, args.Baud, exit, Println))
@@ -601,8 +556,11 @@ Host ` + SSHJ + `
 				if serial != "" {
 					args.Argument = append(args.Argument, "--path", serial)
 				}
-				if lFar > 0 {
-					args.Argument = append(args.Argument, "--2217", strconv.Itoa(lFar))
+				if nFar > 0 {
+					args.Argument = append(args.Argument, "--2217", strconv.Itoa(nFar))
+				}
+				if wFar > 0 {
+					args.Argument = append(args.Argument, "--web", strconv.Itoa(wFar))
 				}
 				if exit != "" {
 					args.Argument = append(args.Argument, "--exit", exit)
@@ -735,8 +693,8 @@ Host ` + SSHJ + `
 			}
 		}()
 		for {
-			Println(fmt.Sprintf("%s daemon waiting on - сервер ожидает на %s:%s", repo, hh, p))
-			server(h, p, repo, s2, signer, Println, Print)
+			Println(fmt.Sprintf("%s daemon waiting on - сервер ожидает на %s:%s", repo, h, p))
+			server(s2, p, repo, s2, signer, Println, Print)
 			winssh.KidsDone(os.Getpid())
 			Println("server has been stopped - сервер остановлен")
 			time.Sleep(TOR)
@@ -753,10 +711,10 @@ Host ` + SSHJ + `
 	if args.Putty || args.Telnet || usePuTTY {
 		opt := ""
 		if args.Destination != "" {
-			if lNear > 0 {
+			if nNear > 0 {
 				// dssh --putty --2217 0 :
 				// dssh --unix --putty --2217 0 :
-				opt = optTelnet(bin == TELNET, lNear)
+				opt = optTelnet(bin == TELNET, nNear)
 			} else {
 				// dssh --putty  :
 				switch bin {
@@ -784,9 +742,9 @@ Host ` + SSHJ + `
 			PrintLn(3, cmd, err)
 			cmd.Wait()
 		}
-		if Win || lNear > 0 {
+		if Win || nNear > 0 {
 			notPutty(bin, cmd)
-			if lNear > 0 {
+			if nNear > 0 {
 				// dssh --putty --2217 0 :
 				// dssh --telnet --putty --2217 0 :
 				// dssh --putty --baud 9 :
@@ -796,7 +754,7 @@ Host ` + SSHJ + `
 				// dssh --unix --putty --baud 9 :
 				// dssh --unix --telnet --putty --baud 9 :
 				if !OverSSH {
-					time.AfterFunc(time.Second*5, func() {
+					time.AfterFunc(TOW, func() {
 						run()
 						closer.Close()
 					})
@@ -829,8 +787,20 @@ Host ` + SSHJ + `
 	// dssh --baud 9 :
 	// dssh --2217 0 :
 	// Лучше чем `dssh --baud 9 :` - можно и скорость менять и с разных хостов управлять
-	if BS || lNear > 0 {
+	if BS || nNear > 0 || wNear > 0 {
 		setRaw(&once)
+		if wNear > 0 {
+			// dssh --web 0 :
+			// dssh --web 0 .
+			time.AfterFunc(time.Second*2, func() {
+				dest := fmt.Sprintf("http://%s:%d", dial, wFar)
+				if OverSSH {
+					Println("On remote side open - Открой на дальней стороне", dest)
+					return
+				}
+				browse(dest, serial, ctx)
+			})
+		}
 	} else if enableTrzsz == "no" || args.Destination == repo {
 		Println(ToExitPress, "<Enter><"+args.EscapeChar+"><.>")
 	}
@@ -1383,9 +1353,88 @@ func dest2hd(Destination string, ips ...string) (host, dial string) {
 		return ips[0], ips[0]
 	case "*", ips[len(ips)-1], ALL:
 		return ALL, ips[len(ips)-1]
-	case "", LH:
+	case "", ".", LH:
 		return LH, LH
 	default:
 		return Destination, Destination
 	}
+}
+
+func all2dial(host string) string {
+	if host == ALL {
+		return LH
+	}
+	return host
+}
+
+func portOB(opt, base int) int {
+	if opt >= 0 && opt <= 9 {
+		return base + opt
+	}
+	return opt
+}
+
+func near2far(lNear int, args *SshArgs, s2 string) (lFar int) {
+	lFar = lNear
+	if lNear > -1 {
+		switch args.Destination {
+		case "", LH:
+		case ".":
+			lFar++
+			fallthrough
+		default:
+			args.LocalForward.UnmarshalText([]byte(fmt.Sprintf("%d:%s:%d", lNear, s2, lFar)))
+		}
+	}
+	return
+}
+
+func browse(dest, serial string, ctx context.Context) {
+	opt := []string{}
+	after := time.Now()
+	before := after.Add(time.Second * 3)
+	// Println(after.Unix())
+	taskKill := func() {
+		hostname, _ := os.Hostname()
+		cmd := exec.Command("taskKill", "/fi", "windowTitle eq "+serial+"@"+hostname+"*")
+		Println(cmd.Args, cmd.Run())
+	}
+	if chrome := LocateChrome(); chrome == "" {
+		switch {
+		case Windows:
+			// opt = append(opt, "cmd", "/c", "start", dest)
+			cmd := exec.CommandContext(ctx, "rundll32.exe", "url.dll", "FileProtocolHandler", dest)
+			Println(cmd.Args, cmd.Run())
+			closer.Bind(taskKill)
+		default:
+			browser.OpenURL(dest)
+			closer.Bind(func() {
+				TimeDone(after, before)
+			})
+		}
+		return
+	} else {
+		opt = append(opt, chrome)
+	}
+	//--proxy-server="socks5://myproxy:8080"
+	//--host-resolver-rules="MAP * ~NOTFOUND , EXCLUDE myproxy"
+	// --process-per-site Не работает
+	cmd := exec.CommandContext(ctx, opt[0], append(opt[1:], "--new-window", dest)...)
+	err := cmd.Start()
+	Println("start", cmd.Args, err)
+	if err != nil {
+		return
+	}
+	err = cmd.Wait()
+	Println("wait", cmd.Args, err)
+	if err != nil {
+		return
+	}
+	if Windows {
+		closer.Bind(taskKill)
+		return
+	}
+	closer.Bind(func() {
+		TimeDone(after, before)
+	})
 }

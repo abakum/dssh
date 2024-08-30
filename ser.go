@@ -37,6 +37,7 @@ type cgiArgs struct {
 	Baud    string `arg:"-U,--baud" placeholder:"baUd" help:"set baud rate of serial console"`
 	Serial  string `arg:"-H,--path" placeholder:"patH" help:"device path (name for Windows) of serial console"`
 	Ser2net int    `arg:"-2,--2217" placeholder:"port" help:"RFC2217 telnet port for serial console over telnet" default:"-1"`
+	Ser2web int    `arg:"-8,--web" placeholder:"port" help:"web port for serial console over web" default:"-1"`
 	Putty   bool   `arg:"-u,--putty" help:"run PuTTY"`
 	Exit    string `arg:"--exit" help:"exit shortcut"`
 	Restart bool   `arg:"-r,--restart" help:"restart daemon"`
@@ -72,15 +73,17 @@ func ser(ctx context.Context, s io.ReadWriteCloser, Serial, Baud, exit string, p
 		}
 		return err
 	}
-	msg := fmt.Sprintf("%s opened - открыт\r", ser2net.Mode{Mode: mode, Name: Serial})
+	w.SetSerial(port)
+	msg := fmt.Sprintf("%s opened - открыт", w)
 	for _, p := range println {
 		p(msg)
 	}
-	w.SetSerial(port)
 
 	defer func() {
-		msg = fmt.Sprintf("%s closed - закрыт %v\r", ser2net.Mode{Mode: w.Mode(), Name: w.Name()}, err)
+
 		err = ser2net.SerialClose(port)
+
+		msg = fmt.Sprintf("%s closed - закрыт %v", w, w.SerialClose())
 		for _, p := range println {
 			p(msg)
 		}
@@ -144,7 +147,7 @@ func getFirstSerial(isUSB bool, Baud string) (name, list string) {
 	return
 }
 
-// Телнет сервер RFC2217 ждёт на порту Ser2net.
+// Телнет сервер RFC2217 ждёт на telnet://host:Ser2net.
 // SetMode использует r или chanByte для смены serial.Mode порта Serial.
 // На консоль клиента println[0] выводит протокол через ssh канал.
 // Локально println[1] выводит протокол.
@@ -154,16 +157,14 @@ func s2n(ctx context.Context, r io.Reader, chanByte chan byte, Serial, host stri
 	}
 	w, _ := ser2net.NewSerialWorker(ctx, Serial, ser2net.BaudRate(strconv.Atoi(Baud)))
 	go w.Worker()
-	t := time.AfterFunc(time.Second, func() {
+	t := time.AfterFunc(time.Millisecond*333, func() {
 		SetMode(w, ctx, r, chanByte, exit, Ser2net, println...)
 	})
 
 	err := w.StartTelnet(host, Ser2net)
-	if err != nil {
-		t.Stop()
-		for _, p := range println {
-			p(err, "\r")
-		}
+	t.Stop()
+	for _, p := range println {
+		p(err)
 	}
 	return err
 }
@@ -178,7 +179,7 @@ func s2w(ctx context.Context, r io.Reader, chanByte chan byte, Serial, host stri
 	}
 	w, _ := ser2net.NewSerialWorker(ctx, Serial, ser2net.BaudRate(strconv.Atoi(Baud)))
 	go w.Worker()
-	t := time.AfterFunc(time.Second, func() {
+	t := time.AfterFunc(time.Millisecond*333, func() {
 		SetMode(w, ctx, r, chanByte, exit, wp, println...)
 	})
 
@@ -186,11 +187,9 @@ func s2w(ctx context.Context, r io.Reader, chanByte chan byte, Serial, host stri
 	log.SetFlags(log.Lshortfile)
 
 	err := w.StartGoTTY(host, wp, "", false)
-	if err != nil {
-		t.Stop()
-		for _, p := range println {
-			p(err, "\r")
-		}
+	t.Stop()
+	for _, p := range println {
+		p(err)
 	}
 	return err
 }
@@ -353,7 +352,7 @@ func mess(esc, exit, namePort string) string {
 	)
 }
 
-// Запускает ser2net server на 127.0.0.1:Ser2net подключает к нему s через телнет клиента
+// Запускает ser2net server на telnet://host:Ser2net подключает к нему s через телнет клиента
 func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial, host string, Ser2net int, Baud, exit string, println ...func(v ...any)) error {
 	chanByte := make(chan byte, B16)
 
@@ -369,7 +368,7 @@ func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial, host string, Ser
 		}
 	}
 
-	conn, err := telnet.Dial(fmt.Sprintf("%s:%d", host, Ser2net))
+	conn, err := telnet.Dial(fmt.Sprintf("%s:%d", all2dial(host), Ser2net))
 	if err != nil {
 		return err
 	}
@@ -385,16 +384,15 @@ func SetMode(w *ser2net.SerialWorker, ctx context.Context, r io.Reader, chanByte
 	press := mess("", exit, w.Name())
 	if Ser2net > 0 {
 		for _, p := range println {
-			p(w.String() + "\r")
+			p(w)
 		}
 
 		defer func() {
 			w.Stop()
-			// w.SerialClose()
 			for _, p := range println {
-				p(w.String() + "\r")
+				p(w)
 			}
-			// closer.Close()
+
 		}()
 	}
 
@@ -486,7 +484,7 @@ func SetMode(w *ser2net.SerialWorker, ctx context.Context, r io.Reader, chanByte
 				continue
 			}
 			err := w.SetMode(&mode)
-			msg = fmt.Sprintf("%s %s %v\r", w, msg, err)
+			msg = fmt.Sprintf("%s %s %v", w, msg, err)
 			for _, p := range println {
 				p(msg)
 			}

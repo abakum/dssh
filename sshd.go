@@ -134,24 +134,30 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 		if err != nil {
 			return
 		}
+		nNear := args.Ser2net
+		wNear := args.Ser2web
 		switch {
 		case args.Restart:
 			caRW()
-		case args.Baud != "" || args.Serial != "" || args.Ser2net > 0:
+		case args.Baud != "" || args.Serial != "" || nNear > 0 || wNear > 0:
 			log.SetFlags(log.Lshortfile)
-			log.SetPrefix(">")
+			log.SetPrefix("\r>")
 			log.SetOutput(s.Stderr())
 			serial := getFirstUsbSerial(args.Serial, args.Baud, log.Print)
 			if serial == "" {
 				Println(ErrNotFoundFreeSerial)
-				Println("we will try to use RFC2217 - будем пробовать использовать RFC2217")
-				if args.Ser2net < 0 {
-					args.Ser2net = RFC2217
+				s := "we will try to use RFC2217 over - будем пробовать использовать RFC2217 через"
+				if nNear < 0 {
+					nNear = RFC2217
+					Println(fmt.Sprintf("%s telnet://%s:%d", s, s2, nNear))
+				} else if wNear > 0 {
+					Println(fmt.Sprintf("%s http://%s:%d", s, s2, wNear))
 				}
 			}
-			if args.Ser2net > 0 {
+			if nNear > 0 {
+				p2 := portOB(nNear, RFC2217)
 				if args.Putty {
-					// dssh -P20 :
+					// dssh -u20 :
 					// Только для Виндовс.
 					// Управление режимами последовательного порта через ssh.
 					// Приём передача через putty, plink, telnet.
@@ -160,7 +166,7 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 						execPath, bin, err := look(PUTTY, PLINK, TELNET)
 						Println(execPath, bin, err)
 						if err == nil {
-							opt := optTelnet(bin == TELNET, args.Ser2net)
+							opt := optTelnet(bin == TELNET, p2)
 							cmd := exec.CommandContext(s.Context(), execPath, strings.Fields(opt)...)
 							notPutty(bin, cmd)
 							err = cmd.Start()
@@ -185,22 +191,34 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 					if serial == "" {
 						<-s.Context().Done()
 					} else {
-						err = s2n(s.Context(), s, nil, serial, s2, args.Ser2net, args.Baud, " или <^C>", log.Println, Println)
-						if err != nil {
-							log.Println("s2n", err, "\r")
-							Println("s2n", err)
-						}
+						err = s2n(s.Context(), s, nil, serial, s2, p2, args.Baud, " или <^C>", log.Println, Println)
+						log.Println("s2n", err)
+						Println("s2n", err)
 					}
 					return
 				}
 				// dssh -20 :
-				err = rfc2217(s.Context(), s, serial, s2, args.Ser2net, args.Baud, args.Exit, log.Println, Println)
-				log.Println("rfc2217", err, "\r")
+				err = rfc2217(s.Context(), s, serial, s2, p2, args.Baud, args.Exit, log.Println, Println)
+				log.Println("rfc2217", err)
 				Println("rfc2217", err)
 				return
 			}
+			if wNear > 0 {
+				// dssh -80 :
+				p2 := portOB(wNear, WEB2217)
+				if serial == "" {
+					<-s.Context().Done()
+				} else {
+					err = s2w(s.Context(), s, nil, serial, s2, p2, args.Baud, " или <^C>", log.Println, Println)
+					if err != nil {
+						log.Println("s2w", err)
+						Println("s2w", err)
+					}
+				}
+				return
+			}
 			err = ser(s.Context(), s, serial, args.Baud, args.Exit, log.Println, Println)
-			log.Println("ser", err, "\r")
+			log.Println("ser", err)
 			Println("ser", err)
 		}
 	})
