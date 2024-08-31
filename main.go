@@ -54,6 +54,7 @@ import (
 	"github.com/abakum/winssh"
 	"github.com/containerd/console"
 	"github.com/mattn/go-isatty"
+	"github.com/ncruces/rethinkraw/pkg/chrome"
 	"github.com/pkg/browser"
 	"github.com/trzsz/go-arg"
 	"github.com/trzsz/ssh_config"
@@ -473,7 +474,7 @@ Host ` + SSHJ + `
 									}()
 									select {
 									case err = <-chanError:
-										Println("s2n", err)
+										Println(err)
 									case <-time.After(time.Second):
 										err := cmd.Start()
 										Println(cmd, err)
@@ -489,7 +490,7 @@ Host ` + SSHJ + `
 								}
 							}
 							go func() {
-								Println("s2n", s2n(ctx, nil, nil, serial, s2, nNear, args.Baud, "", Println))
+								s2n(ctx, nil, nil, serial, s2, nNear, args.Baud, "", Println)
 								closer.Close()
 							}()
 						}
@@ -506,7 +507,7 @@ Host ` + SSHJ + `
 								closer.Close()
 							})
 							setRaw(&once)
-							Println("s2n", s2n(ctx, os.Stdin, nil, serial, s2, nNear, args.Baud, " или <^C>", Println))
+							s2n(ctx, os.Stdin, nil, serial, s2, nNear, args.Baud, " или <^C>", Println)
 							t.Stop() // Если не успел стартануть то и не надо
 							return
 						}
@@ -535,19 +536,19 @@ Host ` + SSHJ + `
 							Println("On remote side open - Открой на дальней стороне", dest)
 							return
 						}
-						browse(dest, serial, ctx)
+						browse(ctx, dest)
 					})
-					Println("s2w", s2w(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, nil, serial, s2, wNear, args.Baud, " или ^C", Println))
+					s2w(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, nil, serial, s2, wNear, args.Baud, " или ^C", Println)
 					t.Stop() // Если не успел стартануть то и не надо
 					return
 				}
 				// setRaw(&once)
 				if nNear > 0 {
 					// dssh --2217 0
-					Println("rfc2217", rfc2217(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, serial, s2, nNear, args.Baud, exit, Println))
+					rfc2217(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, serial, s2, nNear, args.Baud, exit, Println)
 				}
 				// dssh --baud 9
-				Println("ser", ser(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, serial, args.Baud, exit, Println))
+				ser(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, serial, args.Baud, exit, Println)
 				return
 			default:
 				if args.Baud != "" {
@@ -695,7 +696,7 @@ Host ` + SSHJ + `
 		for {
 			Println(fmt.Sprintf("%s daemon waiting on - сервер ожидает на %s:%s", repo, h, p))
 			server(s2, p, repo, s2, signer, Println, Print)
-			winssh.KidsDone(os.Getpid())
+			KidsDone(os.Getpid())
 			Println("server has been stopped - сервер остановлен")
 			time.Sleep(TOR)
 		}
@@ -798,7 +799,7 @@ Host ` + SSHJ + `
 					Println("On remote side open - Открой на дальней стороне", dest)
 					return
 				}
-				browse(dest, serial, ctx)
+				browse(ctx, dest)
 			})
 		}
 	} else if enableTrzsz == "no" || args.Destination == repo {
@@ -933,7 +934,9 @@ func ints() (ips []string) {
 }
 
 func cleanup() {
-	winssh.KidsDone(os.Getpid())
+	// winssh.KidsDone(os.Getpid())
+	time.Sleep(time.Millisecond * 111)
+	KidsDone(os.Getpid())
 	Println("cleanup done")
 	// if !IsConsole() {
 	// 	menu.PressAnyKey("Press any key - Нажмите любую клавишу", TOW)
@@ -1341,7 +1344,7 @@ func TimeDone(after, before time.Time) {
 		}
 		ct := p.CreationTime().Unix()
 		if ct >= after.Unix() && ct <= before.Unix() {
-			Println(p.Pid(), p.PPid(), p.Executable(), ct)
+			Println(p.Pid(), p.PPid(), p.Executable(), p.CreationTime())
 			PidDone(p.Pid())
 		}
 	}
@@ -1389,52 +1392,61 @@ func near2far(lNear int, args *SshArgs, s2 string) (lFar int) {
 	return
 }
 
-func browse(dest, serial string, ctx context.Context) {
-	opt := []string{}
-	after := time.Now()
-	before := after.Add(time.Second * 3)
-	// Println(after.Unix())
-	taskKill := func() {
-		hostname, _ := os.Hostname()
-		cmd := exec.Command("taskKill", "/fi", "windowTitle eq "+serial+"@"+hostname+"*")
-		Println(cmd.Args, cmd.Run())
+func MkdirTemp(path string) (name string, err error) {
+	name = filepath.Join(os.TempDir(), path)
+	err = os.Mkdir(name, 0700)
+	if os.IsExist(err) {
+		err = nil
 	}
-	if chrome := LocateChrome(); chrome == "" {
-		switch {
-		case Windows:
-			// opt = append(opt, "cmd", "/c", "start", dest)
-			cmd := exec.CommandContext(ctx, "rundll32.exe", "url.dll", "FileProtocolHandler", dest)
-			Println(cmd.Args, cmd.Run())
-			closer.Bind(taskKill)
-		default:
-			browser.OpenURL(dest)
-			closer.Bind(func() {
-				TimeDone(after, before)
-			})
+	return
+}
+
+func browse(ctx context.Context, dest string) {
+	if !chrome.IsInstalled() {
+		Println("Install chrome")
+		after := time.Now()
+		before := after.Add(time.Second * 3)
+		browser.OpenURL(dest)
+		closer.Bind(func() {
+			TimeDone(after, before)
+		})
+		return
+	}
+	temp, err := MkdirTemp(repo)
+	if err != nil {
+		Println(temp, err)
+		return
+	}
+	chromeCmd := chrome.Command(dest, temp, temp)
+	err = chromeCmd.Start()
+	if err != nil {
+		return
+	}
+	go func() {
+		<-ctx.Done()
+		chromeCmd.Close()
+	}()
+	err = chromeCmd.Wait()
+	if err != nil {
+		return
+	}
+	closer.Close()
+}
+
+func KidsDone(ppid int) {
+	if ppid < 1 {
+		return
+	}
+	pes, err := ps.Processes()
+	if err != nil {
+		return
+	}
+	for _, p := range pes {
+		if p == nil {
+			continue
 		}
-		return
-	} else {
-		opt = append(opt, chrome)
+		if p.PPid() == ppid && p.Pid() != ppid {
+			PidDone(p.Pid())
+		}
 	}
-	//--proxy-server="socks5://myproxy:8080"
-	//--host-resolver-rules="MAP * ~NOTFOUND , EXCLUDE myproxy"
-	// --process-per-site Не работает
-	cmd := exec.CommandContext(ctx, opt[0], append(opt[1:], "--new-window", dest)...)
-	err := cmd.Start()
-	Println("start", cmd.Args, err)
-	if err != nil {
-		return
-	}
-	err = cmd.Wait()
-	Println("wait", cmd.Args, err)
-	if err != nil {
-		return
-	}
-	if Windows {
-		closer.Bind(taskKill)
-		return
-	}
-	closer.Bind(func() {
-		TimeDone(after, before)
-	})
 }

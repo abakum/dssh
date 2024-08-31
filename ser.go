@@ -8,7 +8,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -163,8 +162,10 @@ func s2n(ctx context.Context, r io.Reader, chanByte chan byte, Serial, host stri
 
 	err := w.StartTelnet(host, Ser2net)
 	t.Stop()
-	for _, p := range println {
-		p(err)
+	if err != nil {
+		for _, p := range println {
+			p(err)
+		}
 	}
 	return err
 }
@@ -188,8 +189,10 @@ func s2w(ctx context.Context, r io.Reader, chanByte chan byte, Serial, host stri
 
 	err := w.StartGoTTY(host, wp, "", false)
 	t.Stop()
-	for _, p := range println {
-		p(err)
+	if err != nil {
+		for _, p := range println {
+			p(err)
+		}
 	}
 	return err
 }
@@ -490,47 +493,4 @@ func SetMode(w *ser2net.SerialWorker, ctx context.Context, r io.Reader, chanByte
 			}
 		}
 	}
-}
-
-func LocateChrome() string {
-
-	var paths []string
-	switch runtime.GOOS {
-	case "darwin":
-		paths = []string{
-			"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-			"/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary",
-			"/Applications/Chromium.app/Contents/MacOS/Chromium",
-			"/usr/bin/google-chrome-stable",
-			"/usr/bin/google-chrome",
-			"/usr/bin/chromium",
-			"/usr/bin/chromium-browser",
-		}
-	case "windows":
-		paths = []string{
-			os.Getenv("LocalAppData") + "/Google/Chrome/Application/chrome.exe",
-			os.Getenv("ProgramFiles") + "/Google/Chrome/Application/chrome.exe",
-			os.Getenv("ProgramFiles(x86)") + "/Google/Chrome/Application/chrome.exe",
-			os.Getenv("LocalAppData") + "/Chromium/Application/chrome.exe",
-			os.Getenv("ProgramFiles") + "/Chromium/Application/chrome.exe",
-			os.Getenv("ProgramFiles(x86)") + "/Chromium/Application/chrome.exe",
-			os.Getenv("ProgramFiles(x86)") + "/Microsoft/Edge/Application/msedge.exe",
-		}
-	default:
-		paths = []string{
-			"/usr/bin/google-chrome-stable",
-			"/usr/bin/google-chrome",
-			"/usr/bin/chromium",
-			"/usr/bin/chromium-browser",
-			"/snap/bin/chromium",
-		}
-	}
-
-	for _, path := range paths {
-		if _, err := os.Stat(path); os.IsNotExist(err) {
-			continue
-		}
-		return path
-	}
-	return ""
 }

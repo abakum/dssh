@@ -375,6 +375,60 @@ func established(ctx context.Context, dest string, exit bool, Print func(v ...an
 	}
 }
 
+// Коллекционируем Process.Pid и завершаем
+func tcp2pids(accept netstat.AcceptFn, pids map[int]string) {
+	tabs, err := netstat.TCPSocks(accept)
+	if err != nil {
+		return
+	}
+	if len(tabs) == 0 {
+		Println("tcp2pids quit")
+		pids[0] = ""
+		return
+	}
+	for _, tab := range tabs {
+		if tab.Process != nil {
+			pids[tab.Process.Pid] = tab.String()
+		}
+	}
+	// Нет подключения - конец работе
+	Println("tcp2pids", pids)
+}
+
+// Что там с подключениями к dest
+func remoteAddr2pids(ctx context.Context, dest string) (ok bool) {
+	pids := make(map[int]string)
+	t := time.NewTicker(TOW)
+	defer func() {
+		t.Stop()
+		// Завершаем браузеры
+		for k, v := range pids {
+			if k == 0 {
+				continue
+			}
+			Println(v)
+			PidDone(k)
+		}
+	}()
+	for {
+		select {
+		case <-t.C:
+			tcp2pids(func(s *netstat.SockTabEntry) bool {
+				if s.State == netstat.Established && s.RemoteAddr.String() == dest {
+					return true
+				}
+				return false
+			}, pids)
+			_, ok = pids[0]
+			if ok {
+				return
+			}
+		case <-ctx.Done():
+			return false
+		}
+	}
+}
+
 // Согласно фильтру accept возвращает количество i и список s
 func netSt(accept netstat.AcceptFn) (i int, s string) {
 	tabs, err := netstat.TCPSocks(accept)
