@@ -16,8 +16,6 @@ github.com/abakum/go-console v0.0.1 h1:AMnxwQnzg4j5J8gliXdvdaFzNPC4km/N2pXt0kQfg
 github.com/abakum/go-console v0.0.1/go.mod h1:WXaFNcb4jHcrjFo8/A/Vbd6Zevu/B2LiOf5NPCMuF5w=
 github.com/abakum/go-netstat v0.0.1 h1:gwNEYQFctds8x26jaebGbjlfkxoKM7kd9a/O+HG9lV4=
 github.com/abakum/go-netstat v0.0.1/go.mod h1:VDmPFexMx7WdPUz+8/esyAIL4VIT13CSUmbQQZV420c=
-github.com/abakum/go-ser2net v0.0.2-0.20240826182033-1686e30a7e12 h1:C/1OU/+vPrT4E3SPcWXol5sInkqT8oTv+rjEkitjGHA=
-github.com/abakum/go-ser2net v0.0.2-0.20240826182033-1686e30a7e12/go.mod h1:IbwWVS07QRSQ8UTSMOo5m4SNYP3x4cppSm1FOasjsrs=
 github.com/abakum/go-ser2net v0.0.2-0.20240830123528-0bdfbd5bdbea h1:iHrE7uyq2ME9IEb5ijPI0OZ/YO+2mu3oCX0o4GM5F78=
 github.com/abakum/go-ser2net v0.0.2-0.20240830123528-0bdfbd5bdbea/go.mod h1:IbwWVS07QRSQ8UTSMOo5m4SNYP3x4cppSm1FOasjsrs=
 github.com/abakum/menu v0.0.2-lw h1:iHzkBf9DwXXmVR0iFUBMetI6rnDHltA3LPLxlnCWLZg=
@@ -218,9 +216,8 @@ golang.org/x/crypto v0.0.0-20210921155107-089bfa567519/go.mod h1:GvvjBRRGRdwPK5y
 golang.org/x/crypto v0.1.0/go.mod h1:RecgLatLF4+eUMCP1PoPZQb+cVrJcOPbHkTkbkB9sbw=
 golang.org/x/crypto v0.24.0 h1:mnl8DM0o513X8fdIkmyFE/5hTYxbwYOjDS/+rK6qpRI=
 golang.org/x/crypto v0.24.0/go.mod h1:Z1PMYSOR5nyMcyAVAIQSKCDwalqy85Aqn1x3Ws4L5DM=
-golang.org/x/exp v0.0.0-20220909182711-5c715a9e8561 h1:MDc5xs78ZrZr3HMQugiXOAkSZtfTpbJLDr/lwfgO53E=
-golang.org/x/exp v0.0.0-20220909182711-5c715a9e8561/go.mod h1:cyybsKvd6eL0RnXn6p/Grxp8F5bW7iYuBgsNCOHpMYE=
 golang.org/x/exp v0.0.0-20230321023759-10a507213a29 h1:ooxPy7fPvB4kwsA2h+iBNHkAbp/4JxTSwCmvdjEYmug=
+golang.org/x/exp v0.0.0-20230321023759-10a507213a29/go.mod h1:CxIveKay+FTh1D0yPZemJVgC/95VzuuOLq5Qi4xnoYc=
 golang.org/x/image v0.14.0 h1:tNgSxAFe3jC4uYqvZdTr84SZoM1KfwdC9SKIFrLjFn4=
 golang.org/x/image v0.14.0/go.mod h1:HUYqC05R2ZcZ3ejNQsIHQDQiwWM4JBqmm6MKANTp4LE=
 golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4/go.mod h1:jJ57K6gSWd91VN4djpZkiMVwK6gcyfeH4XE8wZrZaV4=

@@ -103,8 +103,8 @@ const (
 	LISTEN   = PORT + PORT
 	TELNET   = "telnet"
 	PLINK    = "plink"
-	RFC2217  = 22170
-	WEB2217  = 2280
+	RFC2217  = 2320
+	WEB2217  = 8080
 )
 
 var (
@@ -1406,7 +1406,11 @@ func browse(ctx context.Context, dest string) {
 		Println("Install chrome")
 		after := time.Now()
 		before := after.Add(time.Second * 3)
-		browser.OpenURL(dest)
+		err := browser.OpenURL(dest)
+		Println("browse", dest, err)
+		if err != nil {
+			return
+		}
 		closer.Bind(func() {
 			TimeDone(after, before)
 		})
@@ -1419,6 +1423,7 @@ func browse(ctx context.Context, dest string) {
 	}
 	chromeCmd := chrome.Command(dest, temp, temp)
 	err = chromeCmd.Start()
+	Println("browse", dest, err)
 	if err != nil {
 		return
 	}

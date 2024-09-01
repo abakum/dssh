@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -52,9 +53,8 @@ type WriteCloser struct {
 	io.Closer
 }
 
-// Подключаем последовательный порт к сессии ssh или локально.
+// Подключаем последовательный порт Serial к сессии ssh или локально.
 // Завершение сессии через `<Enter>~.`
-// Если name пусто то ищем первый последовательный порт USB
 func ser(ctx context.Context, s io.ReadWriteCloser, Serial, Baud, exit string, println ...func(v ...any)) error {
 	if Serial == "" {
 		return ErrNotFoundFreeSerial
@@ -160,6 +160,9 @@ func s2n(ctx context.Context, r io.Reader, chanByte chan byte, Serial, host stri
 		SetMode(w, ctx, r, chanByte, exit, Ser2net, println...)
 	})
 
+	for _, p := range println {
+		p("TELNET server is listening at:", "telnet://"+net.JoinHostPort(host, strconv.Itoa(Ser2net)))
+	}
 	err := w.StartTelnet(host, Ser2net)
 	t.Stop()
 	if err != nil {
@@ -203,9 +206,6 @@ func getFirstUsbSerial(serialPort, Baud string, print func(v ...any)) (serial st
 	}
 	serial, list := getFirstSerial(true, Baud)
 	print(list)
-	// if serial == "" {
-	// 	print(NotFoundFreeSerial)
-	// }
 	return
 }
 
@@ -370,8 +370,9 @@ func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial, host string, Ser
 		case <-time.After(time.Second):
 		}
 	}
-
-	conn, err := telnet.Dial(fmt.Sprintf("%s:%d", all2dial(host), Ser2net))
+	dest := fmt.Sprintf("%s:%d", all2dial(host), Ser2net)
+	conn, err := telnet.Dial(dest)
+	Println("telnet.Dial", dest, err)
 	if err != nil {
 		return err
 	}

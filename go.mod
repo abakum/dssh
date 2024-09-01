@@ -33,6 +33,7 @@ require (
 	github.com/mattn/go-isatty v0.0.20
 	github.com/mattn/go-runewidth v0.0.15
 	github.com/mitchellh/go-homedir v1.1.0
+	github.com/ncruces/rethinkraw v0.10.7
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 	github.com/pquerna/otp v1.4.0
 	github.com/skeema/knownhosts v1.3.0
@@ -90,7 +91,6 @@ require (
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/muesli/termenv v0.15.2 // indirect
 	github.com/ncruces/jason v0.4.0 // indirect
-	github.com/ncruces/rethinkraw v0.10.7 // indirect
 	github.com/ncruces/zenity v0.10.10 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pkg/sftp v1.13.6 // indirect
