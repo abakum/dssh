@@ -1,6 +1,6 @@
 # dssh
 
-dssh:=(tssh from trzsz)+(CA key with embed-encrypt)+(sshd from gliderlabs)+(access over NAT using jumphost ssh-j.com)+(ser2net with putty or direct connect to serial console)
+dssh:=(tssh from trzsz)+(CA key with embed-encrypt)+(sshd from gliderlabs)+(access over NAT using jumphost ssh-j.com)+(ser2net with putty or direct connect to serial console or over browser)
 
 # 1.    Как использовать для доступа к локальной последовательной консоли:
     1.  Вместо PuTTY, plink для доступа к локальной последовательной консоли на первом USB порту со скоростью 9600 запусти `dssh -U9600` или `dssh -U9` (Можно задать любую стартовую скорость на последовательной консоле а потом переключать! На Darwin 12.7.6 тоже работает. Для Linux нужно членство в группе dialout)

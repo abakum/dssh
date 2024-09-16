@@ -302,19 +302,27 @@ func main() {
 		Println(fmt.Errorf("not found - не найдены PuTTY, plink"))
 	}
 
+	nNear := portOB(args.Ser2net, RFC2217)
+	wNear := portOB(args.Ser2web, WEB2217)
+	u, h, p := ParseDestination(args.Destination) //tssh
+	s2, dial := dest2hd(h, ips...)
+	nFar := near2far(nNear, &args, s2)
+	wFar := near2far(wNear, &args, s2)
+
 	djh := ""
 	djp := ""
 	if args.DirectJump != "" {
 		djh, djp, err = net.SplitHostPort(args.DirectJump)
 		if err == nil {
+			s2, dial = dest2hd(djh, ips...)
+			djh = dial
 			args.Destination = repo // Не локальный
-			if djh == "" {
-				djh = LH
+			if djh == LH {
 				args.Destination = "." // Локальный
 			}
 
 			for _, ip := range ips {
-				if ip == djp {
+				if ip == djh {
 					args.Destination = "." // Локальный
 					break
 				}
@@ -327,12 +335,12 @@ func main() {
 		}
 	}
 
-	nNear := portOB(args.Ser2net, RFC2217)
-	wNear := portOB(args.Ser2web, WEB2217)
-	u, h, p := ParseDestination(args.Destination) //tssh
-	s2, dial := dest2hd(h, ips...)
-	nFar := near2far(nNear, &args, s2)
-	wFar := near2far(wNear, &args, s2)
+	// nNear := portOB(args.Ser2net, RFC2217)
+	// wNear := portOB(args.Ser2web, WEB2217)
+	// u, h, p := ParseDestination(args.Destination) //tssh
+	// s2, dial := dest2hd(h, ips...)
+	// nFar := near2far(nNear, &args, s2)
+	// wFar := near2far(wNear, &args, s2)
 
 	serial := args.Serial
 	BS := args.Baud != "" || serial != ""
@@ -653,6 +661,17 @@ Host ` + SSHJ + `
 			s := fmt.Sprintf("`tssh %s`", JumpHost)
 			i := 0
 			hp := hh + ":" + p
+			if p == LISTEN {
+				if hh == LH {
+					hp = ":"
+				} else {
+					hp = hh
+				}
+			} else {
+				if hh == LH {
+					hp = ":" + p
+				}
+			}
 			for {
 				Println(s, "has been started - запущен")
 				Println("to connect use - чтоб подключится используй:")
