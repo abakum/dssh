@@ -210,26 +210,23 @@ func main() {
 
 	a2s := make([]string, 0) // Без встроенных параметров -h -v
 	// cli := false
-	for i, arg := range os.Args[1:] {
+	for _, arg := range os.Args[1:] {
+		switch arg {
+		case "-H":
+			arg = "--path"
+		case "-v":
+			arg = "--debug"
+		}
 		switch strings.ToLower(arg) {
 		case "-help", "--help":
 			parser.WriteHelp(Std)
 			return
 		case "-h":
-			if os.Args[i+1:][i] != "-H" {
-				parser.WriteUsage(Std)
-				return
-			}
-			a2s = append(a2s, "--path")
-		case "-version", "--version":
+			parser.WriteUsage(Std)
+			return
+		case "-v", "-version", "--version":
 			Println(args.Version())
 			return
-		case "-v":
-			if os.Args[i+1:][i] == "-V" {
-				Println(args.Version())
-				return
-			}
-			a2s = append(a2s, "--debug")
 		default:
 			a2s = append(a2s, arg)
 		}
@@ -350,17 +347,21 @@ func main() {
 		case "", LH, ".", "_", ips[0], "*", ips[len(ips)-1], ALL:
 			// Локальный последовательный порт
 			serial = getFirstUsbSerial(serial, args.Baud, Print)
-			if serial == "" {
-				Println(ErrNotFoundFreeSerial)
+			if notSerial(serial) {
+				// Println(ErrNotFoundFreeSerial)
 				s := "we will try to use RFC2217 over - будем пробовать использовать RFC2217 через"
-				if nNear < 0 {
+				xNear := nNear
+				url := "telnet"
+				if wNear > 0 {
+					xNear = wNear
+					url = "http"
+				} else if nNear < 0 {
 					// dssh --baud 9
 					// dssh --path com3
 					nNear = RFC2217
-					Println(fmt.Sprintf("%s telnet://%s:%d", s, s2, nNear))
-				} else if wNear > 0 {
-					Println(fmt.Sprintf("%s http://%s:%d", s, s2, wNear))
+					xNear = RFC2217
 				}
+				Println(fmt.Sprintf("%s %s://%s:%d", s, url, s2, xNear))
 			}
 		default:
 			usePuTTY = false

@@ -53,16 +53,24 @@ type WriteCloser struct {
 	io.Closer
 }
 
+func notSerial(serial string) bool {
+	if serial == "" {
+		Println(ErrNotFoundFreeSerial)
+		return true
+	}
+	_, ok := ser2net.IsCommand(serial)
+	return ok
+}
+
 // Подключаем последовательный порт Serial к сессии ssh или локально.
 // Завершение сессии через `<Enter>~.`
 func ser(ctx context.Context, s io.ReadWriteCloser, Serial, Baud, exit string, println ...func(v ...any)) error {
-	if Serial == "" {
+	if notSerial(Serial) {
 		return ErrNotFoundFreeSerial
 	}
 
 	BaudRate := ser2net.BaudRate(strconv.Atoi(Baud))
 	w, _ := ser2net.NewSerialWorker(ctx, Serial, BaudRate)
-
 	mode := w.Mode()
 	port, err := serial.Open(Serial, &mode)
 	if err != nil {
@@ -335,8 +343,8 @@ func rn(ss ...string) (s string) {
 	return strings.TrimSuffix(strings.ReplaceAll(s, "\n", "\r\n"), "\n")
 }
 
-func mess(esc, exit, namePort string) string {
-	if namePort == "" {
+func mess(esc, exit, serial string) string {
+	if notSerial(serial) {
 		return rn("",
 			ToExitPress+" "+esc+"<.>"+exit,
 		)
@@ -393,6 +401,7 @@ func SetMode(w *ser2net.SerialWorker, ctx context.Context, r io.Reader, chanByte
 
 		defer func() {
 			w.Stop()
+			w.SerialClose()
 			for _, p := range println {
 				p(w)
 			}
