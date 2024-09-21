@@ -309,7 +309,11 @@ func main() {
 	djh := ""
 	djp := ""
 	if args.DirectJump != "" {
-		djh, djp, err = net.SplitHostPort(args.DirectJump)
+		dj := args.DirectJump
+		if strings.Count(args.DirectJump, ":") == 0 {
+			dj += ":" + LISTEN
+		}
+		djh, djp, err = net.SplitHostPort(dj)
 		if err == nil {
 			s2, dial = dest2hd(djh, ips...)
 			djh = dial
@@ -340,6 +344,7 @@ func main() {
 	// wFar := near2far(wNear, &args, s2)
 
 	serial := args.Serial
+	nNear = cons(serial, s2, nNear, wNear, &args)
 	BS := args.Baud != "" || serial != ""
 	if BS || nNear > 0 || wNear > 0 {
 		enableTrzsz = "no"
@@ -347,22 +352,7 @@ func main() {
 		case "", LH, ".", "_", ips[0], "*", ips[len(ips)-1], ALL:
 			// Локальный последовательный порт
 			serial = getFirstUsbSerial(serial, args.Baud, Print)
-			if notSerial(serial) {
-				// Println(ErrNotFoundFreeSerial)
-				s := "we will try to use RFC2217 over - будем пробовать использовать RFC2217 через"
-				xNear := nNear
-				url := "telnet"
-				if wNear > 0 {
-					xNear = wNear
-					url = "http"
-				} else if nNear < 0 {
-					// dssh --baud 9
-					// dssh --path com3
-					nNear = RFC2217
-					xNear = RFC2217
-				}
-				Println(fmt.Sprintf("%s %s://%s:%d", s, url, s2, xNear))
-			}
+			nNear = cons(serial, s2, nNear, wNear, nil)
 		default:
 			usePuTTY = false
 		}
@@ -1474,4 +1464,27 @@ func KidsDone(ppid int) {
 			PidDone(p.Pid())
 		}
 	}
+}
+
+// Если serial это команда то запускаем web-сервер или telnet-сервер.
+// Даже если параметр --2217 не задан.
+func cons(serial, s2 string, nNear, wNear int, args *SshArgs) int {
+	if notSerial(serial) {
+		xNear := nNear
+		url := "telnet"
+		if wNear > 0 {
+			xNear = wNear
+			url = "http"
+		} else if nNear < 0 {
+			// dssh --baud 9
+			// dssh --path com3
+			nNear = RFC2217
+			xNear = RFC2217
+			if args != nil {
+				near2far(nNear, args, s2)
+			}
+		}
+		Println(fmt.Sprintf("we will try to use %q over - будем пробовать использовать %s через %s://%s:%d", serial, serial, url, s2, xNear))
+	}
+	return nNear
 }

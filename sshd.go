@@ -144,23 +144,7 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 			log.SetPrefix("\r:>")
 			log.SetOutput(s.Stderr())
 			serial := getFirstUsbSerial(args.Serial, args.Baud, log.Print)
-			if notSerial(serial) {
-				// Println(ErrNotFoundFreeSerial)
-				s := "we will try to use RFC2217 over - будем пробовать использовать RFC2217 через"
-				xNear := nNear
-				url := "telnet"
-				if wNear > 0 {
-					xNear = wNear
-					url = "http"
-				} else if nNear < 0 {
-					// dssh --baud 9
-					// dssh --path com3
-					nNear = RFC2217
-					xNear = RFC2217
-				}
-				Println(fmt.Sprintf("%s %s://%s:%d", s, url, s2, xNear))
-
-			}
+			nNear = cons(serial, s2, nNear, wNear, nil)
 			if nNear > 0 {
 				p2 := portOB(nNear, RFC2217)
 				if args.Putty {
