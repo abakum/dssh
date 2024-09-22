@@ -1469,6 +1469,9 @@ func KidsDone(ppid int) {
 // Если serial это команда то запускаем web-сервер или telnet-сервер.
 // Даже если параметр --2217 не задан.
 func cons(serial, s2 string, nNear, wNear int, args *SshArgs) int {
+	if serial == "" && args != nil {
+		return nNear
+	}
 	if notSerial(serial) {
 		xNear := nNear
 		url := "telnet"
