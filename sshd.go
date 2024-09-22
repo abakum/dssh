@@ -15,6 +15,7 @@ import (
 
 	"github.com/abakum/go-ansiterm"
 	"github.com/abakum/go-netstat/netstat"
+	"github.com/abakum/go-ser2net/pkg/ser2net"
 	"github.com/abakum/winssh"
 	gl "github.com/gliderlabs/ssh"
 	"github.com/trzsz/go-arg"
@@ -144,7 +145,7 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 			log.SetPrefix("\r:>")
 			log.SetOutput(s.Stderr())
 			serial := getFirstUsbSerial(args.Serial, args.Baud, log.Print)
-			nNear = cons(serial, s2, nNear, wNear, nil)
+			nNear = cons(serial, s2, nNear, wNear, false)
 			if nNear > 0 {
 				p2 := portOB(nNear, RFC2217)
 				if args.Putty {
@@ -185,6 +186,12 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 						err = s2n(s.Context(), s, nil, serial, s2, p2, args.Baud, " или <^C>", log.Println, Println)
 						log.Println("s2n", err)
 						Println("s2n", err)
+						if err != nil && strings.Contains(err.Error(), "bind:") {
+							if _, ok := ser2net.IsCommand(serial); ok {
+								Println("IsCommand && bind")
+								<-s.Context().Done()
+							}
+						}
 					}
 					return
 				}
@@ -201,9 +208,13 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 					<-s.Context().Done()
 				} else {
 					err = s2w(s.Context(), s, nil, serial, s2, p2, args.Baud, " или <^C>", log.Println, Println)
-					if err != nil {
-						log.Println("s2w", err)
-						Println("s2w", err)
+					log.Println("s2w", err)
+					Println("s2w", err)
+					if err != nil && strings.Contains(err.Error(), "bind:") {
+						if _, ok := ser2net.IsCommand(serial); ok {
+							Println("IsCommand && bind")
+							<-s.Context().Done()
+						}
 					}
 				}
 				return

@@ -39,6 +39,7 @@ dssh:=(tssh from trzsz)+(CA key with embed-encrypt)+(sshd from gliderlabs)+(acce
     1.  Если нет Cygwin, MSYS2/MINGW, git-bash то используем вместе с PuTTY - `dssh -u alias` иначе запускаем из Cygwin, MSYS2/MINGW, git-bash как обычно `dssh alias`
     2.  Для доступа к локальной последовательной консоли без Cygwin, MSYS2/MINGW, git-bash и без PuTTY через браузер как в 1.8-1.10
     3.  Для доступа к удалённой последовательной консоли без Cygwin, MSYS2/MINGW, git-bash и без PuTTY через браузер как в 2.8
+    4.  Для доступа к удалённой консоли без Cygwin, MSYS2/MINGW, git-bash и без PuTTY через браузер как в 7.4
 
 # 5.    Как устроена авторизация:
     1.  Авторизация основана на вложенном ключе Центра Сертификации `.\internal\ca`. Его можно обновлять запуском `go run cmd/main.go`
@@ -75,3 +76,4 @@ dssh:=(tssh from trzsz)+(CA key with embed-encrypt)+(sshd from gliderlabs)+(acce
     6.  Как в 7.4 и 7.5 можно использовать параметр -8 для доступа к консоли через окно браузера командой `dssh -H cmd -88` (Для Windows) или `dssh "ping 127.0.0.1" -88 :`
     7.  Можно использовать для совместного доступа к локальной и удалённой консоли нескольких клиентов как в 3.
     Например на стороне сервера запустить `dssh _` через telnet к удалённой консоли (Для Windows) командой `dssh -H cmd -j host` а затем еще `telnet host 2320` или `putty -telnet host -P 2320`
+     Например на стороне сервера запустить `dssh` через telnet к удалённой консоли (Для Windows) командой `dssh -H cmd :` а затем еще с другого хоста `dssh -H cmd :`

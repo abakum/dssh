@@ -374,7 +374,11 @@ func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial, host string, Ser
 		}()
 		select {
 		case err := <-chanError:
-			return err
+			if _, ok := ser2net.IsCommand(Serial); ok && err != nil && strings.Contains(err.Error(), "bind:") {
+				Println("IsCommand && bind")
+			} else {
+				return err
+			}
 		case <-time.After(time.Second):
 		}
 	}

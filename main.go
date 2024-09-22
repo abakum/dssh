@@ -303,6 +303,7 @@ func main() {
 	wNear := portOB(args.Ser2web, WEB2217)
 	u, h, p := ParseDestination(args.Destination) //tssh
 	s2, dial := dest2hd(h, ips...)
+	nNear = cons(args.Serial, s2, nNear, wNear, true)
 	nFar := near2far(nNear, &args, s2)
 	wFar := near2far(wNear, &args, s2)
 
@@ -344,7 +345,6 @@ func main() {
 	// wFar := near2far(wNear, &args, s2)
 
 	serial := args.Serial
-	nNear = cons(serial, s2, nNear, wNear, &args)
 	BS := args.Baud != "" || serial != ""
 	if BS || nNear > 0 || wNear > 0 {
 		enableTrzsz = "no"
@@ -352,7 +352,7 @@ func main() {
 		case "", LH, ".", "_", ips[0], "*", ips[len(ips)-1], ALL:
 			// Локальный последовательный порт
 			serial = getFirstUsbSerial(serial, args.Baud, Print)
-			nNear = cons(serial, s2, nNear, wNear, nil)
+			nNear = cons(serial, s2, nNear, wNear, false)
 		default:
 			usePuTTY = false
 		}
@@ -1468,8 +1468,8 @@ func KidsDone(ppid int) {
 
 // Если serial это команда то запускаем web-сервер или telnet-сервер.
 // Даже если параметр --2217 не задан.
-func cons(serial, s2 string, nNear, wNear int, args *SshArgs) int {
-	if serial == "" && args != nil {
+func cons(serial, s2 string, nNear, wNear int, first bool) int {
+	if serial == "" && first {
 		return nNear
 	}
 	if notSerial(serial) {
@@ -1483,11 +1483,10 @@ func cons(serial, s2 string, nNear, wNear int, args *SshArgs) int {
 			// dssh --path com3
 			nNear = RFC2217
 			xNear = RFC2217
-			if args != nil {
-				near2far(nNear, args, s2)
-			}
 		}
-		Println(fmt.Sprintf("we will try to use %q over - будем пробовать использовать %s через %s://%s:%d", serial, serial, url, s2, xNear))
+		if !first {
+			Println(fmt.Sprintf("we will try to use %q over - будем пробовать использовать %s через %s://%s:%d", serial, serial, url, s2, xNear))
+		}
 	}
 	return nNear
 }
