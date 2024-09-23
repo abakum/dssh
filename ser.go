@@ -108,6 +108,38 @@ func ser(ctx context.Context, s io.ReadWriteCloser, Serial, Baud, exit string, p
 	return err
 }
 
+// Подключаем консоль Serial к сессии ssh или локально.
+// Завершение сессии через `<Enter>~.`
+func con(ctx context.Context, s io.ReadWriteCloser, Serial, Baud, exit string, println ...func(v ...any)) error {
+	if Serial == "" {
+		return ErrNotFoundFreeSerial
+	}
+	w, _ := ser2net.NewSerialWorker(ctx, Serial, ser2net.BaudRate(strconv.Atoi(Baud)))
+	go w.Worker()
+	i, err := w.NewIoReadWriteCloser()
+	if nil != err {
+		return err
+	}
+	defer func() {
+		i.Close()
+		err = w.SerialClose()
+		for _, p := range println {
+			p(w.String())
+		}
+	}()
+
+	go io.Copy(s, i)
+
+	chanByte := make(chan byte, B16)
+	t := time.AfterFunc(time.Second, func() {
+		SetMode(w, ctx, nil, chanByte, exit, 0, println...)
+	})
+
+	_, err = io.Copy(newSideWriter(i, args.EscapeChar, Serial, exit, chanByte, println...), s)
+	t.Stop()
+	return err
+}
+
 func getFirstSerial(isUSB bool, Baud string) (name, list string) {
 	ports, err := enumerator.GetDetailedPortsList()
 	if err != nil || len(ports) == 0 {

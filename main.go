@@ -37,6 +37,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log"
 	"net"
 	"os"
 	"os/exec"
@@ -303,7 +304,6 @@ func main() {
 	wNear := portOB(args.Ser2web, WEB2217)
 	u, h, p := ParseDestination(args.Destination) //tssh
 	s2, dial := dest2hd(h, ips...)
-	nNear = cons(args.Serial, s2, nNear, wNear, true)
 	nFar := near2far(nNear, &args, s2)
 	wFar := near2far(wNear, &args, s2)
 
@@ -352,7 +352,7 @@ func main() {
 		case "", LH, ".", "_", ips[0], "*", ips[len(ips)-1], ALL:
 			// Локальный последовательный порт
 			serial = getFirstUsbSerial(serial, args.Baud, Print)
-			nNear = cons(serial, s2, nNear, wNear, false)
+			nNear = cons(serial, s2, nNear, wNear)
 		default:
 			usePuTTY = false
 		}
@@ -547,7 +547,10 @@ Host ` + SSHJ + `
 					rfc2217(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, serial, s2, nNear, args.Baud, exit, Println)
 				}
 				// dssh --baud 9
-				ser(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, serial, args.Baud, exit, Println)
+				// dssh --path cmd
+				log.SetFlags(lf.Flags())
+				log.SetPrefix(lf.Prefix())
+				con(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, serial, args.Baud, exit, Println)
 				return
 			default:
 				if args.Baud != "" {
@@ -1468,11 +1471,8 @@ func KidsDone(ppid int) {
 
 // Если serial это команда то запускаем web-сервер или telnet-сервер.
 // Даже если параметр --2217 не задан.
-func cons(serial, s2 string, nNear, wNear int, first bool) int {
-	if serial == "" && first {
-		return nNear
-	}
-	if notSerial(serial) {
+func cons(serial, s2 string, nNear, wNear int) int {
+	if serial == "" {
 		xNear := nNear
 		url := "telnet"
 		if wNear > 0 {
@@ -1484,9 +1484,7 @@ func cons(serial, s2 string, nNear, wNear int, first bool) int {
 			nNear = RFC2217
 			xNear = RFC2217
 		}
-		if !first {
-			Println(fmt.Sprintf("we will try to use %q over - будем пробовать использовать %s через %s://%s:%d", serial, serial, url, s2, xNear))
-		}
+		Println(fmt.Sprintf("we will try to use %q over - будем пробовать использовать %s через %s://%s:%d", serial, serial, url, s2, xNear))
 	}
 	return nNear
 }

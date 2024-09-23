@@ -141,11 +141,11 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 		case args.Restart:
 			caRW()
 		case args.Baud != "" || args.Serial != "" || nNear > 0 || wNear > 0:
-			log.SetFlags(log.Lshortfile)
+			log.SetFlags(lf.Flags())
 			log.SetPrefix("\r:>")
 			log.SetOutput(s.Stderr())
 			serial := getFirstUsbSerial(args.Serial, args.Baud, log.Print)
-			nNear = cons(serial, s2, nNear, wNear, false)
+			nNear = cons(serial, s2, nNear, wNear)
 			if nNear > 0 {
 				p2 := portOB(nNear, RFC2217)
 				if args.Putty {
@@ -219,9 +219,9 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 				}
 				return
 			}
-			err = ser(s.Context(), s, serial, args.Baud, args.Exit, log.Println, Println)
-			log.Println("ser", err)
-			Println("ser", err)
+			err = con(s.Context(), s, serial, args.Baud, args.Exit, log.Println, Println)
+			log.Println("con", err)
+			Println("con", err)
 		}
 	})
 
