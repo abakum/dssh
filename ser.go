@@ -128,14 +128,14 @@ func con(ctx context.Context, s io.ReadWriteCloser, Serial, Baud, exit string, p
 		}
 	}()
 
-	go io.Copy(s, i)
+	go w.Copy(s, i)
 
 	chanByte := make(chan byte, B16)
 	t := time.AfterFunc(time.Second, func() {
 		SetMode(w, ctx, nil, chanByte, exit, 0, println...)
 	})
 
-	_, err = io.Copy(newSideWriter(i, args.EscapeChar, Serial, exit, chanByte, println...), s)
+	_, err = w.CopyAfter(newSideWriter(i, args.EscapeChar, Serial, exit, chanByte, println...), s, time.Millisecond*77)
 	t.Stop()
 	return err
 }
@@ -190,14 +190,17 @@ func getFirstSerial(isUSB bool, Baud string) (name, list string) {
 // SetMode использует r или chanByte для смены serial.Mode порта Serial.
 // На консоль клиента println[0] выводит протокол через ssh канал.
 // Локально println[1] выводит протокол.
-func s2n(ctx context.Context, r io.Reader, chanByte chan byte, Serial, host string, Ser2net int, Baud, exit string, println ...func(v ...any)) error {
+func s2n(ctx context.Context, r io.Reader, chanB chan byte, chanW chan *ser2net.SerialWorker, Serial, host string, Ser2net int, Baud, exit string, println ...func(v ...any)) error {
 	if Serial == "" {
 		return ErrNotFoundFreeSerial
 	}
 	w, _ := ser2net.NewSerialWorker(ctx, Serial, ser2net.BaudRate(strconv.Atoi(Baud)))
 	go w.Worker()
 	t := time.AfterFunc(time.Millisecond*333, func() {
-		SetMode(w, ctx, r, chanByte, exit, Ser2net, println...)
+		if chanW != nil {
+			chanW <- w
+		}
+		SetMode(w, ctx, r, chanB, exit, Ser2net, println...)
 	})
 
 	for _, p := range println {
@@ -396,35 +399,45 @@ func mess(esc, exit, serial string) string {
 }
 
 // Запускает ser2net server на telnet://host:Ser2net подключает к нему s через телнет клиента
-func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial, host string, Ser2net int, Baud, exit string, println ...func(v ...any)) error {
+func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial, host string, Ser2net int, Baud, exit string, println ...func(v ...any)) (err error) {
+	var (
+		sw   *ser2net.SerialWorker
+		conn *telnet.Connection
+	)
 	chanByte := make(chan byte, B16)
+	dest := fmt.Sprintf("%s:%d", all2dial(host), Ser2net)
+	conn, err = telnet.Dial(dest)
 
-	if Serial != "" {
-		chanError := make(chan error, 1)
+	if err != nil {
+		chanError := make(chan error, 2)
+		chanSerialWorker := make(chan *ser2net.SerialWorker, 2)
 		go func() {
-			chanError <- s2n(ctx, nil, chanByte, Serial, host, Ser2net, Baud, exit, println...)
+			chanError <- s2n(ctx, nil, chanByte, chanSerialWorker, Serial, host, Ser2net, Baud, exit, println...)
 		}()
 		select {
-		case err := <-chanError:
-			if _, ok := ser2net.IsCommand(Serial); ok && err != nil && strings.Contains(err.Error(), "bind:") {
-				Println("IsCommand && bind")
-			} else {
-				return err
-			}
-		case <-time.After(time.Second):
+		case <-ctx.Done():
+			Println("case <-ctx.Done():")
+			return ctx.Err()
+		case err = <-chanError:
+			return
+		case sw = <-chanSerialWorker:
+			conn, err = telnet.Dial(dest)
 		}
 	}
-	dest := fmt.Sprintf("%s:%d", all2dial(host), Ser2net)
-	conn, err := telnet.Dial(dest)
-	Println("telnet.Dial", dest, err)
+	Println("telnet", all2dial(host), Ser2net, err)
 	if err != nil {
-		return err
+		return
 	}
 	defer conn.Close()
 
-	go io.Copy(s, conn)
-	_, err = io.Copy(newSideWriter(conn, args.EscapeChar, Serial, exit, chanByte, println...), s)
-	return err
+	if sw == nil {
+		go ser2net.Copy(ctx, s, conn)
+		_, err = ser2net.CopyAfter(ctx, newSideWriter(conn, args.EscapeChar, Serial, exit, chanByte, println...), s, time.Millisecond*77)
+		return
+	}
+	go sw.Copy(s, conn)
+	_, err = sw.CopyAfter(newSideWriter(conn, args.EscapeChar, Serial, exit, chanByte, println...), s, time.Millisecond*77)
+	return
 }
 
 // Через r или напрямую по chanByte управляет режимами последовательного порта w

@@ -183,7 +183,7 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 					if serial == "" {
 						<-s.Context().Done()
 					} else {
-						err = s2n(s.Context(), s, nil, serial, s2, p2, args.Baud, " или <^C>", log.Println, Println)
+						err = s2n(s.Context(), s, nil, nil, serial, s2, p2, args.Baud, " или <^C>", log.Println, Println)
 						log.Println("s2n", err)
 						Println("s2n", err)
 						if err != nil && strings.Contains(err.Error(), "bind:") {

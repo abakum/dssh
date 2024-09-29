@@ -337,13 +337,6 @@ func main() {
 		}
 	}
 
-	// nNear := portOB(args.Ser2net, RFC2217)
-	// wNear := portOB(args.Ser2web, WEB2217)
-	// u, h, p := ParseDestination(args.Destination) //tssh
-	// s2, dial := dest2hd(h, ips...)
-	// nFar := near2far(nNear, &args, s2)
-	// wFar := near2far(wNear, &args, s2)
-
 	serial := args.Serial
 	BS := args.Baud != "" || serial != ""
 	if BS || nNear > 0 || wNear > 0 {
@@ -410,6 +403,7 @@ Host ` + SSHJ + `
  ProxyJump ` + u + `@` + JumpHost + `
  EnableTrzsz ` + enableTrzsz
 	if args.Restart || BS || nNear > 0 || wNear > 0 {
+		// Println("args.Restart || BS || nNear > 0 || wNear > 0")
 		// CGI
 		cli = true
 		args.Command = repo
@@ -425,9 +419,11 @@ Host ` + SSHJ + `
 			// BS || nearL > 0
 			switch args.Destination {
 			case "", LH, "_", ips[0], "*", ips[len(ips)-1], ALL:
+				// Println(`case "", LH, "_", ips[0], "*", ips[len(ips)-1], ALL:`)
 				// Локальная последовательная консоль
 				// Println("Local serial console - Локальная последовательная консоль")
 				if args.Putty || args.Telnet {
+					// Println(`args.Putty || args.Telnet`)
 					// dssh --putty --baud 9 это хуже чем `dssh --baud 9` так как нельзя сменить скорость
 					BaudRate := ser2net.BaudRate(strconv.Atoi(args.Baud))
 					opt := fmt.Sprintln("-serial", serial, "-sercfg", fmt.Sprintf("%d,8,1,N,N", BaudRate))
@@ -446,6 +442,7 @@ Host ` + SSHJ + `
 						cmd.Wait()
 					}
 					if !Win || Win7 && bin == TELNET {
+						// Println(`!Win || Win7 && bin == TELNET`)
 						// dssh --unix --putty --baud 9
 						cmd.Stdout = os.Stdout
 						cmd.Stderr = os.Stdout
@@ -466,20 +463,23 @@ Host ` + SSHJ + `
 								w, err := cmd.StdinPipe()
 								if err == nil {
 									chanByte := make(chan byte, B16)
+									chanSerialWorker := make(chan *ser2net.SerialWorker, 2)
 
-									chanError := make(chan error, 1)
+									chanError := make(chan error, 2)
 									go func() {
-										chanError <- s2n(ctx, nil, chanByte, serial, s2, nNear, args.Baud, "", Println)
+										chanError <- s2n(ctx, nil, chanByte, chanSerialWorker, serial, s2, nNear, args.Baud, "", Println)
 									}()
 									select {
 									case err = <-chanError:
 										Println(err)
-									case <-time.After(time.Second):
+									// case <-time.After(time.Second):
+									case sw := <-chanSerialWorker:
+										// Println("select", sw)
 										err := cmd.Start()
 										Println(cmd, err)
 										if err == nil {
 											setRaw(&once)
-											io.Copy(newSideWriter(w, args.EscapeChar, serial, exit, chanByte, Println), os.Stdin)
+											sw.CopyAfter(newSideWriter(w, args.EscapeChar, serial, exit, chanByte, Println), os.Stdin, time.Millisecond*77)
 											if cmd.Process != nil {
 												cmd.Process.Release()
 											}
@@ -489,7 +489,7 @@ Host ` + SSHJ + `
 								}
 							}
 							go func() {
-								s2n(ctx, nil, nil, serial, s2, nNear, args.Baud, "", Println)
+								s2n(ctx, nil, nil, nil, serial, s2, nNear, args.Baud, "", Println)
 								closer.Close()
 							}()
 						}
@@ -506,7 +506,7 @@ Host ` + SSHJ + `
 								closer.Close()
 							})
 							setRaw(&once)
-							s2n(ctx, os.Stdin, nil, serial, s2, nNear, args.Baud, " или <^C>", Println)
+							s2n(ctx, os.Stdin, nil, nil, serial, s2, nNear, args.Baud, " или <^C>", Println)
 							t.Stop() // Если не успел стартануть то и не надо
 							return
 						}
@@ -545,6 +545,7 @@ Host ` + SSHJ + `
 				if nNear > 0 {
 					// dssh --2217 0
 					rfc2217(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, serial, s2, nNear, args.Baud, exit, Println)
+					return
 				}
 				// dssh --baud 9
 				// dssh --path cmd
@@ -1396,7 +1397,8 @@ func near2far(lNear int, args *SshArgs, s2 string) (lFar int) {
 		switch args.Destination {
 		case "", LH:
 		case ".":
-			lFar++
+			// lFar += 10
+			lNear += 10
 			fallthrough
 		default:
 			args.LocalForward.UnmarshalText([]byte(fmt.Sprintf("%d:%s:%d", lNear, s2, lFar)))
