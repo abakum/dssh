@@ -13,9 +13,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/PatrickRudolph/telnet"
 	"github.com/abakum/go-ansiterm"
 	"github.com/abakum/go-netstat/netstat"
-	"github.com/abakum/go-ser2net/pkg/ser2net"
 	"github.com/abakum/winssh"
 	gl "github.com/gliderlabs/ssh"
 	"github.com/trzsz/go-arg"
@@ -180,23 +180,24 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 							}
 						}
 					}
-					if serial == "" {
-						<-s.Context().Done()
-					} else {
-						err = s2n(s.Context(), s, nil, nil, serial, s2, p2, args.Baud, " или <^C>", log.Println, Println)
-						log.Println("s2n", err)
-						Println("s2n", err)
-						if err != nil && strings.Contains(err.Error(), "bind:") {
-							if _, ok := ser2net.IsCommand(serial); ok {
-								Println("IsCommand && bind")
-								<-s.Context().Done()
-							}
-						}
+					hp := newHostPort(s2, p2, serial, false)
+					conn, err := telnet.Dial(hp.dest())
+					if err == nil {
+						conn.Close()
+						hp.read()
+						log.Println(hp.String())
+						Println(hp.String())
+						cancelByFile(s.Context(), nil, hp.name(), TOW)
+						return
 					}
+
+					err = s2n(s.Context(), s, nil, nil, serial, s2, p2, args.Baud, " или <^C>", log.Println, Println)
+					log.Println("s2n", err)
+					Println("s2n", err)
 					return
 				}
 				// dssh -20 :
-				err = rfc2217(s.Context(), s, serial, s2, p2, args.Baud, args.Exit, log.Println, Println)
+				err = rfc2217(s.Context(), func() { s.Exit(0) }, s, serial, s2, p2, args.Baud, args.Exit, log.Println, Println)
 				log.Println("rfc2217", err)
 				Println("rfc2217", err)
 				return
@@ -204,19 +205,25 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 			if wNear > 0 {
 				// dssh -80 :
 				p2 := portOB(wNear, WEB2217)
-				if serial == "" {
-					<-s.Context().Done()
-				} else {
-					err = s2w(s.Context(), s, nil, serial, s2, p2, args.Baud, " или <^C>", log.Println, Println)
-					log.Println("s2w", err)
-					Println("s2w", err)
-					if err != nil && strings.Contains(err.Error(), "bind:") {
-						if _, ok := ser2net.IsCommand(serial); ok {
-							Println("IsCommand && bind")
-							<-s.Context().Done()
-						}
-					}
+				hp := newHostPort(s2, p2, serial, true)
+				conn, err := net.Dial("tcp", hp.dest())
+				if err == nil {
+					// Подключаемся к существующему сеансу
+					conn.Close()
+					hp.read()
+
+					log.Println(hp.String())
+					Println(hp.String())
+
+					cancelByFile(s.Context(), nil, hp.name(), TOW)
+					return
 				}
+
+				err = s2w(s.Context(), s, nil, serial, s2, p2, args.Baud, " или <^C>", log.Println, Println)
+
+				log.Println("s2w", err)
+				Println("s2w", err)
+
 				return
 			}
 			err = con(s.Context(), s, serial, args.Baud, args.Exit, log.Println, Println)

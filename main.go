@@ -106,6 +106,7 @@ const (
 	PLINK    = "plink"
 	RFC2217  = 2320
 	WEB2217  = 8080
+	LockFile = "lockfile"
 )
 
 var (
@@ -140,6 +141,7 @@ var (
 	OverSSH    = os.Getenv("SSH_CONNECTION") != ""
 	BUSYBOX    = "busybox"
 	MICROCOM   = false
+	tmp        = filepath.Join(os.TempDir(), repo)
 )
 
 //go:generate go run github.com/abakum/version
@@ -300,12 +302,10 @@ func main() {
 		Println(fmt.Errorf("not found - не найдены PuTTY, plink"))
 	}
 
-	nNear := portOB(args.Ser2net, RFC2217)
-	wNear := portOB(args.Ser2web, WEB2217)
 	u, h, p := ParseDestination(args.Destination) //tssh
 	s2, dial := dest2hd(h, ips...)
-	nFar := near2far(nNear, &args, s2)
-	wFar := near2far(wNear, &args, s2)
+	nNear, nFar := near2far(portOB(args.Ser2net, RFC2217), &args, s2)
+	wNear, wFar := near2far(portOB(args.Ser2web, WEB2217), &args, s2)
 
 	djh := ""
 	djp := ""
@@ -529,22 +529,31 @@ Host ` + SSHJ + `
 				}
 				setRaw(&once)
 				if wNear > -1 {
+					hp := newHostPort(dial, wFar, serial, true)
+					conn, err := net.Dial("tcp", hp.dest())
+					if err == nil {
+						// Подключаемся к существующему сеансу
+						conn.Close()
+						hp.read()
+						Println(hp.String())
+
+						go cancelByFile(ctx, cancel, hp.name(), TOW)
+						Println(browse(ctx, dial, wFar, cancel))
+						return
+					}
 					t := time.AfterFunc(time.Second*2, func() {
-						dest := fmt.Sprintf("http://%s:%d", dial, wFar)
-						if OverSSH {
-							Println("On remote side open - Открой на дальней стороне", dest)
-							return
-						}
-						browse(ctx, dest)
+						Println(browse(ctx, dial, wFar, nil))
 					})
+
 					s2w(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, nil, serial, s2, wNear, args.Baud, " или ^C", Println)
+
 					t.Stop() // Если не успел стартануть то и не надо
 					return
 				}
 				// setRaw(&once)
 				if nNear > 0 {
 					// dssh --2217 0
-					rfc2217(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, serial, s2, nNear, args.Baud, exit, Println)
+					rfc2217(ctx, closer.Close, ReadWriteCloser{os.Stdin, os.Stdout}, serial, s2, nNear, args.Baud, exit, Println)
 					return
 				}
 				// dssh --baud 9
@@ -808,12 +817,7 @@ Host ` + SSHJ + `
 			// dssh --web 0 :
 			// dssh --web 0 .
 			time.AfterFunc(time.Second*2, func() {
-				dest := fmt.Sprintf("http://%s:%d", dial, wFar)
-				if OverSSH {
-					Println("On remote side open - Открой на дальней стороне", dest)
-					return
-				}
-				browse(ctx, dest)
+				Println(browse(ctx, dial, wFar, nil))
 			})
 		}
 	} else if enableTrzsz == "no" || args.Destination == repo {
@@ -840,7 +844,7 @@ func canReadFile(path string) bool {
 }
 
 func isFileExist(path string) bool {
-	if _, err := os.Stat(path); os.IsNotExist(err) {
+	if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) { // os.IsNotExist(err)
 		return false
 	}
 	return true
@@ -1391,57 +1395,81 @@ func portOB(opt, base int) int {
 	return opt
 }
 
-func near2far(lNear int, args *SshArgs, s2 string) (lFar int) {
-	lFar = lNear
-	if lNear > -1 {
+func near2far(iNear int, args *SshArgs, s2 string) (oNear, oFar int) {
+	oNear = iNear
+	oFar = iNear
+	if iNear > -1 {
 		switch args.Destination {
 		case "", LH:
 		case ".":
-			// lFar += 10
-			lNear += 10
+			oNear += 10
 			fallthrough
 		default:
-			args.LocalForward.UnmarshalText([]byte(fmt.Sprintf("%d:%s:%d", lNear, s2, lFar)))
+			args.LocalForward.UnmarshalText([]byte(fmt.Sprintf("%d:%s:%d", oNear, s2, oFar)))
 		}
 	}
 	return
 }
 
 func MkdirTemp(path string) (name string, err error) {
-	name = filepath.Join(os.TempDir(), path)
-	err = os.Mkdir(name, 0700)
-	if os.IsExist(err) {
+	name = filepath.Join(tmp, path)
+	err = os.MkdirAll(name, 0700)
+	if errors.Is(err, fs.ErrExist) { //os.IsExist(err)
 		err = nil
 	}
 	return
 }
 
-func browse(ctx context.Context, dest string) {
+// Открывает dest в Хроме или другом браузере.
+// Побочно посылает в chanString
+func browse(ctx context.Context, dial string, port int, cancel context.CancelFunc) (err error) {
+	dest := fmt.Sprintf("http://%s:%d", dial, port)
+	if OverSSH {
+		Println("On remote side open - Открой на дальней стороне", dest)
+		return
+	}
 	if !chrome.IsInstalled() {
 		Println("Install chrome")
 		after := time.Now()
 		before := after.Add(time.Second * 3)
-		err := browser.OpenURL(dest)
-		Println("browse", dest, err)
+		err = browser.OpenURL(dest)
 		if err != nil {
 			return
 		}
+		Println("browse", dest)
 		closer.Bind(func() {
 			TimeDone(after, before)
 		})
 		return
 	}
-	temp, err := MkdirTemp(repo)
+	root := fmt.Sprintf("%s_%d", dial, port)
+	temp, err := MkdirTemp(root)
 	if err != nil {
-		Println(temp, err)
 		return
 	}
+	for i := 0; true; i++ {
+		if i > 9 {
+			return fmt.Errorf("too many chromes")
+		}
+		temp, err = MkdirTemp(filepath.Join(root, strconv.Itoa(i)))
+		if err != nil {
+			return
+		}
+		lf := filepath.Join(temp, LockFile)
+		if i == 0 && cancel != nil {
+			go cancelByFile(ctx, cancel, lf, TOW)
+		}
+		if !isFileExist(lf) {
+			break
+		}
+	}
+
 	chromeCmd := chrome.Command(dest, temp, temp)
 	err = chromeCmd.Start()
-	Println("browse", dest, err)
 	if err != nil {
 		return
 	}
+	Println("chrome", dest)
 	go func() {
 		<-ctx.Done()
 		chromeCmd.Close()
@@ -1451,6 +1479,7 @@ func browse(ctx context.Context, dest string) {
 		return
 	}
 	closer.Close()
+	return
 }
 
 func KidsDone(ppid int) {
@@ -1486,7 +1515,27 @@ func cons(serial, s2 string, nNear, wNear int) int {
 			nNear = RFC2217
 			xNear = RFC2217
 		}
-		Println(fmt.Sprintf("we will try to use %q over - будем пробовать использовать %s через %s://%s:%d", serial, serial, url, s2, xNear))
+		if serial != "" {
+			Println(fmt.Sprintf("we will try to use %q over - будем пробовать использовать %s через %s://%s:%d", serial, serial, url, s2, xNear))
+		} else {
+			Println(fmt.Sprintf("we will try to use - будем пробовать использовать %s://%s:%d", url, s2, xNear))
+		}
 	}
 	return nNear
+}
+
+func cancelByFile(ctx context.Context, cancel func(), name string, delay time.Duration) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(delay):
+			if !isFileExist(name) {
+				if cancel != nil {
+					cancel()
+				}
+				return
+			}
+		}
+	}
 }

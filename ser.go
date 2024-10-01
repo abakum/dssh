@@ -3,12 +3,14 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -30,7 +32,8 @@ const (
 )
 
 var (
-	ErrNotFoundFreeSerial = fmt.Errorf("not found free serial USB port - не найден свободный последовательный порт USB")
+	ErrNotFoundFreeSerial = fmt.Errorf("a free USB serial port was not found - не найден свободный последовательный порт USB")
+	ErrNotSerial          = fmt.Errorf("this is not a serial port - это не последовательный порт")
 )
 
 type cgiArgs struct {
@@ -53,20 +56,23 @@ type WriteCloser struct {
 	io.Closer
 }
 
-func notSerial(serial string) bool {
+func isSerial(serial string) error {
 	if serial == "" {
-		Println(ErrNotFoundFreeSerial)
-		return true
+		return ErrNotFoundFreeSerial
 	}
 	_, ok := ser2net.IsCommand(serial)
-	return ok
+	if ok {
+		return ErrNotSerial
+	}
+	return nil
 }
 
 // Подключаем последовательный порт Serial к сессии ssh или локально.
 // Завершение сессии через `<Enter>~.`
 func ser(ctx context.Context, s io.ReadWriteCloser, Serial, Baud, exit string, println ...func(v ...any)) error {
-	if notSerial(Serial) {
-		return ErrNotFoundFreeSerial
+	err := isSerial(Serial)
+	if err != nil {
+		return err
 	}
 
 	BaudRate := ser2net.BaudRate(strconv.Atoi(Baud))
@@ -206,8 +212,12 @@ func s2n(ctx context.Context, r io.Reader, chanB chan byte, chanW chan *ser2net.
 	for _, p := range println {
 		p("TELNET server is listening at:", "telnet://"+net.JoinHostPort(host, strconv.Itoa(Ser2net)))
 	}
+	hp := newHostPort(host, Ser2net, Serial, false)
+	hp.write()
 	err := w.StartTelnet(host, Ser2net)
 	t.Stop()
+	hp.remove()
+
 	if err != nil {
 		for _, p := range println {
 			p(err)
@@ -233,8 +243,12 @@ func s2w(ctx context.Context, r io.Reader, chanByte chan byte, Serial, host stri
 	log.SetPrefix("\r>" + log.Prefix())
 	log.SetFlags(log.Lshortfile)
 
+	hp := newHostPort(host, wp, Serial, true)
+	hp.write()
 	err := w.StartGoTTY(host, wp, "", false)
 	t.Stop()
+	hp.remove()
+
 	if err != nil {
 		for _, p := range println {
 			p(err)
@@ -379,7 +393,7 @@ func rn(ss ...string) (s string) {
 }
 
 func mess(esc, exit, serial string) string {
-	if notSerial(serial) {
+	if isSerial(serial) != nil {
 		return rn("",
 			ToExitPress+" "+esc+"<.>"+exit,
 		)
@@ -398,17 +412,66 @@ func mess(esc, exit, serial string) string {
 	)
 }
 
-// Запускает ser2net server на telnet://host:Ser2net подключает к нему s через телнет клиента
-func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial, host string, Ser2net int, Baud, exit string, println ...func(v ...any)) (err error) {
+type hostPort struct {
+	Host string `json:"host"`
+	Port int    `json:"port"`
+	Path string `json:"path"`
+	Web  bool   `json:"web"`
+}
+
+func newHostPort(host string, port int, path string, web bool) hostPort {
+	os.MkdirAll(tmp, 0o700)
+	return hostPort{all2dial(host), port, path, web}
+
+}
+
+func (hp *hostPort) read() (err error) {
+	bytes, err := os.ReadFile(hp.name())
+	if err != nil {
+		return
+	}
+	return json.Unmarshal(bytes, hp)
+}
+
+func (hp *hostPort) write() (err error) {
+	bytes, err := json.Marshal(hp)
+	if err != nil {
+		return
+	}
+	return os.WriteFile(hp.name(), bytes, 0o644)
+}
+func (hp *hostPort) dest() string {
+	return fmt.Sprintf("%s:%d", hp.Host, hp.Port)
+}
+
+func (hp *hostPort) name() string {
+	return filepath.Join(tmp, fmt.Sprintf("%s_%d.json", hp.Host, hp.Port))
+}
+func (hp *hostPort) String() string {
+	if hp.Web {
+		return fmt.Sprintf("start http://%s:%d %s", hp.Host, hp.Port, hp.Path)
+	}
+	return fmt.Sprintf("telnet %s %d %s", hp.Host, hp.Port, hp.Path)
+}
+
+func (hp *hostPort) remove() (err error) {
+	return os.Remove(hp.name())
+}
+
+// Запускает ser2net server на telnet://host:Ser2net подключает к нему s через телнет клиента.
+func rfc2217(ctx context.Context, cancel func(), s io.ReadWriteCloser, Serial, host string, Ser2net int, Baud, exit string, println ...func(v ...any)) (err error) {
+
 	var (
 		sw   *ser2net.SerialWorker
 		conn *telnet.Connection
 	)
+
+	hp := newHostPort(host, Ser2net, Serial, false)
 	chanByte := make(chan byte, B16)
-	dest := fmt.Sprintf("%s:%d", all2dial(host), Ser2net)
-	conn, err = telnet.Dial(dest)
+	conn, err = telnet.Dial(hp.dest())
 
 	if err != nil {
+		// Новый сеанс
 		chanError := make(chan error, 2)
 		chanSerialWorker := make(chan *ser2net.SerialWorker, 2)
 		go func() {
@@ -416,15 +479,23 @@ func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial, host string, Ser
 		}()
 		select {
 		case <-ctx.Done():
-			Println("case <-ctx.Done():")
 			return ctx.Err()
 		case err = <-chanError:
 			return
 		case sw = <-chanSerialWorker:
-			conn, err = telnet.Dial(dest)
+			conn, err = telnet.Dial(hp.dest())
 		}
+	} else {
+		// Подключаемся к существующему сеансу
+		hp.read()
+		if isSerial(hp.Path) == ErrNotSerial {
+			Serial = hp.Path
+		} else {
+			Serial = ""
+		}
+		go cancelByFile(ctx, cancel, hp.name(), TOW)
 	}
-	Println("telnet", all2dial(host), Ser2net, err)
+	Println(hp.String(), err)
 	if err != nil {
 		return
 	}
