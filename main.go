@@ -337,7 +337,7 @@ func main() {
 		}
 	}
 
-	serial := args.Serial
+	serial := usbSerial(args.Serial)
 	BS := args.Baud != "" || serial != ""
 	if BS || nNear > 0 || wNear > 0 {
 		enableTrzsz = "no"
@@ -1538,4 +1538,41 @@ func cancelByFile(ctx context.Context, cancel func(), name string, delay time.Du
 			}
 		}
 	}
+}
+
+// Чтоб  использовать третий порт для windows используй -H3 или -Hcom3 или -H\\.\com3.
+// Можно указать -H1410 или -Hcu.usbserial-1410 или -H/dev/cu.usbserial-1410 для darwin.
+// Можно указать -H0 или -HttyUSB0 или -H/dev/ttyUSB0.
+func usbSerial(s string) (path string) {
+	if s == "" {
+		// Поиск первого USB порта getFirstUsbSerial
+		return s
+	}
+	trim := func(r string) string {
+		return r
+	}
+	dir := "/dev/"
+	s2l := strings.ToLower(s)
+	base := "ttyUSB"
+	switch runtime.GOOS {
+	case "darwin":
+		base = "cu.usbserial-"
+	case "windows":
+		dir = `\\.\`
+		base = "COM"
+		trim = func(r string) string {
+			if strings.HasPrefix(strings.ToUpper(r), dir+base) {
+				return strings.TrimPrefix(r, dir)
+			}
+			return r
+		}
+	}
+	_, err := strconv.Atoi(s)
+	if err != nil {
+		if strings.HasPrefix(s2l, dir) {
+			return trim(s)
+		}
+		return trim(dir + s)
+	}
+	return trim(dir + base + s)
 }

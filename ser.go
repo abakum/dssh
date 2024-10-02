@@ -88,18 +88,19 @@ func ser(ctx context.Context, s io.ReadWriteCloser, Serial, Baud, exit string, p
 	}
 	w.SetSerial(port)
 	msg := fmt.Sprintf("%s opened - открыт", w)
-	for _, p := range println {
-		p(msg)
+	print := func(a ...any) {
+		for _, p := range println {
+			p(a...)
+		}
 	}
+	print(msg)
 
 	defer func() {
 
 		err = ser2net.SerialClose(port)
 
 		msg = fmt.Sprintf("%s closed - закрыт %v", w, w.SerialClose())
-		for _, p := range println {
-			p(msg)
-		}
+		print(msg)
 	}()
 
 	go io.Copy(s, port)
@@ -120,18 +121,24 @@ func con(ctx context.Context, s io.ReadWriteCloser, Serial, Baud, exit string, p
 	if Serial == "" {
 		return ErrNotFoundFreeSerial
 	}
+
 	w, _ := ser2net.NewSerialWorker(ctx, Serial, ser2net.BaudRate(strconv.Atoi(Baud)))
+	print := func(a ...any) {
+		for _, p := range println {
+			p(a...)
+		}
+	}
 	go w.Worker()
+
 	i, err := w.NewIoReadWriteCloser()
 	if nil != err {
 		return err
 	}
+	print(w)
 	defer func() {
 		i.Close()
 		err = w.SerialClose()
-		for _, p := range println {
-			p(w.String())
-		}
+		print(w)
 	}()
 
 	go w.Copy(s, i)
@@ -208,10 +215,12 @@ func s2n(ctx context.Context, r io.Reader, chanB chan byte, chanW chan *ser2net.
 		}
 		SetMode(w, ctx, r, chanB, exit, Ser2net, println...)
 	})
-
-	for _, p := range println {
-		p("TELNET server is listening at:", "telnet://"+net.JoinHostPort(host, strconv.Itoa(Ser2net)))
+	print := func(a ...any) {
+		for _, p := range println {
+			p(a...)
+		}
 	}
+	print("TELNET server is listening at:", "telnet://"+net.JoinHostPort(host, strconv.Itoa(Ser2net)))
 	hp := newHostPort(host, Ser2net, Serial, false)
 	hp.write()
 	err := w.StartTelnet(host, Ser2net)
@@ -219,9 +228,7 @@ func s2n(ctx context.Context, r io.Reader, chanB chan byte, chanW chan *ser2net.
 	hp.remove()
 
 	if err != nil {
-		for _, p := range println {
-			p(err)
-		}
+		print(err)
 	}
 	return err
 }
@@ -514,17 +521,25 @@ func rfc2217(ctx context.Context, cancel func(), s io.ReadWriteCloser, Serial, h
 // Через r или напрямую по chanByte управляет режимами последовательного порта w
 func SetMode(w *ser2net.SerialWorker, ctx context.Context, r io.Reader, chanByte chan byte, exit string, Ser2net int, println ...func(v ...any)) {
 	press := mess("", exit, w.Name())
-	if Ser2net > 0 {
+	print := func(a ...any) {
 		for _, p := range println {
-			p(w)
+			p(a...)
 		}
+	}
+	prin := func(a ...any) {
+		for _, p := range println {
+			p(a...)
+			break
+		}
+	}
+
+	if Ser2net > 0 {
+		print(w)
 
 		defer func() {
 			w.Stop()
 			w.SerialClose()
-			for _, p := range println {
-				p(w)
-			}
+			print(w)
 
 		}()
 	}
@@ -533,10 +548,7 @@ func SetMode(w *ser2net.SerialWorker, ctx context.Context, r io.Reader, chanByte
 		chanByte = make(chan byte, B16)
 	}
 	if r != nil {
-		for _, p := range println {
-			p(press)
-			break
-		}
+		prin(press)
 		buffer := make([]byte, B16)
 		go func() {
 			for {
@@ -610,17 +622,12 @@ func SetMode(w *ser2net.SerialWorker, ctx context.Context, r io.Reader, chanByte
 				msg = "set baud - установлена скорость"
 			}
 			if msg == "" {
-				for _, p := range println {
-					p(press)
-					break
-				}
+				prin(press)
 				continue
 			}
 			err := w.SetMode(&mode)
 			msg = fmt.Sprintf("%s %s %v", w, msg, err)
-			for _, p := range println {
-				p(msg)
-			}
+			print(msg)
 		}
 	}
 }
