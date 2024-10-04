@@ -1544,7 +1544,7 @@ func cancelByFile(ctx context.Context, cancel func(), name string, delay time.Du
 // Можно указать -H1410 или -Hcu.usbserial-1410 или -H/dev/cu.usbserial-1410 для darwin.
 // Можно указать -H0 или -HttyUSB0 или -H/dev/ttyUSB0.
 func usbSerial(s string) (path string) {
-	if s == "" {
+	if !serialPath(s) {
 		// Поиск первого USB порта getFirstUsbSerial
 		return s
 	}
@@ -1575,4 +1575,11 @@ func usbSerial(s string) (path string) {
 		return trim(dir + s)
 	}
 	return trim(dir + base + s)
+}
+func serialPath(path string) bool {
+	if path == "" {
+		return false
+	}
+	suff := path[len(path)-1:]
+	return suff >= "0" && suff <= "9"
 }

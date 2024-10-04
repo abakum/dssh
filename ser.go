@@ -502,7 +502,10 @@ func rfc2217(ctx context.Context, cancel func(), s io.ReadWriteCloser, Serial, h
 		}
 		go cancelByFile(ctx, cancel, hp.name(), TOW)
 	}
-	Println(hp.String(), err)
+	for _, p := range println {
+		p(hp.String(), err)
+	}
+	// Println(hp.String(), err)
 	if err != nil {
 		return
 	}
