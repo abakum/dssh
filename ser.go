@@ -427,7 +427,7 @@ type hostPort struct {
 }
 
 func newHostPort(host string, port int, path string, web bool) hostPort {
-	os.MkdirAll(tmp, 0o700)
+	os.MkdirAll(tmp, DIRMODE)
 	return hostPort{all2dial(host), port, path, web}
 
 }
@@ -445,7 +445,7 @@ func (hp *hostPort) write() (err error) {
 	if err != nil {
 		return
 	}
-	return os.WriteFile(hp.name(), bytes, 0o644)
+	return os.WriteFile(hp.name(), bytes, FILEMODE)
 }
 func (hp *hostPort) dest() string {
 	return fmt.Sprintf("%s:%d", hp.Host, hp.Port)

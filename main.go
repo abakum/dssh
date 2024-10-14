@@ -718,6 +718,7 @@ Host ` + SSHJ + `
 		}()
 		for {
 			Println(fmt.Sprintf("%s daemon waiting on - сервер ожидает на %s:%s", repo, h, p))
+			psPrintln(filepath.Base(exe), "", 0)
 			server(s2, p, repo, s2, signer, Println, Print)
 			KidsDone(os.Getpid())
 			Println("server has been stopped - сервер остановлен")
@@ -1413,7 +1414,7 @@ func near2far(iNear int, args *SshArgs, s2 string) (oNear, oFar int) {
 
 func MkdirTemp(path string) (name string, err error) {
 	name = filepath.Join(tmp, path)
-	err = os.MkdirAll(name, 0700)
+	err = os.MkdirAll(name, DIRMODE)
 	if errors.Is(err, fs.ErrExist) { //os.IsExist(err)
 		err = nil
 	}
@@ -1582,4 +1583,34 @@ func serialPath(path string) bool {
 	}
 	suff := path[len(path)-1:]
 	return suff >= "0" && suff <= "9"
+}
+
+func psPrintln(name, parent string, ppid int) {
+	var ss []string
+	pes, err := ps.Processes()
+	if err != nil {
+		return
+	}
+	for _, p := range pes {
+		if p == nil {
+			continue
+		}
+		ok := true
+		if ppid == 0 {
+			ok = parent == ""
+			if !ok {
+				pp, err := ps.FindProcess(p.PPid())
+				ok = err != nil && pp != nil && pp.Executable() == parent
+			}
+		} else {
+			ok = p.PPid() == ppid
+		}
+		// fmt.Printf("%q==%q %v", p.Executable(), name, ok && p.Executable() == name)
+		if ok && p.Executable() == name {
+			ss = append(ss, p.CreationTime().Local().Format("2006-01-02T15:04:05"))
+		}
+	}
+	if len(ss) > 1 {
+		Println(fmt.Errorf("%v", ss))
+	}
 }

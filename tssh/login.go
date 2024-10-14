@@ -789,6 +789,7 @@ func getPasswordAuthMethod(args *SshArgs, host, user string) ssh.AuthMethod {
 			} else {
 				encoded, err := encodeSecret([]byte(password))
 				if err == nil {
+					debug("the password for '%s' is '%s'", args.Destination, password)
 					warning("insert next line\r\nIgnoreUnknown *\r\nto the beginning of the file [~/.ssh/config] and append after [Host %s] next line\r\n encPassword %s", args.Destination, encoded)
 				} else {
 					warning("%v", err)
@@ -1405,7 +1406,7 @@ func sshConnect(args *SshArgs, client *ssh.Client, proxy string) (*ssh.Client, *
 func keepAlive(client *ssh.Client, args *SshArgs) {
 	getOptionValue := func(option string) int {
 		value, err := strconv.Atoi(getOptionConfig(args, option))
-		if err != nil {
+		if err == nil {
 			return value
 		}
 		return 0
@@ -1413,7 +1414,8 @@ func keepAlive(client *ssh.Client, args *SshArgs) {
 
 	serverAliveInterval := getOptionValue("ServerAliveInterval")
 	if serverAliveInterval <= 0 {
-		serverAliveInterval = 10
+		return
+		// serverAliveInterval = 10
 	}
 	serverAliveCountMax := getOptionValue("ServerAliveCountMax")
 	if serverAliveCountMax <= 0 {
