@@ -218,7 +218,7 @@ func build(a ...any) (s string) {
 			case "vcs.revision":
 				s += " " + setting.Value[:7]
 			case "vcs.time":
-				s += " " + strings.ReplaceAll(strings.ReplaceAll(setting.Value, "-", ""), ":", "")
+				s += " " + strings.TrimSuffix(strings.ReplaceAll(strings.ReplaceAll(setting.Value, "-", ""), ":", ""), "Z")
 			}
 		}
 	}

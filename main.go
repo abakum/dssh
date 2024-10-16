@@ -198,19 +198,6 @@ func main() {
 	parser, err := NewParser(arg.Config{}, &args)
 	Fatal(err)
 
-	// tools
-	SecretEncodeKey = key
-	if args.NewHost ||
-		args.EncSecret ||
-		args.InstallTrzsz ||
-		args.InstallPath != "" ||
-		args.TrzszVersion != "" ||
-		args.TrzszBinPath != "" ||
-		false {
-		TsshMain(&args)
-		return
-	}
-
 	a2s := make([]string, 0) // Без встроенных параметров -h -v
 	// cli := false
 	for _, arg := range os.Args[1:] {
@@ -241,6 +228,19 @@ func main() {
 	}
 	if args.Ver {
 		Println(args.Version())
+		return
+	}
+
+	// tools
+	SecretEncodeKey = key
+	if args.NewHost ||
+		args.EncSecret ||
+		args.InstallTrzsz ||
+		args.InstallPath != "" ||
+		args.TrzszVersion != "" ||
+		args.TrzszBinPath != "" ||
+		false {
+		TsshMain(&args)
 		return
 	}
 

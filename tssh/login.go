@@ -1336,6 +1336,7 @@ func sshConnect(args *SshArgs, client *ssh.Client, proxy string) (*ssh.Client, *
 	// но пока не объединили с main добавим idKeyAlgorithms
 	// config.HostKeyAlgorithms = NewStringSet(config.HostKeyAlgorithms...).Add(idKeyAlgorithms...).List()
 	setupHostKeyAlgorithmsConfig(args, config)
+	setupKexAlgorithmsConfig(args, config)
 
 	if err := setupCiphersConfig(args, config); err != nil {
 		return nil, param, false, err
