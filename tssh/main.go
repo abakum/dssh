@@ -198,7 +198,7 @@ func TsshMain(args *SshArgs) int {
 		warning("Alias or Destination failed: %v", err)
 		return 4
 	}
-	if args.DisableTTY && !args.ForceTTY {
+	if args.DisableTTY && !args.ForceTTY || args.NoCommand {
 		restoreStdFuncs.Cleanup()
 		isTerminal = false
 	} else {

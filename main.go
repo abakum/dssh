@@ -136,7 +136,7 @@ var (
 	Win        = Windows
 	Cygwin     = isatty.IsCygwinTerminal(os.Stdin.Fd())
 	Win7       = isWin7() // Виндовс7 не поддерживает ENABLE_VIRTUAL_TERMINAL_INPUT и ENABLE_VIRTUAL_TERMINAL_PROCESSING
-	usePuTTY   = Win7 && !Cygwin
+	usePuTTY   bool
 	once       = false
 	OverSSH    = os.Getenv("SSH_CONNECTION") != ""
 	BUSYBOX    = "busybox"
@@ -252,6 +252,8 @@ func main() {
 		}
 		cygUserDir = filepath.Join(cygUserDir, ".ssh")
 		Println(fmt.Sprintf(`You can make a link - Можно сделать ссылку 'mklink /d "%s" "%s"'`, cygUserDir, SshUserDir))
+	} else {
+		usePuTTY = Win7 && !(args.DisableTTY || args.NoCommand)
 	}
 
 	cli := fmt.Sprint(args.Option) != "{map[]}"
