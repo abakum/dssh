@@ -69,18 +69,6 @@ ecdh-sha2-nistp521
 curve25519-sha256
 curve25519-sha256@libssh.org
 */
-
-// supportedKexAlgos specifies the supported key-exchange algorithms in
-// preference order.
-var supportedKexAlgos = NewStringSet(
-	kexAlgoCurve25519SHA256, kexAlgoCurve25519SHA256LibSSH,
-	// P384 and P521 are not constant-time yet, but since we don't
-	// reuse ephemeral keys, using them for ECDH should be OK.
-	kexAlgoECDH256, kexAlgoECDH384, kexAlgoECDH521,
-	kexAlgoDH14SHA256, kexAlgoDH16SHA512, kexAlgoDH14SHA1,
-	kexAlgoDH1SHA1,
-)
-
 var defaultOpenSSHKexAlgos = NewStringSet(
 	// curve25519-sha256 curve25519-sha256@libssh.org
 	kexAlgoCurve25519SHA256, kexAlgoCurve25519SHA256LibSSH,
@@ -99,28 +87,36 @@ var defaultOpenSSHKexAlgos = NewStringSet(
 // is disabled by default because it is a bit slower than the others.
 var preferredKexAlgos = NewStringSet(
 	kexAlgoCurve25519SHA256, kexAlgoCurve25519SHA256LibSSH,
+	// P384 and P521 are not constant-time yet, but since we don't
+	// reuse ephemeral keys, using them for ECDH should be OK.
 	kexAlgoECDH256, kexAlgoECDH384, kexAlgoECDH521,
 	kexAlgoDH14SHA256, kexAlgoDH14SHA1,
 )
 
+// supportedKexAlgos specifies the supported key-exchange algorithms in
+// preference order.
+var supportedKexAlgos = preferredKexAlgos.Add(
+	kexAlgoDH1SHA1, kexAlgoDH16SHA512,
+)
+
 func setSupportedKexAlgos(config *ssh.ClientConfig) {
 	newSet := NewStringSet()
+	if len(config.KeyExchanges) == 0 {
+		// Нет алгоритмов из KexAlgorithms тогда пусть будет как в OpenSSH
+		config.KeyExchanges = defaultOpenSSHKexAlgos.List()
+	}
 	for _, algo := range config.KeyExchanges {
 		if supportedKexAlgos.Contains(algo) {
 			newSet.Add(algo)
 		}
 	}
 	config.KeyExchanges = newSet.List()
+	debug("client supported KEX algorithms: %v", config.KeyExchanges)
 }
 
 func setupKexAlgorithmsConfig(args *SshArgs, config *ssh.ClientConfig) {
 	defer func() {
 		setSupportedKexAlgos(config)
-		if len(config.KeyExchanges) == 0 {
-			// Нет алгоритмов из KexAlgorithms тогда пусть x/crypto/ssh присвоит дефолтные
-			config.KeyExchanges = preferredKexAlgos.List()
-		}
-		debug("client supported KEX algorithms: %v", config.KeyExchanges)
 	}()
 	algoSpec := getOptionConfig(args, "KexAlgorithms")
 	if algoSpec == ssh_config.Default("KexAlgorithms") || algoSpec == "" {
