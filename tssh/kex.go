@@ -97,14 +97,11 @@ var preferredKexAlgos = NewStringSet(
 // preference order.
 var supportedKexAlgos = preferredKexAlgos.Add(
 	kexAlgoDH1SHA1, kexAlgoDH16SHA512,
+	kexAlgoDHGEXSHA1, kexAlgoDHGEXSHA256,
 )
 
 func setSupportedKexAlgos(config *ssh.ClientConfig) {
 	newSet := NewStringSet()
-	if len(config.KeyExchanges) == 0 {
-		// Нет алгоритмов из KexAlgorithms тогда пусть будет как в OpenSSH
-		config.KeyExchanges = defaultOpenSSHKexAlgos.List()
-	}
 	for _, algo := range config.KeyExchanges {
 		if supportedKexAlgos.Contains(algo) {
 			newSet.Add(algo)
@@ -115,13 +112,16 @@ func setSupportedKexAlgos(config *ssh.ClientConfig) {
 }
 
 func setupKexAlgorithmsConfig(args *SshArgs, config *ssh.ClientConfig) {
+	if len(config.KeyExchanges) == 0 {
+		// Нет алгоритмов из KexAlgorithms тогда пусть будет как в OpenSSH
+		config.KeyExchanges = defaultOpenSSHKexAlgos.List()
+	}
 	defer func() {
 		setSupportedKexAlgos(config)
 	}()
 	algoSpec := getOptionConfig(args, "KexAlgorithms")
 	if algoSpec == ssh_config.Default("KexAlgorithms") || algoSpec == "" {
 		// Нет  -o KexAlgorithms=a,b,...
-		config.KeyExchanges = defaultOpenSSHKexAlgos.List()
 		debug("default KEX algorithms: %v", config.KeyExchanges)
 		return
 	}
