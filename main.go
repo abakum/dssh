@@ -168,7 +168,6 @@ func main() {
 	SetColor()
 
 	// tssh
-	DebugPrefix = l.Prefix()
 	DebugF = func(format string) string {
 		return fmt.Sprintf("%s%s %s\r\n", l.Prefix(), src(9), format)
 	}

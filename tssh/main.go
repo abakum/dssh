@@ -198,14 +198,14 @@ func TsshMain(args *SshArgs) int {
 		warning("Alias or Destination failed: %v", err)
 		return 4
 	}
-	if args.DisableTTY && !args.ForceTTY || args.NoCommand {
-		restoreStdFuncs.Cleanup()
-		isTerminal = false
-	} else {
-		if err = setupVirtualTerminal(args); err != nil {
-			return 2
-		}
-	}
+	// if args.DisableTTY && !args.ForceTTY || args.NoCommand {
+	// 	restoreStdFuncs.Cleanup()
+	// 	isTerminal = false
+	// } else {
+	// 	if err = setupVirtualTerminal(args); err != nil {
+	// 		return 2
+	// 	}
+	// }
 	// run as background
 	if args.Background {
 		var parent bool
@@ -220,6 +220,28 @@ func TsshMain(args *SshArgs) int {
 	}
 	args.Destination = dest
 	args.originalDest = dest
+
+	// Чуть раньше уточним args.NoCommand args.DisableTTY
+	// У args.ForceTTY приоритет
+	var param *sshParam
+	var tty bool
+	_, tty, err = parseCmdAndTTY(args, param)
+	if err != nil {
+		tty = false
+	}
+	tty = tty || args.ForceTTY
+	if strings.ToLower(getOptionConfig(args, "SessionType")) == "none" {
+		args.NoCommand = true
+	}
+
+	if !tty || args.NoCommand {
+		restoreStdFuncs.Cleanup()
+		isTerminal = false
+	} else {
+		if err = setupVirtualTerminal(args); err != nil {
+			return 2
+		}
+	}
 
 	resetLogLevel := setupLogLevel(args)
 	defer resetLogLevel()
@@ -237,9 +259,9 @@ func sshStart(args *SshArgs) error {
 		onExitFuncs.Cleanup()
 	}()
 
-	if strings.ToLower(getOptionConfig(args, "SessionType")) == "none" {
-		args.NoCommand = true
-	}
+	// if strings.ToLower(getOptionConfig(args, "SessionType")) == "none" {
+	// 	args.NoCommand = true
+	// }
 
 	// ssh login
 	ss, err := sshLogin(args)
