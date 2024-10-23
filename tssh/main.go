@@ -274,6 +274,16 @@ func sshStart(args *SshArgs) error {
 
 	// stdio forward
 	if args.StdioForward != "" {
+		// Пробуем makeStdinRaw но без фанатизма
+		if isTerminal && ss.tty {
+			if state, err := makeStdinRaw(); err == nil {
+				restoreStdFuncs.Add(func() {
+					resetStdin(state)
+				})
+			} else {
+				warning("%v", err)
+			}
+		}
 		var wg *sync.WaitGroup
 		wg, err = stdioForward(ss.client, args.StdioForward)
 		if err != nil {
