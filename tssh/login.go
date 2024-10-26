@@ -49,7 +49,7 @@ import (
 )
 
 var enableDebugLogging bool = false
-var envbleWarningLogging bool = true
+var enableWarningLogging bool = true
 
 var DebugPrefix = "debug"
 var DebugF = func(format string) string {
@@ -68,10 +68,18 @@ var WarningF = func(format string) string {
 }
 
 var warning = func(format string, a ...any) {
-	if !envbleWarningLogging {
+	if !enableWarningLogging {
 		return
 	}
 	fmt.Fprintf(os.Stderr, WarningF(format), a...)
+}
+
+var InfoF = func(format string) string {
+	return fmt.Sprintf("%s\r\n", format)
+}
+
+var info = func(format string, a ...any) {
+	fmt.Fprintf(os.Stderr, InfoF(format), a...)
 }
 
 type sshParam struct {
@@ -477,17 +485,23 @@ func addHostKey(path, host string, remote net.Addr, key ssh.PublicKey, ask bool,
 	keys := []ssh.PublicKey{key}
 	if ask {
 		if sshLoginSuccess.Load() {
-			fmt.Fprintf(os.Stderr, "\r\n\033[0;31mThe public key of the remote server has changed after login.\033[0m\r\n")
+			// fmt.Fprintf(os.Stderr, "\r\n\033[0;31mThe public key of the remote server has changed after login.\033[0m\r\n")
+			info("")
+			// info("\033[0;31mThe public key of the remote server has changed after login.\033[0m")
+			info(format31("The public key of the remote server has changed after login."))
 			return fmt.Errorf("host key changed")
 		}
 
-		fmt.Fprintf(os.Stderr, "The authenticity of host '%s' can't be established.\r\n", host)
+		// fmt.Fprintf(os.Stderr, "The authenticity of host '%s' can't be established.\r\n", host)
+		info("The authenticity of host '%s' can't be established.", host)
+
 		keys = goScanHostKeys(host, key, args)
 
 		// List other keys for select by fingerprint. Without dot at the end for copyPaste.
 		for _, key := range keys {
 			fingerprint := ssh.FingerprintSHA256(key)
-			fmt.Fprintf(os.Stderr, "%s key fingerprint is %s\r\n", key.Type(), fingerprint)
+			// fmt.Fprintf(os.Stderr, "%s key fingerprint is %s\r\n", key.Type(), fingerprint)
+			info("%s key fingerprint is %s", key.Type(), fingerprint)
 		}
 
 		stdin, closer, err := getKeyboardInput()
@@ -612,16 +626,16 @@ func getHostKeyCallback(args *SshArgs, param *sshParam) (ssh.HostKeyCallback, *k
 			if path == "" {
 				path = "~/.ssh/known_hosts"
 			}
-			fmt.Fprintf(os.Stderr, "\033[0;31m@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\r\n"+
+			info(format31("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\r\n"+
 				"@    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!     @\r\n"+
 				"@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\r\n"+
 				"IT IS POSSIBLE THAT SOMEONE IS DOING SOMETHING NASTY!\r\n"+
-				"Someone could be eavesdropping on you right now (man-in-the-middle attack)!\033[0m\r\n"+
+				"Someone could be eavesdropping on you right now (man-in-the-middle attack)!")+"\r\n"+
 				"It is also possible that a host key has just been changed.\r\n"+
 				"The fingerprint for the %s key sent by the remote host is\r\n"+
 				"%s\r\n"+
 				"Please contact your system administrator.\r\n"+
-				"Add correct host key in %s to get rid of this message.\r\n",
+				"Add correct host key in %s to get rid of this message.",
 				key.Type(), ssh.FingerprintSHA256(key), path)
 		} else if knownhosts.IsHostUnknown(err) && primaryPath != "" {
 			ask := true
@@ -761,7 +775,8 @@ func getSigner(dest string, path string) *sshSigner {
 
 func readSecret(prompt string) (secret []byte, err error) {
 	fmt.Fprintf(os.Stderr, "%s", prompt)
-	defer fmt.Fprintf(os.Stderr, "\r\n")
+	// defer fmt.Fprintf(os.Stderr, "\r\n")
+	defer info("")
 
 	stdin, closer, err := getKeyboardInput()
 	if err != nil {
@@ -1207,6 +1222,9 @@ func dialWithTimeout(client *ssh.Client, network, addr string, timeout time.Dura
 	done := make(chan struct{}, 1)
 	go func() {
 		defer close(done)
+		if _, err := strconv.ParseUint(addr, 10, 16); err == nil {
+			addr = ":" + addr
+		}
 		conn, err = client.Dial(network, addr)
 		done <- struct{}{}
 	}()
@@ -1252,28 +1270,28 @@ func (c *connWithTimeout) Read(b []byte) (n int, err error) {
 
 func setupLogLevel(args *SshArgs) func() {
 	previousDebug := enableDebugLogging
-	previousWarning := envbleWarningLogging
+	previousWarning := enableWarningLogging
 	reset := func() {
 		enableDebugLogging = previousDebug
-		envbleWarningLogging = previousWarning
+		enableWarningLogging = previousWarning
 	}
 	if args.Debug {
 		enableDebugLogging = true
-		envbleWarningLogging = true
+		enableWarningLogging = true
 		return reset
 	}
 	switch strings.ToLower(getOptionConfig(args, "LogLevel")) {
 	case "quiet", "fatal", "error":
 		enableDebugLogging = false
-		envbleWarningLogging = false
+		enableWarningLogging = false
 	case "debug", "debug1", "debug2", "debug3":
 		enableDebugLogging = true
-		envbleWarningLogging = true
+		enableWarningLogging = true
 	case "info", "verbose":
 		fallthrough
 	default:
 		enableDebugLogging = false
-		envbleWarningLogging = true
+		enableWarningLogging = true
 	}
 	return reset
 }

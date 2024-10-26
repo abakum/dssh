@@ -219,7 +219,7 @@ func listenOnLocal(args *SshArgs, addr *string, port string) (listeners []net.Li
 			warning("forward listen on local '%s' failed: %v", address, err)
 			listeners = append(listeners, nil)
 		} else {
-			fmt.Fprintf(os.Stderr, "forward listen on local '%s' success", address)
+			info("\rforward listen on local '%s' success", address)
 			listeners = append(listeners, listener)
 		}
 	}

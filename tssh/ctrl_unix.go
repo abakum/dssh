@@ -70,7 +70,8 @@ func (c *controlMaster) handleStderr() {
 				continue
 			}
 			if strings.HasPrefix(out, DebugPrefix) {
-				fmt.Fprintf(os.Stderr, "%s\r\n", out)
+				// fmt.Fprintf(os.Stderr, "%s\r\n", out)
+				info("%s", out)
 			} else {
 				output = append(output, out)
 			}

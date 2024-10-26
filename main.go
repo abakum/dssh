@@ -239,7 +239,7 @@ func main() {
 		args.TrzszVersion != "" ||
 		args.TrzszBinPath != "" ||
 		false {
-		TsshMain(&args)
+		Tssh(&args)
 		return
 	}
 
@@ -381,6 +381,13 @@ func main() {
 	closer.Bind(cleanup)
 	ctx, cancel := context.WithCancel(context.Background())
 	closer.Bind(cancel)
+
+	if args.StdioForward != "" && args.Destination == "" {
+		// Телнет
+		setRaw(&once)
+		rfc854(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, localPort(args.StdioForward), exit, Println)
+		return
+	}
 
 	// `dssh` как `dssh -d`
 	// `foo` как `dssh foo@` как `dssh -dl foo`
@@ -699,7 +706,7 @@ Host ` + SSHJ + `
 					ss = fmt.Sprintf("\t`%s -Z :`", imag)
 				}
 				Println(fmt.Sprintf("\tssh\t`%s -Z .`\t`%s -Zj%s`%s", imag, imag, hp, ss))
-				code := TsshMain(&args)
+				code := Tssh(&args)
 				if code == 0 {
 					Println(s, code)
 					i = 0
@@ -822,11 +829,11 @@ Host ` + SSHJ + `
 				Println(browse(ctx, dial, wFar, nil))
 			})
 		}
-	} else if enableTrzsz == "no" || args.Destination == repo {
+	} else if (enableTrzsz == "no" || args.Destination == repo) && args.StdioForward == "" {
 		Println(ToExitPress, "<Enter><"+args.EscapeChar+"><.>")
 	}
 
-	code := TsshMain(&args)
+	code := Tssh(&args)
 	if args.Background {
 		Println("tssh started in background with code:", code)
 		closer.Hold()
@@ -1407,7 +1414,7 @@ func near2far(iNear int, args *SshArgs, s2 string) (oNear, oFar int) {
 			oNear += 10
 			fallthrough
 		default:
-			args.LocalForward.UnmarshalText([]byte(fmt.Sprintf("%d:%s:%d", oNear, s2, oFar)))
+			args.LocalForward.UnmarshalText([]byte(fmt.Sprintf("%s:%d:%s:%d", LH, oNear, s2, oFar)))
 		}
 	}
 	return
@@ -1608,10 +1615,17 @@ func psPrintln(name, parent string, ppid int) {
 		}
 		// fmt.Printf("%q==%q %v", p.Executable(), name, ok && p.Executable() == name)
 		if ok && p.Executable() == name {
-			ss = append(ss, p.CreationTime().Local().Format("2006-01-02T15:04:05"))
+			ss = append(ss, p.CreationTime().Local().Format("20060102T150405"))
 		}
 	}
 	if len(ss) > 1 {
 		Println(fmt.Errorf("%v", ss))
 	}
+}
+
+func localPort(addr string) string {
+	if _, err := strconv.ParseUint(addr, 10, 16); err == nil {
+		return ":" + addr
+	}
+	return addr
 }

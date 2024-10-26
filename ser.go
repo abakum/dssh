@@ -333,7 +333,9 @@ func (w *sideWriter) Write(pp []byte) (int, error) {
 	p := append(w.l, pp...) //+2
 	switch {
 	case bytes.Contains(p, []byte{'\r', w.t, '.'}):
-		w.chanByte <- '.'
+		if w.chanByte != nil {
+			w.chanByte <- '.'
+		}
 		if o > 1 {
 			p = bytes.ReplaceAll(p, []byte{'\r', w.t, '.'}, []byte{})
 		} else {
@@ -360,7 +362,9 @@ func (w *sideWriter) Write(pp []byte) (int, error) {
 						p = bytes.ReplaceAll(p, []byte{'\r', w.t, key}, []byte{'\r', w.t, BackSpace, CtrlZ})
 					}
 				default:
-					w.chanByte <- key
+					if w.chanByte != nil {
+						w.chanByte <- key
+					}
 					if o > 1 {
 						p = bytes.ReplaceAll(p, []byte{'\r', w.t, key}, []byte{})
 					} else {
@@ -518,6 +522,27 @@ func rfc2217(ctx context.Context, cancel func(), s io.ReadWriteCloser, Serial, h
 	}
 	go sw.Copy(s, conn)
 	_, err = sw.CopyAfter(newSideWriter(conn, args.EscapeChar, Serial, exit, chanByte, println...), s, time.Millisecond*77)
+	return
+}
+
+// Телнет
+func rfc854(ctx context.Context, s io.ReadWriteCloser, addr, exit string, println ...func(v ...any)) (err error) {
+
+	// chanByte := make(chan byte, B16)
+	conn, err := telnet.Dial(addr)
+	for _, p := range println {
+		// 	p(hp.String(), err)
+		p(fmt.Sprintf("telnet://%s", addr), err)
+	}
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+
+	go ser2net.Copy(ctx, s, conn)
+	// _, err = ser2net.CopyAfter(ctx, newSideWriter(conn, args.EscapeChar, "", exit, chanByte, println...), s, time.Millisecond*77)
+	// _, err = ser2net.Copy(ctx, newSideWriter(conn, args.EscapeChar, "", exit, chanByte, println...), s)
+	_, err = ser2net.Copy(ctx, newSideWriter(conn, args.EscapeChar, "", exit, nil, println...), s)
 	return
 }
 

@@ -127,7 +127,7 @@ func background(args *SshArgs, dest string) (bool, error) {
 	}
 }
 
-func TsshMain(args *SshArgs) int {
+func Tssh(args *SshArgs) int {
 	// debug log
 	if args.Debug {
 		enableDebugLogging = true
@@ -154,7 +154,8 @@ func TsshMain(args *SshArgs) int {
 	var err error
 	defer func() {
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "%v\r\n", err)
+			// fmt.Fprintf(os.Stderr, "%v\r\n", err)
+			warning("%v", err)
 		}
 	}()
 

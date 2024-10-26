@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"runtime/debug"
 	"strings"
+	"time"
 
 	"github.com/abakum/menu"
 	"github.com/xlab/closer"
@@ -218,7 +219,12 @@ func build(a ...any) (s string) {
 			case "vcs.revision":
 				s += " " + setting.Value[:7]
 			case "vcs.time":
-				s += " " + strings.TrimSuffix(strings.ReplaceAll(strings.ReplaceAll(setting.Value, "-", ""), ":", ""), "Z")
+				t, err := time.Parse("2006-01-02T15:04:05Z", setting.Value)
+				if err != nil {
+					s += " " + setting.Value
+				} else {
+					s += " " + t.Local().Format("20060102T150405")
+				}
 			}
 		}
 	}

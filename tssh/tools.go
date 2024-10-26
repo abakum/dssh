@@ -70,7 +70,8 @@ func newToolsProgress(tool, name string, totalSize int) *toolsProgress {
 }
 
 func (p *toolsProgress) writeMessage(format string, a ...any) {
-	fmt.Fprintf(os.Stderr, fmt.Sprintf("\r\033[0;36m%s %s\033[0m", p.prefix, format), a...)
+	// fmt.Fprintf(os.Stderr, fmt.Sprintf("\r\033[0;36m%s %s\033[0m", p.prefix, format), a...)
+	info(fmt.Sprintf("\r\033[0;36m%s %s\033[0m", p.prefix, format), a...)
 }
 
 func (p *toolsProgress) addStep(delta int) {
@@ -101,20 +102,29 @@ func (p *toolsProgress) stopProgress() {
 }
 
 func toolsInfo(tool, format string, a ...any) {
-	fmt.Fprintf(os.Stderr, fmt.Sprintf("\033[0;36m[%s] %s\033[0m\r\n", tool, format), a...)
+	// fmt.Fprintf(os.Stderr, fmt.Sprintf("\033[0;36m[%s] %s\033[0m\r\n", tool, format), a...)
+	info(fmt.Sprintf("\033[0;36m[%s] %s\033[0m", tool, format), a...)
 }
 
 func toolsWarn(tool, format string, a ...any) {
-	fmt.Fprintf(os.Stderr, fmt.Sprintf("\033[0;33m[%s] %s\033[0m\r\n", tool, format), a...)
+	// fmt.Fprintf(os.Stderr, fmt.Sprintf("\033[0;33m[%s] %s\033[0m\r\n", tool, format), a...)
+	info(fmt.Sprintf("\033[0;33m[%s] %s\033[0m", tool, format), a...)
 }
 
 func toolsSucc(tool, format string, a ...any) {
-	fmt.Fprintf(os.Stderr, fmt.Sprintf("\033[0;32m[%s] %s\033[0m\r\n", tool, format), a...)
+	// fmt.Fprintf(os.Stderr, fmt.Sprintf("\033[0;32m[%s] %s\033[0m\r\n", tool, format), a...)
+	info(fmt.Sprintf("\033[0;32m[%s] %s\033[0m", tool, format), a...)
 }
 
 func toolsErrorExit(format string, a ...any) {
-	fmt.Fprintf(os.Stderr, fmt.Sprintf("\033[0;31m%s\033[0m\r\n", format), a...)
+	// fmt.Fprintf(os.Stderr, fmt.Sprintf("\033[0;31m%s\033[0m\r\n", format), a...)
+	// info(fmt.Sprintf("\033[0;31m%s\033[0m", format), a...)
+	info(format31(format), a...)
 	os.Exit(-1)
+}
+
+func format31(format string) string {
+	return fmt.Sprintf("\033[0;31m%s\033[0m", format)
 }
 
 func printToolsHelp(title string) {

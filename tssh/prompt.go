@@ -606,7 +606,8 @@ func chooseAlias(keywords string) (string, bool, error) {
 
 	selectedHosts := prompt.getSelected(idx)
 	for _, h := range selectedHosts {
-		fmt.Fprintf(os.Stderr, "\033[0;32m%s %s\033[0m\r\n", promptSelectedIcon, h.Alias)
+		// fmt.Fprintf(os.Stderr, "\033[0;32m%s %s\033[0m\r\n", promptSelectedIcon, h.Alias)
+		info("\033[0;32m%s %s\033[0m", promptSelectedIcon, h.Alias)
 	}
 	if len(selectedHosts) > 1 && termMgr != nil {
 		termMgr.openTerminals(keywords, prompt.openType, selectedHosts)

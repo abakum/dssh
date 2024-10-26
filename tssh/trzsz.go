@@ -50,7 +50,8 @@ func writeAll(dst io.Writer, data []byte) error {
 	return nil
 }
 
-// Заменяем разделители строк для Windows
+// Заменяем разделители строк для Windows.
+// Не реагируем на  ^Z.
 func wrapStdIO(serverIn io.WriteCloser, serverOut io.Reader, serverErr io.Reader, tty bool, escapeChar string) {
 	win := runtime.GOOS == "windows"
 	forwardIO := func(reader io.Reader, writer io.WriteCloser, input bool) {
