@@ -67,6 +67,19 @@ func isSerial(serial string) error {
 	return nil
 }
 
+func isHP(hostport string) (ok bool) {
+	_, _, err := net.SplitHostPort(hostport)
+	if err != nil {
+		return
+	}
+	conn, err := net.DialTimeout("tcp", hostport, time.Second)
+	if err != nil {
+		return
+	}
+	conn.Close()
+	return true
+}
+
 // Подключаем последовательный порт Serial к сессии ssh или локально.
 // Завершение сессии через `<Enter>~.`
 func ser(ctx context.Context, s io.ReadWriteCloser, Serial, Baud, exit string, println ...func(v ...any)) error {

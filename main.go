@@ -181,10 +181,12 @@ func main() {
 
 	ips := ints()
 	if len(ips) == 0 {
-		Println(fmt.Errorf("not connected - нет сети"))
 		ips = append(ips, LH)
 	}
 	Println(build(Ver, ips))
+	if ips[0] == LH {
+		Println(fmt.Errorf("not connected - нет сети"))
+	}
 
 	anyKey, err := x509.ParsePKCS8PrivateKey(CA)
 	Fatal(err)
@@ -1585,8 +1587,9 @@ func usbSerial(s string) (path string) {
 	}
 	return trim(dir + base + s)
 }
+
 func serialPath(path string) bool {
-	if path == "" {
+	if path == "" || strings.Contains(path, " ") {
 		return false
 	}
 	suff := path[len(path)-1:]
