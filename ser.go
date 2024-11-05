@@ -29,6 +29,7 @@ const (
 	IS3         = 0x1D // ^] INFORMATION SEPARATOR THREE (group separator)
 	ToExitPress = "To exit press - Чтоб выйти нажми"
 	B16         = 16
+	K1          = 1024
 )
 
 var (
@@ -160,7 +161,9 @@ func con(ctx context.Context, s io.ReadWriteCloser, Serial, Baud, exit string, p
 	t := time.AfterFunc(time.Second, func() {
 		SetMode(w, ctx, nil, chanByte, exit, 0, println...)
 	})
-
+	// if !strings.Contains(w.String(), ",") {
+	// 	Serial = ""
+	// }
 	_, err = w.CopyAfter(newSideWriter(i, args.EscapeChar, Serial, exit, chanByte, println...), s, time.Millisecond*77)
 	t.Stop()
 	return err
@@ -538,13 +541,10 @@ func rfc2217(ctx context.Context, cancel func(), s io.ReadWriteCloser, Serial, h
 	return
 }
 
-// Телнет
-func rfc854(ctx context.Context, s io.ReadWriteCloser, addr, exit string, println ...func(v ...any)) (err error) {
-
-	// chanByte := make(chan byte, B16)
-	conn, err := telnet.Dial(addr)
+// Типа stfioForward
+func forwardSTDio(ctx context.Context, s io.ReadWriteCloser, addr, exit string, println ...func(v ...any)) (err error) {
+	conn, err := net.Dial("tcp", addr)
 	for _, p := range println {
-		// 	p(hp.String(), err)
 		p(fmt.Sprintf("telnet://%s", addr), err)
 	}
 	if err != nil {
@@ -553,8 +553,6 @@ func rfc854(ctx context.Context, s io.ReadWriteCloser, addr, exit string, printl
 	defer conn.Close()
 
 	go ser2net.Copy(ctx, s, conn)
-	// _, err = ser2net.CopyAfter(ctx, newSideWriter(conn, args.EscapeChar, "", exit, chanByte, println...), s, time.Millisecond*77)
-	// _, err = ser2net.Copy(ctx, newSideWriter(conn, args.EscapeChar, "", exit, chanByte, println...), s)
 	_, err = ser2net.Copy(ctx, newSideWriter(conn, args.EscapeChar, "", exit, nil, println...), s)
 	return
 }
@@ -614,10 +612,36 @@ func SetMode(w *ser2net.SerialWorker, ctx context.Context, r io.Reader, chanByte
 			}
 		}()
 	}
+	const (
+		DataBits = "set data bits - установлено кол-во бит"
+		Parity   = "set parity - установлена чётность"
+		StopBits = "set stop bits - установлено кол-во стоповых бит"
+		BaudRate = "set baud - установлена скорость"
+	)
+	old := w.Mode()
 	for {
 		select {
 		case <-ctx.Done():
 			return
+		case <-time.After(time.Second):
+			mode := w.Mode()
+			msg := ""
+			if mode.DataBits != old.DataBits {
+				msg = DataBits
+			}
+			if mode.Parity != old.Parity {
+				msg = Parity
+			}
+			if mode.StopBits != old.StopBits {
+				msg = StopBits
+			}
+			if mode.BaudRate != old.BaudRate {
+				msg = BaudRate
+			}
+			if msg != "" {
+				print(fmt.Sprintf("%s %s", w, msg))
+				old = mode
+			}
 		case b := <-chanByte:
 			mode := w.Mode()
 			msg := ""
@@ -628,18 +652,28 @@ func SetMode(w *ser2net.SerialWorker, ctx context.Context, r io.Reader, chanByte
 				return
 			case '6':
 				switch mode.DataBits {
+				case 5:
+					mode.DataBits = 6
+				case 6:
+					mode.DataBits = 7
 				case 7:
 					mode.DataBits = 8
-				case 8:
-					mode.DataBits = 7
+				default:
+					mode.DataBits = 5
 				}
-				msg = "set data bits - установлено кол-во бит"
+				msg = DataBits
 			case '7':
 				switch mode.Parity {
 				case serial.NoParity:
 					mode.Parity = serial.OddParity
 				case serial.OddParity:
-					mode.Parity = serial.EvenParity
+					if mode.DataBits < 8 {
+						// https://datatracker.ietf.org/doc/html/rfc2217
+						//  EVEN parity is only valid if the data size is set to less than 8 bits
+						mode.Parity = serial.EvenParity
+					} else {
+						mode.Parity = serial.MarkParity
+					}
 				case serial.EvenParity:
 					mode.Parity = serial.MarkParity
 				case serial.MarkParity:
@@ -647,28 +681,32 @@ func SetMode(w *ser2net.SerialWorker, ctx context.Context, r io.Reader, chanByte
 				case serial.SpaceParity:
 					mode.Parity = serial.NoParity
 				}
-				msg = "set parity - установлена чётность"
+				msg = Parity
 			case '8':
 				switch mode.StopBits {
 				case serial.OneStopBit:
-					mode.StopBits = serial.OnePointFiveStopBits
+					if mode.DataBits == 5 {
+						// https://datatracker.ietf.org/doc/html/rfc2217
+						//  Stop bit 1.5 is supported by most com port hardware only if data size is set to 5 bits
+						mode.StopBits = serial.OnePointFiveStopBits
+					} else {
+						mode.StopBits = serial.TwoStopBits
+					}
 				case serial.OnePointFiveStopBits:
 					mode.StopBits = serial.TwoStopBits
 				case serial.TwoStopBits:
 					mode.StopBits = serial.OneStopBit
 				}
-				msg = "set stop bits - установлено кол-во стоповых бит"
+				msg = StopBits
 			case '0', '1', '2', '3', '4', '5', '9':
 				mode.BaudRate = ser2net.BaudRate(int(b-'0'), nil)
-				msg = "set baud - установлена скорость"
+				msg = BaudRate
 			}
 			if msg == "" {
 				prin(press)
 				continue
 			}
-			err := w.SetMode(&mode)
-			msg = fmt.Sprintf("%s %s %v", w, msg, err)
-			print(msg)
+			w.SetMode(&mode)
 		}
 	}
 }

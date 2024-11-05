@@ -384,10 +384,11 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	closer.Bind(cancel)
 
+	args.StdioForward = ser2net.LocalPort(args.StdioForward)
 	if args.StdioForward != "" && args.Destination == "" {
 		// Телнет
 		setRaw(&once)
-		rfc854(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, localPort(args.StdioForward), exit, Println)
+		forwardSTDio(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, args.StdioForward, exit, Println)
 		return
 	}
 
@@ -1555,7 +1556,7 @@ func cancelByFile(ctx context.Context, cancel func(), name string, delay time.Du
 // Можно указать -H1410 или -Hcu.usbserial-1410 или -H/dev/cu.usbserial-1410 для darwin.
 // Можно указать -H0 или -HttyUSB0 или -H/dev/ttyUSB0.
 func usbSerial(s string) (path string) {
-	if !serialPath(s) {
+	if !ser2net.SerialPath(s) {
 		// Поиск первого USB порта getFirstUsbSerial
 		return s
 	}
@@ -1588,14 +1589,6 @@ func usbSerial(s string) (path string) {
 	return trim(dir + base + s)
 }
 
-func serialPath(path string) bool {
-	if path == "" || strings.Contains(path, " ") {
-		return false
-	}
-	suff := path[len(path)-1:]
-	return suff >= "0" && suff <= "9"
-}
-
 func psPrintln(name, parent string, ppid int) {
 	var ss []string
 	pes, err := ps.Processes()
@@ -1624,11 +1617,4 @@ func psPrintln(name, parent string, ppid int) {
 	if len(ss) > 1 {
 		Println(fmt.Errorf("%v", ss))
 	}
-}
-
-func localPort(addr string) string {
-	if _, err := strconv.ParseUint(addr, 10, 16); err == nil {
-		return ":" + addr
-	}
-	return addr
 }

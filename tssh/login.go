@@ -1222,9 +1222,6 @@ func dialWithTimeout(client *ssh.Client, network, addr string, timeout time.Dura
 	done := make(chan struct{}, 1)
 	go func() {
 		defer close(done)
-		if _, err := strconv.ParseUint(addr, 10, 16); err == nil {
-			addr = ":" + addr
-		}
 		conn, err = client.Dial(network, addr)
 		done <- struct{}{}
 	}()

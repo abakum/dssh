@@ -67,7 +67,7 @@ type SshArgs struct {
 	ConfigFile     string      `arg:"-F,--" placeholder:"configfile" help:"an alternative per-user configuration file"`
 	ProxyJump      string      `arg:"-J,--" placeholder:"destination" help:"jump hosts separated by comma characters"`
 	Option         sshOption   `arg:"-o,--" placeholder:"key=value" help:"options in the format used in ~/.ssh/config\ne.g., tssh -o ProxyCommand=\"ssh proxy nc %h %p\""`
-	StdioForward   string      `arg:"-W,--" placeholder:"host:port" help:"forward stdin and stdout to host on port"`
+	StdioForward   string      `arg:"-W,--" placeholder:"[host:]port" help:"forward stdin and stdout to host on port"`
 	DynamicForward bindArgs    `arg:"-D,--" placeholder:"[bind_addr:]port" help:"dynamic port forwarding (socks4 proxy for Windows)"`
 	LocalForward   forwardArgs `arg:"-L,--" placeholder:"[bind_addr:]port:host:hostport" help:"local port forwarding"`
 	RemoteForward  forwardArgs `arg:"-R,--" placeholder:"[bind_addr:]port:host:hostport" help:"remote port forwarding"`
@@ -90,10 +90,10 @@ type SshArgs struct {
 	Config         *Config `arg:"-"`
 	Putty          bool    `arg:"-u,--putty" help:"write alias from ~/.ssh/config to ~/.putty or to CURRENT_USER\\SOFTWARE\\SimonTatham\\PuTTY of Windows registry and run PuTTY"`
 	Baud           string  `arg:"-U,--baud" placeholder:"baUd" help:"set baud rate of serial console"`
-	Serial         string  `arg:"-H,--path" placeholder:"patH" help:"device path (name for Windows) of serial console"`
+	Serial         string  `arg:"-H,--path" placeholder:"patHx|x|shell|"command param"|[host]:port" help:"device path or x<255 of serial console or command or [host]:port of remote serial console"`
 	Ser2net        int     `arg:"-2,--2217" placeholder:"port" help:"RFC2217 telnet port for serial port console over telnet" default:"-1"`
 	Ser2web        int     `arg:"-8,--web" placeholder:"port" help:"web port for serial console over web" default:"-1"`
-	Daemon         bool    `arg:"-d,--daemon" help:"run as ssh daemon, destination as [bind_addr][:port]\nif bind_addr is omit then 127.0.0.1\nif bind_addr is * then 0.0.0.0\nif bind_addr is _ then ip of first interface like 192.168.0.2\nif port is omit then 2222\nor just 'dssh'"`
+	Daemon         bool    `arg:"-d,--daemon" help:"run as ssh daemon, destination as [bind_addr][:port]\nif bind_addr is omitted then 127.0.0.1\nif bind_addr is * then 0.0.0.0\nif bind_addr is _ then ip of first interface like 192.168.0.2\nif port is omitted then 2222\nor just 'dssh'"`
 	Restart        bool    `arg:"-r,--restart" help:"restart daemon"`
 	Unix           bool    `arg:"-z,--unix" help:"zero new window"`
 	Telnet         bool    `arg:"-Z,--telnet" help:"telnet for serial console or ssh for shell - the sign of Zorro"`
