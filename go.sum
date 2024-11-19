@@ -14,10 +14,10 @@ github.com/abakum/go-console v0.0.1 h1:AMnxwQnzg4j5J8gliXdvdaFzNPC4km/N2pXt0kQfg
 github.com/abakum/go-console v0.0.1/go.mod h1:WXaFNcb4jHcrjFo8/A/Vbd6Zevu/B2LiOf5NPCMuF5w=
 github.com/abakum/go-netstat v0.0.1 h1:gwNEYQFctds8x26jaebGbjlfkxoKM7kd9a/O+HG9lV4=
 github.com/abakum/go-netstat v0.0.1/go.mod h1:VDmPFexMx7WdPUz+8/esyAIL4VIT13CSUmbQQZV420c=
-github.com/abakum/go-ser2net v0.0.2-0.20241030073633-eb4cccb2e68f h1:EojWkUjW/RoLtgyv6NRhSpSmjY0VRPlzJCcZ/ncpEqo=
-github.com/abakum/go-ser2net v0.0.2-0.20241030073633-eb4cccb2e68f/go.mod h1:RgD480QOIO3L7O91aqls3tu5CylbmVTFHg+tF5yE1No=
 github.com/abakum/go-ser2net v0.0.2-0.20241105124529-084b2409741c h1:O6nZYbU9+spzdU6RkKlDwyxdSHlNmZkE3fkZYowKfP0=
 github.com/abakum/go-ser2net v0.0.2-0.20241105124529-084b2409741c/go.mod h1:RgD480QOIO3L7O91aqls3tu5CylbmVTFHg+tF5yE1No=
+github.com/abakum/go-ser2net v0.0.2-0.20241119210037-fb7ea1dee3fd h1:X1M6JrG7IRXn3Lj4pb6nKjxvuLeji2tbkE5H453MSAs=
+github.com/abakum/go-ser2net v0.0.2-0.20241119210037-fb7ea1dee3fd/go.mod h1:RgD480QOIO3L7O91aqls3tu5CylbmVTFHg+tF5yE1No=
 github.com/abakum/menu v0.0.2-lw h1:iHzkBf9DwXXmVR0iFUBMetI6rnDHltA3LPLxlnCWLZg=
 github.com/abakum/menu v0.0.2-lw/go.mod h1:vS5nn5zECBdprSrDSq2Com7R98qBYiIDTWqXpftQ1lM=
 github.com/abakum/pageant v0.0.1 h1:2EpMzAmTBWD3V5FBRkoWBhSZzlU6kt2pA22DGip483w=

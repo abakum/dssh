@@ -15,7 +15,7 @@ require (
 	github.com/abakum/embed-encrypt v0.0.1
 	github.com/abakum/go-ansiterm v0.0.1
 	github.com/abakum/go-netstat v0.0.1
-	github.com/abakum/go-ser2net v0.0.2-0.20241105124529-084b2409741c
+	github.com/abakum/go-ser2net v0.0.2-0.20241119210037-fb7ea1dee3fd
 	github.com/abakum/menu v0.0.2-lw
 	github.com/abakum/pageant v0.0.1
 	github.com/abakum/putty_hosts v0.0.1

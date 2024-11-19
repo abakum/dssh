@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -161,21 +160,36 @@ func con(ctx context.Context, s io.ReadWriteCloser, Serial, Baud, exit string, p
 	t := time.AfterFunc(time.Second, func() {
 		SetMode(w, ctx, nil, chanByte, exit, 0, println...)
 	})
-	// if !strings.Contains(w.String(), ",") {
-	// 	Serial = ""
-	// }
+	if strings.Contains(w.String(), "$") {
+		Serial = ""
+	}
 	_, err = w.CopyAfter(newSideWriter(i, args.EscapeChar, Serial, exit, chanByte, println...), s, time.Millisecond*77)
 	t.Stop()
 	return err
 }
 
 func getFirstSerial(isUSB bool, Baud string) (name, list string) {
-	ports, err := enumerator.GetDetailedPortsList()
+	ports, err := serial.GetPortsList()
+	Println(ports)
 	if err != nil || len(ports) == 0 {
 		return
 	}
-	ok := false
+	detailedPorts, err := enumerator.GetDetailedPortsList()
+	if err != nil || len(detailedPorts) == 0 {
+		return
+	}
+	ordPorts := []*enumerator.PortDetails{}
 	for _, port := range ports {
+	inner:
+		for _, detailedPort := range detailedPorts {
+			if port == detailedPort.Name {
+				ordPorts = append(ordPorts, detailedPort)
+				break inner
+			}
+		}
+	}
+	ok := false
+	for _, port := range ordPorts {
 		usb := ""
 		if port.IsUSB {
 			SerialNumber := ""
@@ -190,10 +204,9 @@ func getFirstSerial(isUSB bool, Baud string) (name, list string) {
 				continue
 			}
 			// Занят?
-			sp, err := serial.Open(port.Name, &serial.Mode{
-				BaudRate: ser2net.BaudRate(strconv.Atoi(Baud)),
-				DataBits: 8,
-			})
+			mode := ser2net.DefaultMode
+			mode.BaudRate = ser2net.BaudRate(strconv.Atoi(Baud))
+			sp, err := serial.Open(port.Name, &mode)
 			if err != nil {
 				list += fmt.Sprintf(" %s", err)
 				if strings.HasSuffix(err.Error(), "Permission denied") && !Win {
@@ -236,7 +249,7 @@ func s2n(ctx context.Context, r io.Reader, chanB chan byte, chanW chan *ser2net.
 			p(a...)
 		}
 	}
-	print("TELNET server is listening at:", "telnet://"+net.JoinHostPort(host, strconv.Itoa(Ser2net)))
+	print(fmt.Sprintf("use RFC2217 telnet server by `%s -H %s`", repo, net.JoinHostPort(host, strconv.Itoa(Ser2net))))
 	hp := newHostPort(host, Ser2net, Serial, false)
 	hp.write()
 	err := w.StartTelnet(host, Ser2net)
@@ -263,8 +276,8 @@ func s2w(ctx context.Context, r io.Reader, chanByte chan byte, Serial, host stri
 		SetMode(w, ctx, r, chanByte, exit, wp, println...)
 	})
 
-	log.SetPrefix("\r>" + log.Prefix())
-	log.SetFlags(log.Lshortfile)
+	// log.SetPrefix("\r>" + log.Prefix())
+	// log.SetFlags(log.Lshortfile)
 
 	hp := newHostPort(host, wp, Serial, true)
 	hp.write()
@@ -486,50 +499,44 @@ func (hp *hostPort) remove() (err error) {
 }
 
 // Запускает ser2net server на telnet://host:Ser2net подключает к нему s через телнет клиента.
-func rfc2217(ctx context.Context, cancel func(), s io.ReadWriteCloser, Serial, host string, Ser2net int, Baud, exit string, println ...func(v ...any)) (err error) {
-
+func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial, host string, Ser2net int, Baud, exit string, println ...func(v ...any)) (err error) {
 	var (
 		sw   *ser2net.SerialWorker
 		conn *telnet.Connection
 	)
-
 	hp := newHostPort(host, Ser2net, Serial, false)
-	chanByte := make(chan byte, B16)
-	conn, err = telnet.Dial(hp.dest())
-
-	if err != nil {
-		// Новый сеанс
-		chanError := make(chan error, 2)
-		chanSerialWorker := make(chan *ser2net.SerialWorker, 2)
-		go func() {
-			chanError <- s2n(ctx, nil, chanByte, chanSerialWorker, Serial, host, Ser2net, Baud, exit, println...)
-		}()
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case err = <-chanError:
-			return
-		case sw = <-chanSerialWorker:
-			conn, err = telnet.Dial(hp.dest())
-		}
-	} else {
+	ncon, err := net.Dial("tcp", hp.dest())
+	if err == nil {
 		// Подключаемся к существующему сеансу
-		hp.read()
-		if isSerial(hp.Path) == ErrNotSerial {
-			Serial = hp.Path
-		} else {
-			Serial = ""
-		}
-		go cancelByFile(ctx, cancel, hp.name(), TOW)
+		ncon.Close()
+		con(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, hp.dest(), args.Baud, exit, Println)
+		return
 	}
-	for _, p := range println {
-		p(hp.String(), err)
+
+	// Новый сеанс
+
+	chanByte := make(chan byte, B16)
+	chanError := make(chan error, 2)
+	chanSerialWorker := make(chan *ser2net.SerialWorker, 2)
+	go func() {
+		chanError <- s2n(ctx, nil, chanByte, chanSerialWorker, Serial, host, Ser2net, Baud, exit, println...)
+	}()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case err = <-chanError:
+		return
+	case sw = <-chanSerialWorker:
+		conn, err = telnet.Dial(hp.dest(), sw.Client727, sw.Client2217, sw.Client1073)
 	}
-	// Println(hp.String(), err)
 	if err != nil {
 		return
 	}
-	defer conn.Close()
+	defer func() {
+		ser2net.IAC(conn, telnet.DO, telnet.TeloptLOGOUT)
+		time.Sleep(time.Millisecond * 11)
+		conn.Close()
+	}()
 
 	if sw == nil {
 		go ser2net.Copy(ctx, s, conn)
@@ -576,8 +583,8 @@ func SetMode(w *ser2net.SerialWorker, ctx context.Context, r io.Reader, chanByte
 		print(w)
 
 		defer func() {
-			w.Stop()
 			w.SerialClose()
+			// w.Stop()
 			print(w)
 
 		}()
@@ -652,14 +659,10 @@ func SetMode(w *ser2net.SerialWorker, ctx context.Context, r io.Reader, chanByte
 				return
 			case '6':
 				switch mode.DataBits {
-				case 5:
-					mode.DataBits = 6
-				case 6:
-					mode.DataBits = 7
 				case 7:
 					mode.DataBits = 8
-				default:
-					mode.DataBits = 5
+				case 8:
+					mode.DataBits = 7
 				}
 				msg = DataBits
 			case '7':
@@ -672,13 +675,9 @@ func SetMode(w *ser2net.SerialWorker, ctx context.Context, r io.Reader, chanByte
 						//  EVEN parity is only valid if the data size is set to less than 8 bits
 						mode.Parity = serial.EvenParity
 					} else {
-						mode.Parity = serial.MarkParity
+						mode.Parity = serial.NoParity
 					}
 				case serial.EvenParity:
-					mode.Parity = serial.MarkParity
-				case serial.MarkParity:
-					mode.Parity = serial.SpaceParity
-				case serial.SpaceParity:
 					mode.Parity = serial.NoParity
 				}
 				msg = Parity
@@ -690,10 +689,18 @@ func SetMode(w *ser2net.SerialWorker, ctx context.Context, r io.Reader, chanByte
 						//  Stop bit 1.5 is supported by most com port hardware only if data size is set to 5 bits
 						mode.StopBits = serial.OnePointFiveStopBits
 					} else {
+						// https://learn.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-dcb
+						// The use of 5 data bits with 2 stop bits is an invalid combination, as is 6, 7, or 8 data bits with 1.5 stop bits.
 						mode.StopBits = serial.TwoStopBits
 					}
 				case serial.OnePointFiveStopBits:
-					mode.StopBits = serial.TwoStopBits
+					// https://learn.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-dcb
+					// The use of 5 data bits with 2 stop bits is an invalid combination, as is 6, 7, or 8 data bits with 1.5 stop bits.
+					if mode.DataBits == 5 {
+						mode.StopBits = serial.OneStopBit
+					} else {
+						mode.StopBits = serial.TwoStopBits
+					}
 				case serial.TwoStopBits:
 					mode.StopBits = serial.OneStopBit
 				}

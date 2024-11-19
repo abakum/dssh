@@ -232,6 +232,13 @@ func main() {
 		return
 	}
 
+	// log.SetFlags(lf.Flags() | log.Lmicroseconds)
+	log.SetFlags(lf.Flags())
+	log.SetPrefix(lf.Prefix())
+	if !args.Debug {
+		log.SetOutput(io.Discard)
+	}
+
 	// tools
 	SecretEncodeKey = key
 	if args.NewHost ||
@@ -540,6 +547,7 @@ Host ` + SSHJ + `
 				}
 				setRaw(&once)
 				if wNear > -1 {
+					// dssh -88
 					hp := newHostPort(dial, wFar, serial, true)
 					conn, err := net.Dial("tcp", hp.dest())
 					if err == nil {
@@ -564,13 +572,17 @@ Host ` + SSHJ + `
 				// setRaw(&once)
 				if nNear > 0 {
 					// dssh --2217 0
-					rfc2217(ctx, closer.Close, ReadWriteCloser{os.Stdin, os.Stdout}, serial, s2, nNear, args.Baud, exit, Println)
+
+					rfc2217(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, serial, s2, nNear, args.Baud, exit, Println)
 					return
 				}
 				// dssh --baud 9
 				// dssh --path cmd
-				log.SetFlags(lf.Flags())
-				log.SetPrefix(lf.Prefix())
+				// log.SetFlags(lf.Flags())
+				// log.SetPrefix(lf.Prefix())
+				// if !args.Debug {
+				// 	log.SetOutput(io.Discard)
+				// }
 				con(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, serial, args.Baud, exit, Println)
 				return
 			default:
