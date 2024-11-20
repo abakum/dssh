@@ -1,6 +1,6 @@
 module github.com/abakum/dssh
 
-go 1.21
+go 1.21.0
 
 // replace github.com/abakum/go-ser2net => ../go-ser2net
 
