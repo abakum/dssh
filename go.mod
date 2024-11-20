@@ -1,6 +1,6 @@
 module github.com/abakum/dssh
 
-go 1.21.0
+go 1.21
 
 // replace github.com/abakum/go-ser2net => ../go-ser2net
 
@@ -15,7 +15,7 @@ require (
 	github.com/abakum/embed-encrypt v0.0.1
 	github.com/abakum/go-ansiterm v0.0.1
 	github.com/abakum/go-netstat v0.0.1
-	github.com/abakum/go-ser2net v0.0.2-0.20241120141032-70d9e92aaa81
+	github.com/abakum/go-ser2net v0.0.2-0.20241120181903-87519fdd524c
 	github.com/abakum/menu v0.0.2-lw
 	github.com/abakum/pageant v0.0.1
 	github.com/abakum/putty_hosts v0.0.1
@@ -56,7 +56,7 @@ require (
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
 	github.com/UserExistsError/conpty v0.1.2 // indirect
 	github.com/abakum/go-console v0.0.1 // indirect
-	github.com/abakum/go-terminal-size v0.0.0-20241120133957-a6f83fcffc34 // indirect
+	github.com/abakum/go-terminal-size v0.0.0-20241120142632-2e3252fa87fa // indirect
 	github.com/akavel/rsrc v0.10.2 // indirect
 	github.com/alexflint/go-scalar v1.2.0 // indirect
 	github.com/andybrewer/mack v0.0.0-20220307193339-22e922cc18af // indirect

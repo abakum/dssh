@@ -14,10 +14,10 @@ github.com/abakum/go-console v0.0.1 h1:AMnxwQnzg4j5J8gliXdvdaFzNPC4km/N2pXt0kQfg
 github.com/abakum/go-console v0.0.1/go.mod h1:WXaFNcb4jHcrjFo8/A/Vbd6Zevu/B2LiOf5NPCMuF5w=
 github.com/abakum/go-netstat v0.0.1 h1:gwNEYQFctds8x26jaebGbjlfkxoKM7kd9a/O+HG9lV4=
 github.com/abakum/go-netstat v0.0.1/go.mod h1:VDmPFexMx7WdPUz+8/esyAIL4VIT13CSUmbQQZV420c=
-github.com/abakum/go-ser2net v0.0.2-0.20241120141032-70d9e92aaa81 h1:FUbIT61c/w+S1U82xl1PfsJ1alZJ5Rys+yD20iq1PYc=
-github.com/abakum/go-ser2net v0.0.2-0.20241120141032-70d9e92aaa81/go.mod h1:QAa0dKSAYJm6j+BgCL50noR5plhcroto/PhnOich//s=
-github.com/abakum/go-terminal-size v0.0.0-20241120133957-a6f83fcffc34 h1:fGgdFI+ZWGP7f2OWIKeEp/JkKHd9JyH0TMsFyo6Rd+0=
-github.com/abakum/go-terminal-size v0.0.0-20241120133957-a6f83fcffc34/go.mod h1:Kh2hJ9LA4tefRZRPc4rNTU3OVlv8xstYKYASbl2QsJE=
+github.com/abakum/go-ser2net v0.0.2-0.20241120181903-87519fdd524c h1:AnAUbgdxny2LeYnUNVvqsJKoOEXNJ8Tz3xL6rFXiFEA=
+github.com/abakum/go-ser2net v0.0.2-0.20241120181903-87519fdd524c/go.mod h1:Szhjsdto3WwLhItC+qK0QlmIGulOoyc89IgVc0O5RMU=
+github.com/abakum/go-terminal-size v0.0.0-20241120142632-2e3252fa87fa h1:i4hZfxHcUwpuepDRXWSaTTXwbSUemJGgVxnggUXXDmc=
+github.com/abakum/go-terminal-size v0.0.0-20241120142632-2e3252fa87fa/go.mod h1:pXwxWIukuSCoRfQTfc+DUtibVYfh8nd1Ed0wy8uOW/A=
 github.com/abakum/menu v0.0.2-lw h1:iHzkBf9DwXXmVR0iFUBMetI6rnDHltA3LPLxlnCWLZg=
 github.com/abakum/menu v0.0.2-lw/go.mod h1:vS5nn5zECBdprSrDSq2Com7R98qBYiIDTWqXpftQ1lM=
 github.com/abakum/pageant v0.0.1 h1:2EpMzAmTBWD3V5FBRkoWBhSZzlU6kt2pA22DGip483w=
