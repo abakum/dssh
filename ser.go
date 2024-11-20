@@ -509,7 +509,7 @@ func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial, host string, Ser
 	if err == nil {
 		// Подключаемся к существующему сеансу
 		ncon.Close()
-		con(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, hp.dest(), args.Baud, exit, Println)
+		con(ctx, s, hp.dest(), args.Baud, exit, Println)
 		return
 	}
 

@@ -196,7 +196,7 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 					Println("s2n", err)
 					return
 				}
-				// dssh -20 :
+				// dssh -22 :
 				err = rfc2217(s.Context(), s, serial, s2, p2, args.Baud, args.Exit, log.Println, Println)
 				log.Println("rfc2217", err)
 				Println("rfc2217", err)

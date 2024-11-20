@@ -578,11 +578,6 @@ Host ` + SSHJ + `
 				}
 				// dssh --baud 9
 				// dssh --path cmd
-				// log.SetFlags(lf.Flags())
-				// log.SetPrefix(lf.Prefix())
-				// if !args.Debug {
-				// 	log.SetOutput(io.Discard)
-				// }
 				con(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, serial, args.Baud, exit, Println)
 				return
 			default:
