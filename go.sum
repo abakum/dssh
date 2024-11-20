@@ -16,6 +16,8 @@ github.com/abakum/go-netstat v0.0.1 h1:gwNEYQFctds8x26jaebGbjlfkxoKM7kd9a/O+HG9l
 github.com/abakum/go-netstat v0.0.1/go.mod h1:VDmPFexMx7WdPUz+8/esyAIL4VIT13CSUmbQQZV420c=
 github.com/abakum/go-ser2net v0.0.2-0.20241120181903-87519fdd524c h1:AnAUbgdxny2LeYnUNVvqsJKoOEXNJ8Tz3xL6rFXiFEA=
 github.com/abakum/go-ser2net v0.0.2-0.20241120181903-87519fdd524c/go.mod h1:Szhjsdto3WwLhItC+qK0QlmIGulOoyc89IgVc0O5RMU=
+github.com/abakum/go-ser2net v0.0.2-0.20241120193243-d59cc449e42a h1:4qCH7UQSj/RHLAt+ryGgpohek2NoKFbXgGBtzmzgv4A=
+github.com/abakum/go-ser2net v0.0.2-0.20241120193243-d59cc449e42a/go.mod h1:Szhjsdto3WwLhItC+qK0QlmIGulOoyc89IgVc0O5RMU=
 github.com/abakum/go-terminal-size v0.0.0-20241120142632-2e3252fa87fa h1:i4hZfxHcUwpuepDRXWSaTTXwbSUemJGgVxnggUXXDmc=
 github.com/abakum/go-terminal-size v0.0.0-20241120142632-2e3252fa87fa/go.mod h1:pXwxWIukuSCoRfQTfc+DUtibVYfh8nd1Ed0wy8uOW/A=
 github.com/abakum/menu v0.0.2-lw h1:iHzkBf9DwXXmVR0iFUBMetI6rnDHltA3LPLxlnCWLZg=
