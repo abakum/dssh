@@ -143,18 +143,16 @@ func con(ctx context.Context, s io.ReadWriteCloser, Serial, Baud, exit string, p
 	}
 	go w.Worker()
 
-	i, err := w.NewIoReadWriteCloser()
+	c, err := w.NewIoReadWriteCloser()
 	if nil != err {
 		return err
 	}
 	print(w)
 	defer func() {
-		i.Close()
+		c.Close()
 		err = w.SerialClose()
 		print(w)
 	}()
-
-	go w.Copy(s, i)
 
 	chanByte := make(chan byte, B16)
 	t := time.AfterFunc(time.Second, func() {
@@ -163,7 +161,9 @@ func con(ctx context.Context, s io.ReadWriteCloser, Serial, Baud, exit string, p
 	if strings.Contains(w.String(), "$") {
 		Serial = ""
 	}
-	_, err = w.CopyAfter(newSideWriter(i, args.EscapeChar, Serial, exit, chanByte, println...), s, time.Millisecond*77)
+
+	go w.Copy(s, c)
+	_, err = w.CopyAfter(newSideWriter(c, args.EscapeChar, Serial, exit, chanByte, println...), s, time.Millisecond*77)
 	t.Stop()
 	return err
 }
@@ -500,10 +500,6 @@ func (hp *hostPort) remove() (err error) {
 
 // Запускает ser2net server на telnet://host:Ser2net подключает к нему s через телнет клиента.
 func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial, host string, Ser2net int, Baud, exit string, println ...func(v ...any)) (err error) {
-	var (
-		sw   *ser2net.SerialWorker
-		conn *telnet.Connection
-	)
 	hp := newHostPort(host, Ser2net, Serial, false)
 	ncon, err := net.Dial("tcp", hp.dest())
 	if err == nil {
@@ -521,30 +517,36 @@ func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial, host string, Ser
 	go func() {
 		chanError <- s2n(ctx, nil, chanByte, chanSerialWorker, Serial, host, Ser2net, Baud, exit, println...)
 	}()
+	var (
+		w *ser2net.SerialWorker
+		c *telnet.Connection
+	)
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
 	case err = <-chanError:
 		return
-	case sw = <-chanSerialWorker:
-		conn, err = telnet.Dial(hp.dest(), sw.Client727, sw.Client2217, sw.Client1073)
+	case w = <-chanSerialWorker:
+		c, err = telnet.Dial(hp.dest(), w.Client727, w.Client2217, w.Client1073)
+		if err != nil {
+			return
+		}
 	}
-	if err != nil {
-		return
-	}
+
 	defer func() {
-		ser2net.IAC(conn, telnet.DO, telnet.TeloptLOGOUT)
+		ser2net.IAC(c, telnet.DO, telnet.TeloptLOGOUT)
 		time.Sleep(time.Millisecond * 11)
-		conn.Close()
+		c.Close()
 	}()
 
-	if sw == nil {
-		go ser2net.Copy(ctx, s, conn)
-		_, err = ser2net.CopyAfter(ctx, newSideWriter(conn, args.EscapeChar, Serial, exit, chanByte, println...), s, time.Millisecond*77)
-		return
-	}
-	go sw.Copy(s, conn)
-	_, err = sw.CopyAfter(newSideWriter(conn, args.EscapeChar, Serial, exit, chanByte, println...), s, time.Millisecond*77)
+	// if w == nil {
+	// 	go ser2net.Copy(ctx, s, c)
+	// 	_, err = ser2net.CopyAfter(ctx, newSideWriter(c, args.EscapeChar, Serial, exit, chanByte, println...), s, time.Millisecond*77)
+	// 	return
+	// }
+
+	go w.Copy(s, c)
+	_, err = w.CopyAfter(newSideWriter(c, args.EscapeChar, Serial, exit, chanByte, println...), s, time.Millisecond*77)
 	return
 }
 
