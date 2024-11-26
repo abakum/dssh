@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/PatrickRudolph/telnet"
 	"github.com/abakum/go-ansiterm"
 	"github.com/abakum/go-netstat/netstat"
 	"github.com/abakum/winssh"
@@ -147,63 +146,63 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 			serial := getFirstUsbSerial(args.Serial, args.Baud, log.Print)
 			nNear = cons(serial, s2, nNear, wNear)
 			if nNear > 0 {
-				p2 := portOB(nNear, RFC2217)
-				if args.Putty {
-					// dssh -u20 :
-					// Только для Виндовс.
-					// Управление режимами последовательного порта через ssh.
-					// Приём передача через putty, plink, telnet.
-					// Протокол дублируется на стороне сервера через putty, plink, telnet.
-					if Windows && !OverSSH {
-						execPath, bin, err := look(PUTTY, PLINK, TELNET)
-						Println(execPath, bin, err)
-						if err == nil {
-							opt := optTelnet(bin == TELNET, p2)
-							cmd := exec.CommandContext(s.Context(), execPath, strings.Fields(opt)...)
-							notPutty(bin, cmd)
-							err = cmd.Start()
-							Println(cmd, err)
-							if err == nil {
-								go func() {
-									err = cmd.Wait()
-									if err != nil {
-										switch err.Error() {
-										case "exit status 0xc000013a":
-											Println("User closed window with log - Пользователь закрыл окно c протоколом")
-										case "exit status 1":
-											Println("Session of ssh was terminated - Сессия ssh завершилась")
-										default:
-											Println(err, "= cmd.Wait()")
-										}
-									}
-								}()
-							}
-						}
-					}
-					hp := newHostPort(s2, p2, serial, false)
-					conn, err := telnet.Dial(hp.dest())
-					if err == nil {
-						conn.Close()
-						hp.read()
-						log.Println(hp.String())
-						Println(hp.String())
-						cancelByFile(s.Context(), nil, hp.name(), TOW)
-						return
-					}
-
-					err = s2n(s.Context(), s, nil, nil, serial, s2, p2, args.Baud, " или <^C>", log.Println, Println)
-					log.Println("s2n", err)
-					Println("s2n", err)
-					return
-				}
 				// dssh -22 :
-				err = rfc2217(s.Context(), s, serial, s2, p2, args.Baud, args.Exit, log.Println, Println)
-				log.Println("rfc2217", err)
-				Println("rfc2217", err)
+				p2 := portOB(nNear, RFC2217)
+				// if args.Putty {
+				// 	// dssh -u22 :
+				// 	if Windows && !OverSSH {
+				// 		// Только для Виндовс.
+				// 		// Управление режимами последовательного порта через ssh.
+				// 		// Приём передача через putty, plink, telnet.
+				// 		// Протокол дублируется на стороне сервера через putty, plink, telnet.
+				// 		execPath, bin, err := look(PUTTY, PLINK, TELNET)
+				// 		Println(execPath, bin, err)
+				// 		if err == nil {
+				// 			opt := optTelnet(bin == TELNET, p2)
+				// 			cmd := exec.CommandContext(s.Context(), execPath, strings.Fields(opt)...)
+				// 			notPutty(bin, cmd)
+				// 			err = cmd.Start()
+				// 			Println(cmd, err)
+				// 			if err == nil {
+				// 				go func() {
+				// 					err = cmd.Wait()
+				// 					if err != nil {
+				// 						switch err.Error() {
+				// 						case "exit status 0xc000013a":
+				// 							Println("User closed window with log - Пользователь закрыл окно c протоколом")
+				// 						case "exit status 1":
+				// 							Println("Session of ssh was terminated - Сессия ssh завершилась")
+				// 						default:
+				// 							Println(err, "= cmd.Wait()")
+				// 						}
+				// 					}
+				// 				}()
+				// 			}
+				// 		}
+				// 	}
+				// 	// dssh -u22 :
+				// 	hp := newHostPort(s2, p2, serial, false)
+				// 	conn, err := telnet.Dial(hp.dest())
+				// 	if err == nil {
+				// 		conn.Close()
+				// 		hp.read()
+				// 		log.Println(hp.String())
+				// 		Println(hp.String())
+				// 		cancelByFile(s.Context(), nil, hp.name(), TOW)
+				// 		return
+				// 	}
+
+				// 	err = s2n(s.Context(), s, nil, nil, serial, s2, p2, args.Baud, " или <^C>", log.Println, Println)
+				// 	log.Println("s2n", err)
+				// 	Println("s2n", err)
+				// 	return
+				// }
+				// dssh -22 :
+				rfc2217(s.Context(), s, serial, s2, p2, args.Baud, args.Exit, log.Println, Println)
 				return
 			}
 			if wNear > 0 {
-				// dssh -80 :
+				// dssh -88 :
 				p2 := portOB(wNear, WEB2217)
 				hp := newHostPort(s2, p2, serial, true)
 				conn, err := net.Dial("tcp", hp.dest())
@@ -226,6 +225,7 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 
 				return
 			}
+			// dssh -UU :
 			err = con(s.Context(), s, serial, args.Baud, args.Exit, log.Println, Println)
 			log.Println("con", err)
 			Println("con", err)

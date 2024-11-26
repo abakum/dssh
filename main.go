@@ -571,13 +571,13 @@ Host ` + SSHJ + `
 				}
 				// setRaw(&once)
 				if nNear > 0 {
-					// dssh --2217 0
-
+					// dssh -22
 					rfc2217(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, serial, s2, nNear, args.Baud, exit, Println)
 					return
 				}
-				// dssh --baud 9
-				// dssh --path cmd
+				// dssh -UU
+				// dssh -Hcmd
+				// dssh -H:2322
 				con(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, serial, args.Baud, exit, Println)
 				return
 			default:

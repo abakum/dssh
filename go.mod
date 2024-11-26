@@ -15,7 +15,7 @@ require (
 	github.com/abakum/embed-encrypt v0.0.1
 	github.com/abakum/go-ansiterm v0.0.1
 	github.com/abakum/go-netstat v0.0.1
-	github.com/abakum/go-ser2net v0.0.2-0.20241120193243-d59cc449e42a
+	github.com/abakum/go-ser2net v0.0.2-0.20241126141155-b503582fd280
 	github.com/abakum/menu v0.0.2-lw
 	github.com/abakum/pageant v0.0.1
 	github.com/abakum/putty_hosts v0.0.1
@@ -55,8 +55,10 @@ require (
 require (
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
 	github.com/UserExistsError/conpty v0.1.2 // indirect
+	github.com/abakum/cancelreader v0.0.0-20241122215017-9e298cf19164 // indirect
 	github.com/abakum/go-console v0.0.1 // indirect
 	github.com/abakum/go-terminal-size v0.0.0-20241120142632-2e3252fa87fa // indirect
+	github.com/abakum/term v0.0.1 // indirect
 	github.com/akavel/rsrc v0.10.2 // indirect
 	github.com/alexflint/go-scalar v1.2.0 // indirect
 	github.com/andybrewer/mack v0.0.0-20220307193339-22e922cc18af // indirect
