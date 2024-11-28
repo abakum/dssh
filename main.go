@@ -142,6 +142,7 @@ var (
 	BUSYBOX    = "busybox"
 	MICROCOM   = false
 	tmp        = filepath.Join(os.TempDir(), repo)
+	ips        = ser2net.Ints()
 )
 
 //go:generate go run github.com/abakum/version
@@ -179,10 +180,6 @@ func main() {
 	Fatal(err)
 	imag = strings.Split(filepath.Base(exe), ".")[0]
 
-	ips := ints()
-	if len(ips) == 0 {
-		ips = append(ips, LH)
-	}
 	Println(build(Ver, ips))
 	if ips[0] == LH {
 		Println(fmt.Errorf("not connected - нет сети"))
@@ -355,7 +352,7 @@ func main() {
 		case "", LH, ".", "_", ips[0], "*", ips[len(ips)-1], ALL:
 			// Локальный последовательный порт
 			serial = getFirstUsbSerial(serial, args.Baud, Print)
-			nNear = cons(serial, s2, nNear, wNear)
+			nNear = comm(serial, s2, nNear, wNear)
 		default:
 			usePuTTY = false
 		}
@@ -395,7 +392,7 @@ func main() {
 	if args.StdioForward != "" && args.Destination == "" {
 		// Телнет
 		setRaw(&once)
-		forwardSTDio(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, args.StdioForward, exit, Println)
+		forwardSTDio(ctx, ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: os.Stdout}, args.StdioForward, exit, Println)
 		return
 	}
 
@@ -549,10 +546,9 @@ Host ` + SSHJ + `
 				if wNear > -1 {
 					// dssh -88
 					hp := newHostPort(dial, wFar, serial, true)
-					conn, err := net.Dial("tcp", hp.dest())
-					if err == nil {
+
+					if isHP(hp.dest()) {
 						// Подключаемся к существующему сеансу
-						conn.Close()
 						hp.read()
 						Println(hp.String())
 
@@ -564,23 +560,25 @@ Host ` + SSHJ + `
 						Println(browse(ctx, dial, wFar, nil))
 					})
 
-					s2w(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, nil, serial, s2, wNear, args.Baud, " или ^C", Println)
-
+					s2w(ctx, ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: os.Stdout}, nil, serial, s2, wNear, args.Baud, " или ^C", Println)
 					t.Stop() // Если не успел стартануть то и не надо
 					return
 				}
 				// setRaw(&once)
 				if nNear > 0 {
 					// dssh -22
-					rfc2217(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, serial, s2, nNear, args.Baud, exit, Println)
+					Println(rfc2217(ctx, ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: os.Stdout}, serial, s2, nNear, args.Baud, exit, Println))
 					return
 				}
 				// dssh -UU
 				// dssh -Hcmd
 				// dssh -H:2322
-				con(ctx, ReadWriteCloser{os.Stdin, os.Stdout}, serial, args.Baud, exit, Println)
+				Println(cons(ctx, ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: os.Stdout}, serial, args.Baud, exit, Println))
 				return
 			default:
+				if args.Debug {
+					args.Argument = append(args.Argument, "--debug")
+				}
 				if args.Baud != "" {
 					args.Argument = append(args.Argument, "--baud", args.Baud)
 				}
@@ -948,26 +946,6 @@ func WriteFile(name string, data []byte, perm fs.FileMode) error {
 		return os.WriteFile(name, data, perm)
 	}
 	return nil
-}
-
-func ints() (ips []string) {
-	ifaces, err := net.Interfaces()
-	if err == nil {
-		for _, ifac := range ifaces {
-			addrs, err := ifac.Addrs()
-			if err != nil || ifac.Flags&net.FlagUp == 0 || ifac.Flags&net.FlagRunning == 0 || ifac.Flags&net.FlagLoopback != 0 {
-				continue
-			}
-			for _, addr := range addrs {
-				if strings.Contains(addr.String(), ":") {
-					continue
-				}
-				ips = append(ips, strings.Split(addr.String(), "/")[0])
-			}
-		}
-		// slices.Reverse(ips)
-	}
-	return
 }
 
 func cleanup() {
@@ -1402,7 +1380,7 @@ func dest2hd(Destination string, ips ...string) (host, dial string) {
 
 func all2dial(host string) string {
 	if host == ALL {
-		return LH
+		return ips[len(ips)-1]
 	}
 	return host
 }
@@ -1521,7 +1499,7 @@ func KidsDone(ppid int) {
 
 // Если serial это команда то запускаем web-сервер или telnet-сервер.
 // Даже если параметр --2217 не задан.
-func cons(serial, s2 string, nNear, wNear int) int {
+func comm(serial, s2 string, nNear, wNear int) int {
 	if serial == "" {
 		xNear := nNear
 		url := "telnet"
@@ -1624,4 +1602,33 @@ func psPrintln(name, parent string, ppid int) {
 	if len(ss) > 1 {
 		Println(fmt.Errorf("%v", ss))
 	}
+}
+
+// Типа stfioForward
+func forwardSTDio(ctx context.Context, s io.ReadWriteCloser, addr, exit string, println ...func(v ...any)) (err error) {
+	conn, err := net.Dial("tcp", addr)
+	for _, p := range println {
+		p(fmt.Sprintf("telnet://%s", addr), err)
+	}
+	if err != nil {
+		return
+	}
+	defer conn.Close()
+
+	go ser2net.Copy(ctx, s, conn)
+	_, err = ser2net.Copy(ctx, newSideWriter(conn, args.EscapeChar, "", exit, nil, println...), s)
+	return
+}
+
+func isHP(hostport string) (ok bool) {
+	_, _, err := net.SplitHostPort(hostport)
+	if err != nil {
+		return
+	}
+	conn, err := net.DialTimeout("tcp", hostport, time.Second)
+	if err != nil {
+		return
+	}
+	conn.Close()
+	return true
 }

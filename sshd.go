@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -20,6 +21,17 @@ import (
 	"github.com/trzsz/go-arg"
 	"golang.org/x/crypto/ssh"
 )
+
+type cgiArgs struct {
+	Baud    string `arg:"-U,--baud" placeholder:"baUd" help:"set baud rate of serial console"`
+	Serial  string `arg:"-H,--path" placeholder:"patH" help:"device path (name for Windows) of serial console"`
+	Ser2net int    `arg:"-2,--2217" placeholder:"port" help:"RFC2217 telnet port for serial console over telnet" default:"-1"`
+	Ser2web int    `arg:"-8,--web" placeholder:"port" help:"web port for serial console over web" default:"-1"`
+	Putty   bool   `arg:"-u,--putty" help:"run PuTTY"`
+	Exit    string `arg:"--exit" help:"exit shortcut"`
+	Restart bool   `arg:"-r,--restart" help:"restart daemon"`
+	Debug   bool   `arg:"-v,--debug" help:"verbose mode for debugging, similar to ssh's -v"`
+}
 
 // Сервер sshd.
 // h, p хост, порт,
@@ -140,11 +152,28 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 		case args.Restart:
 			caRW()
 		case args.Baud != "" || args.Serial != "" || nNear > 0 || wNear > 0:
+			// Покажу клиенту протокол на стороне сервера
+			ler := log.New(s.Stderr(), "\r:>", lf.Flags())
+			// Покажу клиенту и на сервере протокол на стороне сервера
+			ps := []func(v ...any){ler.Println, Println}
+			serial := getFirstUsbSerial(args.Serial, args.Baud, ler.Print)
+
+			// Покажу клиенту протокол IAC
 			log.SetFlags(lf.Flags())
 			log.SetPrefix("\r:>")
-			log.SetOutput(s.Stderr())
-			serial := getFirstUsbSerial(args.Serial, args.Baud, log.Print)
-			nNear = cons(serial, s2, nNear, wNear)
+			if args.Debug {
+				// ps = append(ps, log.Println)
+				log.SetOutput(s.Stderr())
+			} else {
+				log.SetOutput(io.Discard)
+			}
+			print := func(a ...any) {
+				for _, p := range ps {
+					p(a...)
+				}
+			}
+
+			nNear = comm(serial, s2, nNear, wNear)
 			if nNear > 0 {
 				// dssh -22 :
 				p2 := portOB(nNear, RFC2217)
@@ -198,37 +227,28 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 				// 	return
 				// }
 				// dssh -22 :
-				rfc2217(s.Context(), s, serial, s2, p2, args.Baud, args.Exit, log.Println, Println)
+				// dssh -22 .
+				print(rfc2217(s.Context(), s, serial, s2, p2, args.Baud, args.Exit, ps...))
 				return
 			}
 			if wNear > 0 {
 				// dssh -88 :
 				p2 := portOB(wNear, WEB2217)
 				hp := newHostPort(s2, p2, serial, true)
-				conn, err := net.Dial("tcp", hp.dest())
-				if err == nil {
+				if isHP(hp.dest()) {
 					// Подключаемся к существующему сеансу
-					conn.Close()
 					hp.read()
-
-					log.Println(hp.String())
-					Println(hp.String())
+					print("web", hp.String())
 
 					cancelByFile(s.Context(), nil, hp.name(), TOW)
 					return
 				}
 
-				err = s2w(s.Context(), s, nil, serial, s2, p2, args.Baud, " или <^C>", log.Println, Println)
-
-				log.Println("s2w", err)
-				Println("s2w", err)
-
+				print("s2w", s2w(s.Context(), s, nil, serial, s2, p2, args.Baud, " или <^C>", ps...))
 				return
 			}
 			// dssh -UU :
-			err = con(s.Context(), s, serial, args.Baud, args.Exit, log.Println, Println)
-			log.Println("con", err)
-			Println("con", err)
+			print(cons(s.Context(), s, serial, args.Baud, args.Exit, ps...))
 		}
 	})
 

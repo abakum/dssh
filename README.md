@@ -2,6 +2,15 @@
 
 dssh:=(tssh from trzsz)+(CA key with embed-encrypt)+(sshd from gliderlabs)+(access over NAT using jumphost ssh-j.com)+(ser2net with putty or direct connect to serial console or over browser)
 
+# 0.    Мои благодарности
+    1.  Lonny Wong https://github.com/trzsz/trzsz-ssh
+    2.  Paul Scheduikat https://github.com/lu4p/embed-encrypt
+    3.  Glider Labs https://github.com/gliderlabs/ssh
+    4.  ValdikSS https://bitbucket.org/ValdikSS/dropbear-sshj/src/master/
+    5.  9elements https://github.com/9elements/go-ser2net
+    6.  Patrick Rudolph https://github.com/PatrickRudolph/telnet
+
+
 # 1.    Как использовать для доступа к локальной последовательной консоли:
     1.  Вместо PuTTY, plink для доступа к локальной последовательной консоли на первом USB порту со скоростью 9600 запусти `dssh -U9600` или `dssh -U9` или `dssh -UU`. Можно задать любую стартовую скорость на последовательной консоле а потом переключать! На Darwin 12.7.6 тоже работает. Для Linux нужно членство в группе dialout.
     2.  Вместо PuTTY, plink для доступа к локальной последовательной консоли на порту COM3 для Windows со скоростью 9600 запусти `dssh -HCOM3` или `dssh -H3`.

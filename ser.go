@@ -3,17 +3,13 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/PatrickRudolph/telnet"
 	"github.com/abakum/go-ser2net/pkg/ser2net"
 	"github.com/abakum/winssh"
 	"go.bug.st/serial"
@@ -35,26 +31,6 @@ var (
 	ErrNotSerial          = fmt.Errorf("this is not a serial port - это не последовательный порт")
 )
 
-type cgiArgs struct {
-	Baud    string `arg:"-U,--baud" placeholder:"baUd" help:"set baud rate of serial console"`
-	Serial  string `arg:"-H,--path" placeholder:"patH" help:"device path (name for Windows) of serial console"`
-	Ser2net int    `arg:"-2,--2217" placeholder:"port" help:"RFC2217 telnet port for serial console over telnet" default:"-1"`
-	Ser2web int    `arg:"-8,--web" placeholder:"port" help:"web port for serial console over web" default:"-1"`
-	Putty   bool   `arg:"-u,--putty" help:"run PuTTY"`
-	Exit    string `arg:"--exit" help:"exit shortcut"`
-	Restart bool   `arg:"-r,--restart" help:"restart daemon"`
-}
-
-type ReadWriteCloser struct {
-	io.Reader
-	io.WriteCloser
-}
-
-type WriteCloser struct {
-	io.Writer
-	io.Closer
-}
-
 func isSerial(serial string) error {
 	if serial == "" {
 		return ErrNotFoundFreeSerial
@@ -64,19 +40,6 @@ func isSerial(serial string) error {
 		return ErrNotSerial
 	}
 	return nil
-}
-
-func isHP(hostport string) (ok bool) {
-	_, _, err := net.SplitHostPort(hostport)
-	if err != nil {
-		return
-	}
-	conn, err := net.DialTimeout("tcp", hostport, time.Second)
-	if err != nil {
-		return
-	}
-	conn.Close()
-	return true
 }
 
 func getFirstSerial(isUSB bool, Baud string) (name, list string) {
@@ -137,71 +100,6 @@ func getFirstSerial(isUSB bool, Baud string) (name, list string) {
 	}
 	list += "\r\n"
 	return
-}
-
-// Телнет сервер RFC2217 ждёт на telnet://host:Ser2net.
-// SetMode использует r или chanByte для смены serial.Mode порта Serial.
-// На консоль клиента println[0] выводит протокол через ssh канал.
-// Локально println[1] выводит протокол.
-func s2n(ctx context.Context, r io.Reader, chanB chan byte, chanW chan *ser2net.SerialWorker, Serial, host string, Ser2net int, Baud, exit string, println ...func(v ...any)) error {
-	if Serial == "" {
-		return ErrNotFoundFreeSerial
-	}
-	w, _ := ser2net.NewSerialWorker(ctx, Serial, ser2net.BaudRate(strconv.Atoi(Baud)))
-	go w.Worker()
-	t := time.AfterFunc(time.Millisecond*333, func() {
-		if chanW != nil {
-			chanW <- w
-		}
-		SetMode(w, ctx, r, chanB, exit, Ser2net, println...)
-	})
-	print := func(a ...any) {
-		for _, p := range println {
-			p(a...)
-		}
-	}
-	print(fmt.Sprintf("use RFC2217 telnet server by `%s -H %s`", repo, net.JoinHostPort(host, strconv.Itoa(Ser2net))))
-	// hp := newHostPort(host, Ser2net, Serial, false)
-	// hp.write()
-	err := w.StartTelnet(host, Ser2net)
-	t.Stop()
-	// hp.remove()
-
-	if err != nil {
-		print(err)
-	}
-	return err
-}
-
-// Web сервер ждёт на порту web.
-// SetMode использует r или chanByte для смены serial.Mode порта Serial.
-// На консоль клиента println[0] выводит протокол через ssh канал.
-// Локально println[1] выводит протокол.
-func s2w(ctx context.Context, r io.Reader, chanByte chan byte, Serial, host string, wp int, Baud, exit string, println ...func(v ...any)) error {
-	if Serial == "" {
-		return ErrNotFoundFreeSerial
-	}
-	w, _ := ser2net.NewSerialWorker(ctx, Serial, ser2net.BaudRate(strconv.Atoi(Baud)))
-	go w.Worker()
-	t := time.AfterFunc(time.Millisecond*333, func() {
-		SetMode(w, ctx, r, chanByte, exit, wp, println...)
-	})
-
-	// log.SetPrefix("\r>" + log.Prefix())
-	// log.SetFlags(log.Lshortfile)
-
-	hp := newHostPort(host, wp, Serial, true)
-	hp.write()
-	err := w.StartGoTTY(host, wp, "", false)
-	t.Stop()
-	hp.remove()
-
-	if err != nil {
-		for _, p := range println {
-			p(err)
-		}
-	}
-	return err
 }
 
 func getFirstUsbSerial(serialPort, Baud string, print func(v ...any)) (serial string) {
@@ -363,175 +261,6 @@ func mess(esc, exit, serial string) string {
 		"To change mode of serial port press - Чтоб сменить режим последовательного порта нажми "+esc+"<x>"+enter,
 		"Where x from 0 to 9 - Где 0[115200], 1[19200], 2[2400], 3[38400], 4[4800], 5[57600], 6[DataBits], 7[Parity], 8[StopBits], 9[9600]",
 	)
-}
-
-type hostPort struct {
-	Host string `json:"host"`
-	Port int    `json:"port"`
-	Path string `json:"path"`
-	Web  bool   `json:"web"`
-}
-
-func newHostPort(host string, port int, path string, web bool) hostPort {
-	os.MkdirAll(tmp, DIRMODE)
-	return hostPort{all2dial(host), port, path, web}
-
-}
-
-func (hp *hostPort) read() (err error) {
-	bytes, err := os.ReadFile(hp.name())
-	if err != nil {
-		return
-	}
-	return json.Unmarshal(bytes, hp)
-}
-
-func (hp *hostPort) write() (err error) {
-	bytes, err := json.Marshal(hp)
-	if err != nil {
-		return
-	}
-	return os.WriteFile(hp.name(), bytes, FILEMODE)
-}
-func (hp *hostPort) dest() string {
-	return fmt.Sprintf("%s:%d", hp.Host, hp.Port)
-}
-
-func (hp *hostPort) name() string {
-	return filepath.Join(tmp, fmt.Sprintf("%s_%d.json", hp.Host, hp.Port))
-}
-func (hp *hostPort) String() string {
-	if hp.Web {
-		return fmt.Sprintf("start http://%s:%d %s", hp.Host, hp.Port, hp.Path)
-	}
-	return fmt.Sprintf("telnet %s %d %s", hp.Host, hp.Port, hp.Path)
-}
-
-func (hp *hostPort) remove() (err error) {
-	return os.Remove(hp.name())
-}
-
-// Подключаем консоль Serial к сессии ssh или локально.
-// Завершение сессии через `<Enter>~.`
-func con(ctx context.Context, s io.ReadWriteCloser, Serial, Baud, exit string, println ...func(v ...any)) error {
-	if Serial == "" {
-		return ErrNotFoundFreeSerial
-	}
-
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	w, _ := ser2net.NewSerialWorker(ctx, Serial, ser2net.BaudRate(strconv.Atoi(Baud)))
-	defer w.Stop()
-
-	print := func(a ...any) {
-		for _, p := range println {
-			p(a...)
-		}
-	}
-	go w.Worker()
-
-	c, err := w.NewIoReadWriteCloser()
-	if nil != err {
-		return err
-	}
-	defer c.Close()
-
-	print(w)
-	defer func() {
-		print("Serial", Serial, "closed", w.SerialClose(), w)
-		print("con", err)
-	}()
-
-	chanByte := make(chan byte, B16)
-	t := time.AfterFunc(time.Second, func() {
-		SetMode(w, ctx, nil, chanByte, exit, 0, println...)
-	})
-	if strings.Contains(w.String(), "$") {
-		// Команда или интерпретатор.
-		Serial = ""
-	}
-
-	go w.CopyCancel(s, c)
-	_, err = w.CancelCopy(newSideWriter(c, args.EscapeChar, Serial, exit, chanByte, println...), s)
-	t.Stop()
-	return err
-}
-
-// Если telnet://host:Ser2net уже слушает подключает к нему s через телнет клиента.
-// Иначе запускает ser2net server на telnet://host:Ser2net и подключает к нему s через телнет клиента.
-func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial, host string, Ser2net int, Baud, exit string, println ...func(v ...any)) (err error) {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	hp := newHostPort(host, Ser2net, Serial, false)
-	ncon, err := net.Dial("tcp", hp.dest())
-	if err == nil {
-		// Подключаемся к существующему сеансу
-		ncon.Close()
-		return con(ctx, s, hp.dest(), args.Baud, exit, Println)
-	}
-
-	// Новый сеанс
-
-	chanByte := make(chan byte, B16)
-	chanError := make(chan error, 2)
-	chanSerialWorker := make(chan *ser2net.SerialWorker, 2)
-	go func() {
-		chanError <- s2n(ctx, nil, chanByte, chanSerialWorker, Serial, host, Ser2net, Baud, exit, println...)
-	}()
-	var (
-		w *ser2net.SerialWorker
-		c *telnet.Connection
-	)
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case err = <-chanError:
-		return
-	case w = <-chanSerialWorker:
-		defer w.Stop()
-		if len(println) > 1 && strings.Contains(w.String(), "$") {
-			return fmt.Errorf("not allowed - не разрешён %q", w)
-		}
-		c, err = telnet.Dial(hp.dest(), w.Client727, w.Client2217, w.Client1073)
-		if err != nil {
-			return
-		}
-		defer c.Close()
-	}
-	print := func(a ...any) {
-		for _, p := range println {
-			p(a...)
-		}
-	}
-
-	print(w)
-	defer func() {
-		print("Serial", Serial, "closed", w.SerialClose(), w)
-		print("rfc2217", err)
-	}()
-
-	go w.CopyCancel(s, c)
-	_, err = w.CancelCopy(newSideWriter(c, args.EscapeChar, Serial, exit, chanByte, println...), s)
-	ser2net.IAC(c, telnet.DO, telnet.TeloptLOGOUT)
-	return
-}
-
-// Типа stfioForward
-func forwardSTDio(ctx context.Context, s io.ReadWriteCloser, addr, exit string, println ...func(v ...any)) (err error) {
-	conn, err := net.Dial("tcp", addr)
-	for _, p := range println {
-		p(fmt.Sprintf("telnet://%s", addr), err)
-	}
-	if err != nil {
-		return
-	}
-	defer conn.Close()
-
-	go ser2net.Copy(ctx, s, conn)
-	_, err = ser2net.Copy(ctx, newSideWriter(conn, args.EscapeChar, "", exit, nil, println...), s)
-	return
 }
 
 // Через r или напрямую по chanByte управляет режимами последовательного порта w
