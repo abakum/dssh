@@ -282,6 +282,7 @@ func main() {
 			exit = " или <^C>"
 		}
 	}
+	quit := "<Enter>" + args.EscapeChar + "." + exit
 
 	bins := []string{PUTTY, PLINK, TELNET}
 
@@ -390,9 +391,10 @@ func main() {
 
 	args.StdioForward = ser2net.LocalPort(args.StdioForward)
 	if args.StdioForward != "" && args.Destination == "" {
-		// Телнет
+		// Телнет сервер dssh -22
+		// Телнет клиент без RFC2217 dssh -W:2322
 		setRaw(&once)
-		forwardSTDio(ctx, ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: os.Stdout}, args.StdioForward, exit, Println)
+		forwardSTDio(ctx, ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: os.Stdout}, args.StdioForward, quit, Println)
 		return
 	}
 
@@ -459,13 +461,15 @@ Host ` + SSHJ + `
 					if !Win || Win7 && bin == TELNET {
 						// Println(`!Win || Win7 && bin == TELNET`)
 						// dssh --unix --putty --baud 9
+						// dssh -zuUU
 						cmd.Stdout = os.Stdout
 						cmd.Stderr = os.Stdout
 						if nNear > 0 {
 							if bin == TELNET {
 								// dssh --telnet --unix --putty --2217 0
+								// dssh -Zzu22
 								time.AfterFunc(time.Second*2, func() {
-									exit := "<^]><q><Enter>"
+									exit := "<^]>q<Enter>"
 									if Cygwin && !Win7 {
 										exit = "<^C>"
 									}
@@ -473,6 +477,7 @@ Host ` + SSHJ + `
 								})
 							} else {
 								// dssh --unix --putty --2217 0
+								// dssh -zu22
 								// Microsoft Telnet выпадает
 								// Linux Telnet виснет
 								w, err := cmd.StdinPipe()
@@ -481,8 +486,9 @@ Host ` + SSHJ + `
 									chanSerialWorker := make(chan *ser2net.SerialWorker, 2)
 
 									chanError := make(chan error, 2)
+
 									go func() {
-										chanError <- s2n(ctx, nil, chanByte, chanSerialWorker, serial, s2, nNear, args.Baud, "", Println)
+										chanError <- s2n(ctx, nil, chanByte, chanSerialWorker, serial, s2, nNear, args.Baud, quit, Println)
 									}()
 									select {
 									case err = <-chanError:
@@ -494,10 +500,9 @@ Host ` + SSHJ + `
 										Println(cmd, err)
 										if err == nil {
 											setRaw(&once)
-											sw.CopyAfter(newSideWriter(w, args.EscapeChar, serial, exit, chanByte, Println), os.Stdin, time.Millisecond*77)
-											if cmd.Process != nil {
-												cmd.Process.Release()
-											}
+											Println(mess(quit, serial))
+											sw.Copy(newSideWriter(w, args.EscapeChar, serial, chanByte, Println), os.Stdin)
+											cmd.Wait()
 										}
 										return
 									}
@@ -1616,7 +1621,8 @@ func forwardSTDio(ctx context.Context, s io.ReadWriteCloser, addr, exit string, 
 	defer conn.Close()
 
 	go ser2net.Copy(ctx, s, conn)
-	_, err = ser2net.Copy(ctx, newSideWriter(conn, args.EscapeChar, "", exit, nil, println...), s)
+	println[0](mess(exit, "$"+addr))
+	_, err = ser2net.Copy(ctx, newSideWriter(conn, args.EscapeChar, "", nil, println...), s)
 	return
 }
 

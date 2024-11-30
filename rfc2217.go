@@ -28,11 +28,12 @@ func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial, host string, Ser
 	if local && !ser2net.SerialPath(Serial) {
 		exit = ""
 	}
+	quit := "<Enter>" + args.EscapeChar + "." + exit
 
 	hp := fmt.Sprintf("%s:%d", all2dial(host), Ser2net)
 	if isHP(hp) {
 		// Подключаемся к существующему сеансу
-		return cons(ctx, s, hp, args.Baud, exit, println...)
+		return cons(ctx, s, hp, args.Baud, quit, println...)
 	}
 
 	// Новый сеанс
@@ -41,7 +42,7 @@ func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial, host string, Ser
 	chanError := make(chan error, 2)
 	chanSerialWorker := make(chan *ser2net.SerialWorker, 2)
 	go func() {
-		chanError <- s2n(ctx, nil, chanByte, chanSerialWorker, Serial, host, Ser2net, Baud, exit, println...)
+		chanError <- s2n(ctx, nil, chanByte, chanSerialWorker, Serial, host, Ser2net, Baud, quit, println...)
 	}()
 	var (
 		w *ser2net.SerialWorker
@@ -61,18 +62,25 @@ func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial, host string, Ser
 		defer c.Close()
 	}
 
-	print(w, "LikeSerial", !ser2net.SerialPath(Serial))
-	defer func() {
-		print("Serial", Serial, "closed", w.SerialClose(), w)
-	}()
-
+	ss := "Serial"
+	sp := Serial
 	if strings.Contains(w.String(), "$") {
 		// Команда или интерпретатор.
 		Serial = ""
+		ss = "Command"
+	} else {
+		if !ser2net.SerialPath(Serial) {
+			ss = "Connection"
+		}
 	}
+	defer func() {
+		print(ss, sp, "closed", w.SerialClose(), w)
+	}()
 
 	go w.CopyCancel(s, c)
-	_, err = w.CancelCopy(newSideWriter(c, args.EscapeChar, Serial, exit, chanByte, println...), s)
+	println[0](mess(quit, w.String()))
+	_, err = w.CancelCopy(newSideWriter(c, args.EscapeChar, Serial, chanByte, println...), s)
+	// Последний выдох
 	ser2net.IAC(c, telnet.DO, telnet.TeloptLOGOUT)
 	return
 }
@@ -85,20 +93,25 @@ func s2n(ctx context.Context, r io.Reader, chanB chan byte, chanW chan *ser2net.
 	if Serial == "" {
 		return ErrNotFoundFreeSerial
 	}
-	w, _ := ser2net.NewSerialWorker(ctx, Serial, ser2net.BaudRate(strconv.Atoi(Baud)))
-	go w.Worker()
-	t := time.AfterFunc(time.Millisecond*333, func() {
-		if chanW != nil {
-			chanW <- w
-		}
-		SetMode(w, ctx, r, chanB, exit, Ser2net, println...)
-	})
 	print := func(a ...any) {
 		for _, p := range println {
 			p(a...)
 		}
 	}
-	print(fmt.Sprintf("use RFC2217 telnet server by `%s -H %s`", repo, ser2net.LocalPort(fmt.Sprintf("%s:%d", host, Ser2net))))
+	w, _ := ser2net.NewSerialWorker(ctx, Serial, ser2net.BaudRate(strconv.Atoi(Baud)))
+	go w.Worker()
+	t := time.AfterFunc(time.Millisecond*333, func() {
+		if strings.Contains(w.String(), "not connected") {
+			print(w)
+			w.Stop()
+			return
+		}
+		print(fmt.Sprintf("use RFC2217 telnet server by `%s -H %s`", repo, ser2net.LocalPort(fmt.Sprintf("%s:%d", host, Ser2net))))
+		if chanW != nil {
+			chanW <- w
+		}
+		SetMode(w, ctx, r, chanB, exit, Ser2net, println...)
+	})
 	err := w.StartTelnet(host, Ser2net)
 	t.Stop()
 

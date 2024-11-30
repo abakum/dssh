@@ -31,17 +31,6 @@ var (
 	ErrNotSerial          = fmt.Errorf("this is not a serial port - это не последовательный порт")
 )
 
-func isSerial(serial string) error {
-	if serial == "" {
-		return ErrNotFoundFreeSerial
-	}
-	_, ok := ser2net.IsCommand(serial)
-	if ok {
-		return ErrNotSerial
-	}
-	return nil
-}
-
 func getFirstSerial(isUSB bool, Baud string) (name, list string) {
 	ports, err := serial.GetPortsList()
 	Println(ports)
@@ -114,17 +103,15 @@ func getFirstUsbSerial(serialPort, Baud string, print func(v ...any)) (serial st
 // Управление последоватальным портом через chanByte.
 type sideWriter struct {
 	io.WriteCloser
-	l        []byte         // last 2 bytes
-	t        byte           // EscapeChar
-	chanByte chan byte      // side chan
-	name     string         // Имя порта
-	println  func(v ...any) // log
-	exit     string
+	l        []byte    // last 2 bytes
+	t        byte      // EscapeChar
+	chanByte chan byte // side chan
+	name     string    // Имя порта
 }
 
 // Подслушиваем w. Если нажат escapeChar то следующий символ передаём в chanByte.
 // Для протокола используем name, exit и println.
-func newSideWriter(w io.WriteCloser, escapeChar, name, exit string, chanByte chan byte, println ...func(v ...any)) *sideWriter {
+func newSideWriter(w io.WriteCloser, escapeChar, name string, chanByte chan byte, println ...func(v ...any)) *sideWriter {
 	var t byte
 	switch strings.ToLower(escapeChar) {
 	case "none", "":
@@ -133,20 +120,12 @@ func newSideWriter(w io.WriteCloser, escapeChar, name, exit string, chanByte cha
 		t = escapeChar[0]
 	}
 
-	logPrintln := func(v ...any) {}
-	for _, p := range println {
-		logPrintln = p
-		break
-	}
-	logPrintln(mess("<Enter><"+escapeChar+">", exit, name))
 	return &sideWriter{
 		w,
 		[]byte{'\r', '\r'},
 		t,
 		chanByte,
 		name,
-		logPrintln,
-		exit,
 	}
 }
 
@@ -182,7 +161,7 @@ func (w *sideWriter) Write(pp []byte) (int, error) {
 			p = []byte{BackSpace}
 		}
 		w.Write1(p)
-		return 0, fmt.Errorf(`<Enter><%c><.> was pressed`, w.t)
+		return 0, fmt.Errorf(`<Enter>%c. was pressed`, w.t)
 	case w.name != "" && bytes.Contains(p, []byte{'\r', w.t}):
 		// w.println(mess("", w.exit))
 		fmt.Fprint(os.Stderr, "\a")
@@ -243,51 +222,36 @@ func rn(ss ...string) (s string) {
 	return strings.TrimSuffix(strings.ReplaceAll(s, "\n", "\r\n"), "\n")
 }
 
-func mess(esc, exit, serial string) string {
-	if isSerial(serial) != nil {
+func mess(exit, serial string) string {
+	if strings.Contains(serial, "not connected") {
+		return ""
+	}
+	if serial == "" {
 		return rn("",
-			ToExitPress+" "+esc+"<.>"+exit,
+			ToExitPress+" "+exit,
 		)
 	}
-	// Костыль для ser2web
-	enter := ""
-	tep := " " + esc + "<.>"
-	if strings.HasSuffix(exit, " ") {
-		enter = "<Enter>"
-		tep = ""
+	l1 := "(" + serial + ") " + ToExitPress + " " + exit
+	esc := ""
+	if strings.HasPrefix(exit, "<Enter>") {
+		esc = exit[:8]
+	}
+	if strings.Contains(serial, "$") || serial == "" {
+		return rn("",
+			l1,
+		)
 	}
 	return rn("",
-		ToExitPress+tep+exit,
-		"To change mode of serial port press - Чтоб сменить режим последовательного порта нажми "+esc+"<x>"+enter,
+		l1,
+		"To change mode of serial port press - Чтоб сменить режим последовательного порта нажми "+esc+"x",
 		"Where x from 0 to 9 - Где 0[115200], 1[19200], 2[2400], 3[38400], 4[4800], 5[57600], 6[DataBits], 7[Parity], 8[StopBits], 9[9600]",
 	)
 }
 
 // Через r или напрямую по chanByte управляет режимами последовательного порта w
 func SetMode(w *ser2net.SerialWorker, ctx context.Context, r io.Reader, chanByte chan byte, exit string, Ser2net int, println ...func(v ...any)) {
-	press := mess("", exit, w.Name())
-	print := func(a ...any) {
-		for _, p := range println {
-			p(a...)
-		}
-	}
-	prin := func(a ...any) {
-		for _, p := range println {
-			p(a...)
-			break
-		}
-	}
-
-	// if Ser2net > 0 {
-	// 	print(w)
-
-	// 	defer func() {
-	// 		w.SerialClose()
-	// 		// w.Stop()
-	// 		print(w)
-
-	// 	}()
-	// }
+	press := mess(exit, w.String())
+	prin := func(a ...any) { println[0](a...) }
 
 	if chanByte == nil {
 		chanByte = make(chan byte, B16)
@@ -345,7 +309,8 @@ func SetMode(w *ser2net.SerialWorker, ctx context.Context, r io.Reader, chanByte
 				msg = BaudRate
 			}
 			if msg != "" {
-				print(fmt.Sprintf("%s %s", w, msg))
+				press = mess(exit, w.String())
+				prin(msg + press)
 				old = mode
 			}
 		case b := <-chanByte:

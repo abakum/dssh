@@ -153,16 +153,15 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 			caRW()
 		case args.Baud != "" || args.Serial != "" || nNear > 0 || wNear > 0:
 			// Покажу клиенту протокол на стороне сервера
-			ler := log.New(s.Stderr(), "\r:>", lf.Flags())
+			lss := log.New(s.Stderr(), "\r:>", lf.Flags())
 			// Покажу клиенту и на сервере протокол на стороне сервера
-			ps := []func(v ...any){ler.Println, Println}
-			serial := getFirstUsbSerial(args.Serial, args.Baud, ler.Print)
+			ps := []func(v ...any){lss.Println, Println}
+			serial := getFirstUsbSerial(args.Serial, args.Baud, lss.Print)
 
 			// Покажу клиенту протокол IAC
 			log.SetFlags(lf.Flags())
 			log.SetPrefix("\r:>")
 			if args.Debug {
-				// ps = append(ps, log.Println)
 				log.SetOutput(s.Stderr())
 			} else {
 				log.SetOutput(io.Discard)

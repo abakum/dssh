@@ -33,6 +33,7 @@ func cons(ctx context.Context, s io.ReadWriteCloser, Serial, Baud, exit string, 
 	if local && !ser2net.SerialPath(Serial) {
 		exit = ""
 	}
+	quit := "<Enter>" + args.EscapeChar + "." + exit
 
 	w, _ := ser2net.NewSerialWorker(ctx, Serial, ser2net.BaudRate(strconv.Atoi(Baud)))
 	defer w.Stop()
@@ -40,29 +41,36 @@ func cons(ctx context.Context, s io.ReadWriteCloser, Serial, Baud, exit string, 
 	go w.Worker()
 
 	c, err := w.NewIoReadWriteCloser()
-	if nil != err {
+	if err != nil {
 		return err
 	}
 	defer c.Close()
 
-	print(w, "LikeSerial", !ser2net.SerialPath(Serial))
-	defer func() {
-		print("Serial", Serial, "closed", w.SerialClose(), w)
-	}()
-
 	chanByte := make(chan byte, B16)
 
 	t := time.AfterFunc(time.Second, func() {
-		SetMode(w, ctx, nil, chanByte, exit, 0, println...)
+		SetMode(w, ctx, nil, chanByte, quit, 0, println...)
 	})
 
+	ss := "Serial"
+	sp := Serial
 	if strings.Contains(w.String(), "$") {
 		// Команда или интерпретатор.
 		Serial = ""
+		println[0](mess(quit, w.String()))
+		ss = "Command"
+	} else {
+		if !ser2net.SerialPath(Serial) {
+			ss = "Connection"
+		}
+		time.AfterFunc(time.Millisecond*77, func() { println[0](mess(quit, w.String())) })
 	}
+	defer func() {
+		print(ss, sp, "closed", w.SerialClose(), w)
+	}()
 
 	go w.CopyCancel(s, c)
-	_, err = w.CancelCopy(newSideWriter(c, args.EscapeChar, Serial, exit, chanByte, println...), s)
+	_, err = w.CancelCopy(newSideWriter(c, args.EscapeChar, Serial, chanByte, println...), s)
 	t.Stop()
 	return
 }
