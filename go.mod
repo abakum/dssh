@@ -2,7 +2,7 @@ module github.com/abakum/dssh
 
 go 1.21
 
-replace github.com/abakum/go-ser2net => ../go-ser2net
+// replace github.com/abakum/go-ser2net => ../go-ser2net
 
 // replace github.com/abakum/embed-encrypt => ../embed-encrypt
 // replace github.com/skeema/knownhosts => ../knownhosts
@@ -15,7 +15,7 @@ require (
 	github.com/abakum/embed-encrypt v0.0.1
 	github.com/abakum/go-ansiterm v0.0.1
 	github.com/abakum/go-netstat v0.0.1
-	github.com/abakum/go-ser2net v0.0.2-0.20241128210759-fdb72049c16c
+	github.com/abakum/go-ser2net v0.0.2-0.20241130210803-3ffe1188c94d
 	github.com/abakum/menu v0.0.2-lw
 	github.com/abakum/pageant v0.0.1
 	github.com/abakum/putty_hosts v0.0.1
