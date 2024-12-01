@@ -50,6 +50,7 @@ func cons(ctx context.Context, s io.ReadWriteCloser, Serial, Baud, exit string, 
 
 	t := time.AfterFunc(time.Second, func() {
 		SetMode(w, ctx, nil, chanByte, quit, 0, println...)
+		w.Stop()
 	})
 
 	ss := "Serial"
@@ -85,22 +86,23 @@ func s2w(ctx context.Context, r io.Reader, chanByte chan byte, Serial, host stri
 	}
 	w, _ := ser2net.NewSerialWorker(ctx, Serial, ser2net.BaudRate(strconv.Atoi(Baud)))
 	go w.Worker()
-	t := time.AfterFunc(time.Millisecond*333, func() {
+
+	t := time.AfterFunc(time.Millisecond*time.Duration(ser2net.TOopen), func() {
 		SetMode(w, ctx, r, chanByte, exit, wp, println...)
+		w.Stop()
 	})
-	print := func(a ...any) {
-		for _, p := range println {
-			p(a...)
-		}
-	}
 
 	hp := newHostPort(host, wp, Serial, true)
 	hp.write()
 	err := w.StartGoTTY(host, wp, "", false)
 	t.Stop()
 	hp.remove()
-
 	if err != nil {
+		print := func(a ...any) {
+			for _, p := range println {
+				p(a...)
+			}
+		}
 		print(err)
 	}
 	return err

@@ -420,7 +420,7 @@ Host ` + SSHJ + `
  ProxyJump ` + u + `@` + JumpHost + `
  EnableTrzsz ` + enableTrzsz
 	if args.Restart || BS || nNear > 0 || wNear > 0 {
-		// Println("args.Restart || BS || nNear > 0 || wNear > 0")
+		Println("-r || -UU || -HH || -22 || -88")
 		// CGI
 		cli = true
 		args.Command = repo
@@ -433,19 +433,19 @@ Host ` + SSHJ + `
 			}
 			args.Argument = append(args.Argument, "--restart")
 		} else {
-			// BS || nearL > 0
+			Println("-UU || -HH || -22 || -88")
 			switch args.Destination {
 			case "", LH, "_", ips[0], "*", ips[len(ips)-1], ALL:
 				// Println(`case "", LH, "_", ips[0], "*", ips[len(ips)-1], ALL:`)
 				// Локальная последовательная консоль
 				// Println("Local serial console - Локальная последовательная консоль")
 				if args.Putty || args.Telnet {
-					// Println(`args.Putty || args.Telnet`)
-					// dssh --putty --baud 9 это хуже чем `dssh --baud 9` так как нельзя сменить скорость
+					Println("(-UU || -HH || -22 || -88) && (-u || -Z)")
+					// dssh -uUU хуже чем `dssh -UU` так как нельзя сменить скорость
 					BaudRate := ser2net.BaudRate(strconv.Atoi(args.Baud))
 					opt := fmt.Sprintln("-serial", serial, "-sercfg", fmt.Sprintf("%d,8,1,N,N", BaudRate))
 					if nNear > 0 {
-						// dssh --putty --2217 0
+						Println("(-UU || -HH || -22 || -88) && (-u || -Z) && -22")
 						opt = optTelnet(bin == TELNET, nNear)
 					} else if MICROCOM {
 						opt = fmt.Sprintln("microcom", "-s", BaudRate, serial)
@@ -459,25 +459,46 @@ Host ` + SSHJ + `
 						cmd.Wait()
 					}
 					if !Win || Win7 && bin == TELNET {
-						// Println(`!Win || Win7 && bin == TELNET`)
-						// dssh --unix --putty --baud 9
+						Println("(-UU || -HH || -22 || -88) && (-u || -Z) && (!Win || Win7 && -Z)")
+						// dssh -uz
+						// dssh -zuUU
 						// dssh -zuUU
 						cmd.Stdout = os.Stdout
 						cmd.Stderr = os.Stdout
 						if nNear > 0 {
+							Println("(-UU || -HH || -22 || -88) && (-u || -Z) && (!Win || Win7 && -Z) && -22")
 							if bin == TELNET {
+								Println("(-UU || -HH || -22 || -88) && (-u || -Z) && (!Win || Win7 && -Z) && -22 && -Z")
 								// dssh --telnet --unix --putty --2217 0
-								// dssh -Zzu22
-								time.AfterFunc(time.Second*2, func() {
-									exit := "<^]>q<Enter>"
-									if Cygwin && !Win7 {
-										exit = "<^C>"
-									}
-									Println(ToExitPress, exit)
-								})
+								// dssh -uzZ22
+								// dssh -Zz22
+								cmd.Stdin = os.Stdin
+								chanError := make(chan error, 2)
+								chanSerialWorker := make(chan *ser2net.SerialWorker, 2)
+								go func() {
+									chanError <- s2n(ctx, nil, nil, chanSerialWorker, serial, s2, nNear, args.Baud, "", Println)
+								}()
+								select {
+								case <-ctx.Done():
+									return
+								case err = <-chanError:
+									return
+								case w := <-chanSerialWorker:
+									defer w.Stop()
+									time.AfterFunc(time.Millisecond*111, func() {
+										exit := "<^]>q<Enter>"
+										if Cygwin && !Win7 {
+											exit = "<^C>"
+										}
+										Println(ToExitPress, exit)
+									})
+									run()
+								}
+								return
 							} else {
+								Println("(-UU || -HH || -22 || -88) && (-u || -Z) && (!Win || Win7 && -Z) && -22 && !-Z")
+								// dssh -uz22
 								// dssh --unix --putty --2217 0
-								// dssh -zu22
 								// Microsoft Telnet выпадает
 								// Linux Telnet виснет
 								w, err := cmd.StdinPipe()
@@ -508,25 +529,28 @@ Host ` + SSHJ + `
 									}
 								}
 							}
-							go func() {
-								s2n(ctx, nil, nil, nil, serial, s2, nNear, args.Baud, "", Println)
-								closer.Close()
-							}()
+							Println("-------------------------------------------------------")
+							// go func() {
+							// 	Println(s2n(ctx, nil, nil, nil, serial, s2, nNear, args.Baud, "", Println))
+							// 	closer.Close()
+							// }()
 						}
-						cmd.Stdin = os.Stdin
 					} else {
+						Println("(-UU || -HH || -22 || -88) && (-u || -Z) && !(!Win || Win7 && -Z)")
 						// Win
 						// dssh --putty --baud 9
 						notPutty(bin, cmd) // dssh --telnet -putty --2217 0
 						if nNear > 0 {
+							Println("(-UU || -HH || -22 || -88) && (-u || -Z) && !(!Win || Win7 && -Z) && -22")
 							// dssh --putty --2217 0
 							// dssh --telnet --putty --baud 0
+							// dssh -u22
 							t := time.AfterFunc(time.Second*2, func() {
 								run()
 								closer.Close()
 							})
 							setRaw(&once)
-							s2n(ctx, os.Stdin, nil, nil, serial, s2, nNear, args.Baud, " или <^C>", Println)
+							Println(s2n(ctx, os.Stdin, nil, nil, serial, s2, nNear, args.Baud, ". или <^C>", Println))
 							t.Stop() // Если не успел стартануть то и не надо
 							return
 						}
@@ -537,6 +561,7 @@ Host ` + SSHJ + `
 						run()
 						return
 					}
+					Println("!closerBug || bin == TELNET")
 					exit := "<^C>"
 					if MICROCOM {
 						exit = "<^X>"
@@ -549,7 +574,7 @@ Host ` + SSHJ + `
 				}
 				setRaw(&once)
 				if wNear > -1 {
-					// dssh -88
+					Println("-88")
 					hp := newHostPort(dial, wFar, serial, true)
 
 					if isHP(hp.dest()) {
@@ -565,19 +590,20 @@ Host ` + SSHJ + `
 						Println(browse(ctx, dial, wFar, nil))
 					})
 
-					s2w(ctx, ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: os.Stdout}, nil, serial, s2, wNear, args.Baud, " или ^C", Println)
+					s2w(ctx, ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: os.Stdout}, nil, serial, s2, wNear, args.Baud, ". или ^C", Println)
 					t.Stop() // Если не успел стартануть то и не надо
 					return
 				}
 				// setRaw(&once)
 				if nNear > 0 {
-					// dssh -22
+					Println("-22")
 					Println(rfc2217(ctx, ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: os.Stdout}, serial, s2, nNear, args.Baud, exit, Println))
 					return
 				}
 				// dssh -UU
 				// dssh -Hcmd
 				// dssh -H:2322
+				Println("-UU || -Hcmd | -H:2322")
 				Println(cons(ctx, ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: os.Stdout}, serial, args.Baud, exit, Println))
 				return
 			default:
