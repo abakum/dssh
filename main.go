@@ -346,6 +346,9 @@ func main() {
 	}
 
 	serial := usbSerial(args.Serial)
+	if serial == "H" { // -HH
+		serial = getFirstUsbSerial("", args.Baud, Print)
+	}
 	BS := args.Baud != "" || serial != ""
 	if BS || nNear > 0 || wNear > 0 {
 		enableTrzsz = "no"
@@ -445,7 +448,7 @@ Host ` + SSHJ + `
 					BaudRate := ser2net.BaudRate(strconv.Atoi(args.Baud))
 					opt := fmt.Sprintln("-serial", serial, "-sercfg", fmt.Sprintf("%d,8,1,N,N", BaudRate))
 					if nNear > 0 {
-						Println("(-UU || -HH || -22 || -88) && (-u || -Z) && -22")
+						Println("(-u || -Z) && -22")
 						opt = optTelnet(bin == TELNET, nNear)
 					} else if MICROCOM {
 						opt = fmt.Sprintln("microcom", "-s", BaudRate, serial)
@@ -555,13 +558,14 @@ Host ` + SSHJ + `
 							return
 						}
 					}
+					cmd.Stdin = os.Stdin
 					if closerBug && bin != TELNET {
+						Println("-u && Win7 && Cygwin && bin != TELNET")
 						setRaw(&once) //Отключаем ^C
 						Println("To exit press [X] button of window " + bin + " - Чтоб выйти нажми  кнопку [X] окна " + bin)
 						run()
 						return
 					}
-					Println("!closerBug || bin == TELNET")
 					exit := "<^C>"
 					if MICROCOM {
 						exit = "<^X>"
@@ -590,7 +594,7 @@ Host ` + SSHJ + `
 						Println(browse(ctx, dial, wFar, nil))
 					})
 
-					s2w(ctx, ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: os.Stdout}, nil, serial, s2, wNear, args.Baud, ". или ^C", Println)
+					Println(s2w(ctx, ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: os.Stdout}, nil, serial, s2, wNear, args.Baud, ". или ^C", Println))
 					t.Stop() // Если не успел стартануть то и не надо
 					return
 				}

@@ -243,7 +243,7 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 					return
 				}
 
-				print("s2w", s2w(s.Context(), s, nil, serial, s2, p2, args.Baud, " или <^C>", ps...))
+				print(s2w(s.Context(), s, nil, serial, s2, p2, args.Baud, ". или <^C>", ps...))
 				return
 			}
 			// dssh -UU :
