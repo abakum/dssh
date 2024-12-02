@@ -467,7 +467,7 @@ Host ` + SSHJ + `
 						if Cygwin && !Win7 {
 							exit = "<^C>"
 						}
-						if !args.Unix {
+						if !args.Unix && Windows {
 							createNewConsole(cmd)
 							exit = "<^C>"
 						}
