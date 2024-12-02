@@ -461,17 +461,48 @@ Host ` + SSHJ + `
 						PrintLn(3, cmd, err)
 						cmd.Wait()
 					}
+					if nNear > 0 && bin == TELNET {
+						Println("-Z22")
+						exit := "<^]>q<Enter>"
+						if Cygwin && !Win7 {
+							exit = "<^C>"
+						}
+						if !args.Unix {
+							createNewConsole(cmd)
+							exit = "<^C>"
+						}
+						cmd.Stdout = os.Stdout
+						cmd.Stderr = os.Stdout
+						cmd.Stdin = os.Stdin
+						chanError := make(chan error, 2)
+						chanSerialWorker := make(chan *ser2net.SerialWorker, 2)
+						go func() {
+							chanError <- s2n(ctx, nil, nil, chanSerialWorker, serial, s2, nNear, args.Baud, "", Println)
+						}()
+						select {
+						case <-ctx.Done():
+							return
+						case err = <-chanError:
+							return
+						case w := <-chanSerialWorker:
+							defer w.Stop()
+							time.AfterFunc(time.Millisecond*111, func() {
+								Println(ToExitPress, exit)
+							})
+							run()
+						}
+						return
+					}
 					if !Win || Win7 && bin == TELNET {
 						Println("(-UU || -HH || -22 || -88) && (-u || -Z) && (!Win || Win7 && -Z)")
 						// dssh -uz
 						// dssh -zuUU
-						// dssh -zuUU
 						cmd.Stdout = os.Stdout
 						cmd.Stderr = os.Stdout
 						if nNear > 0 {
-							Println("(-UU || -HH || -22 || -88) && (-u || -Z) && (!Win || Win7 && -Z) && -22")
+							Println("(-u || -Z) && (!Win || Win7 && -Z) && -22")
 							if bin == TELNET {
-								Println("(-UU || -HH || -22 || -88) && (-u || -Z) && (!Win || Win7 && -Z) && -22 && -Z")
+								Println("(!Win || Win7 && -Z) && -22 && -Z")
 								// dssh --telnet --unix --putty --2217 0
 								// dssh -uzZ22
 								// dssh -Zz22
@@ -540,11 +571,19 @@ Host ` + SSHJ + `
 						}
 					} else {
 						Println("(-UU || -HH || -22 || -88) && (-u || -Z) && !(!Win || Win7 && -Z)")
-						// Win
-						// dssh --putty --baud 9
-						notPutty(bin, cmd) // dssh --telnet -putty --2217 0
+						// dssh -uUU
+						// dssh -uHH
+						// dssh -u22
+						// dssh -u88
+
+						// Win && !Win7
+						// dssh -ZUU
+						// dssh -ZHH
+						// dssh -Z22
+						// dssh -Z88
+						notPuttyNewConsole(bin, cmd)
 						if nNear > 0 {
-							Println("(-UU || -HH || -22 || -88) && (-u || -Z) && !(!Win || Win7 && -Z) && -22")
+							Println("(-u || -Z) && !(!Win || Win7 && -Z) && -22")
 							// dssh --putty --2217 0
 							// dssh --telnet --putty --baud 0
 							// dssh -u22
@@ -819,7 +858,7 @@ Host ` + SSHJ + `
 			cmd.Wait()
 		}
 		if Win || nNear > 0 {
-			notPutty(bin, cmd)
+			notPuttyNewConsole(bin, cmd)
 			if nNear > 0 {
 				// dssh --putty --2217 0 :
 				// dssh --telnet --putty --2217 0 :
@@ -1349,7 +1388,7 @@ func optTelnet(telnet bool, lNear int) (opt string) {
 	return
 }
 
-func notPutty(bin string, cmd *exec.Cmd) {
+func notPuttyNewConsole(bin string, cmd *exec.Cmd) {
 	if bin != PUTTY {
 		createNewConsole(cmd)
 	}
