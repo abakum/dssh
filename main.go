@@ -274,11 +274,11 @@ func main() {
 
 	bins := []string{PUTTY, PLINK, TELNET}
 
-	ZerroNewWindow = ZerroNewWindow || args.Unix
-	closerBug := args.Putty && Win7 && Cygwin
-	if closerBug {
-		ZerroNewWindow = false
-	}
+	ZerroNewWindow = ZerroNewWindow || args.Unix || Win7 && Cygwin
+	// closerBug := args.Putty && Win7 && Cygwin
+	// if closerBug {
+	// 	ZerroNewWindow = false
+	// }
 
 	if ZerroNewWindow {
 		// Используем консольные приложения plink, telnet, microcom
@@ -364,6 +364,10 @@ func main() {
 		if args.Destination == "" && external || // -u или -Z
 			args.Unix && !external { // -z
 			args.Baud = "9"
+		}
+		if bin == PLINK && Win7 && Cygwin {
+			// -u -> plink -telnet
+			nNear = RFC2217
 		}
 	}
 	serial := usbSerial(args.Serial)
@@ -476,7 +480,7 @@ Host ` + SSHJ + `
 							Println("-Z22  || -Zz22 || -u22 & !existsPuTTY")
 							chanError := make(chan error, 2)
 							chanSerialWorker := make(chan *ser2net.SerialWorker, 2)
-							if !ZerroNewWindow && Windows {
+							if !ZerroNewWindow && Windows && !Win7 {
 								Println("-Z22 -u22 & !existsPuTTY")
 								createNewConsole(cmd)
 								dotExit(cmd, ctx, os.Stdin, nil, nil, serial, s2, nNear, args.Baud, "."+exit, Println)
@@ -561,22 +565,22 @@ Host ` + SSHJ + `
 					cmd.Stderr = os.Stdout
 					cmd.Stdin = os.Stdin
 					Println("(-UU || -HH) && (-u || -Z)", ZerroNewWindow)
-					if !(ZerroNewWindow || Win7 && bin == TELNET) {
-						// dssh -uUU
-						// dssh -uHH
+					// if !(ZerroNewWindow || Win7 && bin == TELNET) {
+					// dssh -uUU
+					// dssh -uHH
 
-						// !-z && !Win7
-						// dssh -ZUU
-						// dssh -ZHH
-						notPuttyNewConsole(bin, cmd)
-					}
-					if closerBug && bin != TELNET {
-						Println("-u && Win7 && Cygwin && bin != TELNET")
-						setRaw(&once) //Отключаем ^C
-						Println("To exit press [X] button of window " + bin + " - Чтоб выйти нажми  кнопку [X] окна " + bin)
-						run()
-						return
-					}
+					// !-z && !Win7
+					// dssh -ZUU
+					// dssh -ZHH
+					// notPuttyNewConsole(bin, cmd)
+					// }
+					// if closerBug && bin != TELNET {
+					// 	Println("-u && Win7 && Cygwin && bin != TELNET")
+					// 	setRaw(&once) //Отключаем ^C
+					// 	Println("To exit press [X] button of window " + bin + " - Чтоб выйти нажми  кнопку [X] окна " + bin)
+					// 	run()
+					// 	return
+					// }
 					exit := "<^C>"
 					if isMicroCom {
 						exit = "<^X>"
@@ -1714,7 +1718,7 @@ func localDestination(Destination string) (ok bool) {
 func dotExit(cmd *exec.Cmd, ctx context.Context, r io.Reader, chanB chan byte, chanW chan *ser2net.SerialWorker, Serial string, host string, Ser2net int, Baud string, exit string, println ...func(v ...any)) {
 	delay := time.Second * 2
 	if Cygwin {
-		delay = time.Second * 3
+		delay *= 2
 	}
 	t := time.AfterFunc(delay, func() {
 		Println(cmd, cmd.Start())
