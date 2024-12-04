@@ -71,7 +71,7 @@ func cons(ctx context.Context, s io.ReadWriteCloser, Serial, Baud, exit string, 
 	}()
 
 	go w.CopyCancel(s, c)
-	_, err = w.CancelCopy(newSideWriter(c, args.EscapeChar, Serial, chanByte, println...), s)
+	_, err = w.CancelCopy(newSideWriter(c, args.EscapeChar, Serial, chanByte), s)
 	t.Stop()
 	return
 }
@@ -92,7 +92,7 @@ func s2w(ctx context.Context, r io.Reader, chanByte chan byte, Serial, host stri
 		w.Stop()
 	})
 
-	hp := newHostPort(host, wp, Serial, true)
+	hp := newHostPort(host, wp, Serial)
 	hp.write()
 	err := w.StartGoTTY(host, wp, "", false)
 	t.Stop()
@@ -112,12 +112,11 @@ type hostPort struct {
 	Host string `json:"host"`
 	Port int    `json:"port"`
 	Path string `json:"path"`
-	Web  bool   `json:"web"`
 }
 
-func newHostPort(host string, port int, path string, web bool) hostPort {
+func newHostPort(host string, port int, path string) hostPort {
 	os.MkdirAll(tmp, DIRMODE)
-	return hostPort{all2dial(host), port, path, web}
+	return hostPort{all2dial(host), port, path}
 
 }
 
@@ -137,17 +136,14 @@ func (hp *hostPort) write() (err error) {
 	return os.WriteFile(hp.name(), bytes, FILEMODE)
 }
 func (hp *hostPort) dest() string {
-	return fmt.Sprintf("%s:%d", hp.Host, hp.Port)
+	return JoinHostPort(hp.Host, hp.Port)
 }
 
 func (hp *hostPort) name() string {
 	return filepath.Join(tmp, fmt.Sprintf("%s_%d.json", hp.Host, hp.Port))
 }
 func (hp *hostPort) String() string {
-	if hp.Web {
-		return fmt.Sprintf("start http://%s:%d %s", hp.Host, hp.Port, hp.Path)
-	}
-	return fmt.Sprintf("telnet %s %d %s", hp.Host, hp.Port, hp.Path)
+	return fmt.Sprintf("start http://%s:%d %s", hp.Host, hp.Port, hp.Path)
 }
 
 func (hp *hostPort) remove() (err error) {

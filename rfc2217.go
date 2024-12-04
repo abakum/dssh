@@ -30,14 +30,14 @@ func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial, host string, Ser
 	}
 	quit := "<Enter>" + args.EscapeChar + "." + exit
 
-	hp := fmt.Sprintf("%s:%d", all2dial(host), Ser2net)
+	// hp := fmt.Sprintf("%s:%d", all2dial(host), Ser2net)
+	hp := JoinHostPort(all2dial(host), Ser2net)
 	if isHP(hp) {
 		// Подключаемся к существующему сеансу
 		return cons(ctx, s, hp, args.Baud, exit, println...)
 	}
 
 	// Новый сеанс
-
 	chanByte := make(chan byte, B16)
 	chanError := make(chan error, 2)
 	chanSerialWorker := make(chan *ser2net.SerialWorker, 2)
@@ -79,7 +79,7 @@ func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial, host string, Ser
 
 	go w.CopyCancel(s, c)
 	println[0](mess(quit, w.String()))
-	_, err = w.CancelCopy(newSideWriter(c, args.EscapeChar, Serial, chanByte, println...), s)
+	_, err = w.CancelCopy(newSideWriter(c, args.EscapeChar, Serial, chanByte), s)
 	// Последний выдох
 	ser2net.IAC(c, telnet.DO, telnet.TeloptLOGOUT)
 	return
@@ -106,7 +106,8 @@ func s2n(ctx context.Context, r io.Reader, chanB chan byte, chanW chan *ser2net.
 			w.Stop()
 			return
 		}
-		print(fmt.Sprintf("use RFC2217 telnet server by `%s -H %s`", repo, ser2net.LocalPort(fmt.Sprintf("%s:%d", host, Ser2net))))
+		hp := JoinHostPort(host, Ser2net)
+		print(fmt.Sprintf("use RFC2217 telnet server by `%s -H %s`", repo, ser2net.LocalPort(hp)))
 		if chanW != nil {
 			chanW <- w
 		}

@@ -27,7 +27,6 @@ type cgiArgs struct {
 	Serial  string `arg:"-H,--path" placeholder:"patH" help:"device path (name for Windows) of serial console"`
 	Ser2net int    `arg:"-2,--2217" placeholder:"port" help:"RFC2217 telnet port for serial console over telnet" default:"-1"`
 	Ser2web int    `arg:"-8,--web" placeholder:"port" help:"web port for serial console over web" default:"-1"`
-	Putty   bool   `arg:"-u,--putty" help:"run PuTTY"`
 	Exit    string `arg:"--exit" help:"exit shortcut"`
 	Restart bool   `arg:"-r,--restart" help:"restart daemon"`
 	Debug   bool   `arg:"-v,--debug" help:"verbose mode for debugging, similar to ssh's -v"`
@@ -173,77 +172,47 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 			}
 
 			nNear = comm(serial, s2, nNear, wNear)
-			if nNear > 0 {
+			if nNear > 0 && wNear < 0 {
 				// dssh -22 :
-				p2 := portOB(nNear, RFC2217)
-				// if args.Putty {
-				// 	// dssh -u22 :
-				// 	if Windows && !OverSSH {
-				// 		// Только для Виндовс.
-				// 		// Управление режимами последовательного порта через ssh.
-				// 		// Приём передача через putty, plink, telnet.
-				// 		// Протокол дублируется на стороне сервера через putty, plink, telnet.
-				// 		execPath, bin, err := look(PUTTY, PLINK, TELNET)
-				// 		Println(execPath, bin, err)
-				// 		if err == nil {
-				// 			opt := optTelnet(bin == TELNET, p2)
-				// 			cmd := exec.CommandContext(s.Context(), execPath, strings.Fields(opt)...)
-				// 			notPutty(bin, cmd)
-				// 			err = cmd.Start()
-				// 			Println(cmd, err)
-				// 			if err == nil {
-				// 				go func() {
-				// 					err = cmd.Wait()
-				// 					if err != nil {
-				// 						switch err.Error() {
-				// 						case "exit status 0xc000013a":
-				// 							Println("User closed window with log - Пользователь закрыл окно c протоколом")
-				// 						case "exit status 1":
-				// 							Println("Session of ssh was terminated - Сессия ssh завершилась")
-				// 						default:
-				// 							Println(err, "= cmd.Wait()")
-				// 						}
-				// 					}
-				// 				}()
-				// 			}
-				// 		}
-				// 	}
-				// 	// dssh -u22 :
-				// 	hp := newHostPort(s2, p2, serial, false)
-				// 	conn, err := telnet.Dial(hp.dest())
-				// 	if err == nil {
-				// 		conn.Close()
-				// 		hp.read()
-				// 		log.Println(hp.String())
-				// 		Println(hp.String())
-				// 		cancelByFile(s.Context(), nil, hp.name(), TOW)
-				// 		return
-				// 	}
-
-				// 	err = s2n(s.Context(), s, nil, nil, serial, s2, p2, args.Baud, " или <^C>", log.Println, Println)
-				// 	log.Println("s2n", err)
-				// 	Println("s2n", err)
-				// 	return
-				// }
+				// p2 := portOB(nNear, RFC2217)
 				// dssh -22 :
 				// dssh -22 .
-				print(rfc2217(s.Context(), s, serial, s2, p2, args.Baud, args.Exit, ps...))
+				print(repo, "-H", serial, "-2", nNear)
+				print(rfc2217(s.Context(), s, serial, s2, portOB(nNear, RFC2217), args.Baud, args.Exit, ps...))
 				return
 			}
 			if wNear > 0 {
-				// dssh -88 :
+				repeater := false
+				if nNear > 0 {
+					print(repo, "-H", serial, "-2", nNear)
+					go func() {
+						print(rfc2217(s.Context(), s, serial, s2, portOB(nNear, RFC2217), args.Baud, args.Exit, ps...))
+						s.Close()
+					}()
+					if _, _, err := net.SplitHostPort(serial); err != nil {
+						// -Hcmd -HH
+						repeater = true
+						time.Sleep(time.Millisecond * 777)
+						serial = JoinHostPort(s2, nNear)
+					}
+				}
+				print(repo, "-H", serial, "-8", wNear)
 				p2 := portOB(wNear, WEB2217)
-				hp := newHostPort(s2, p2, serial, true)
+				hp := newHostPort(s2, p2, serial)
 				if isHP(hp.dest()) {
 					// Подключаемся к существующему сеансу
 					hp.read()
-					print("web", hp.String())
+					print(hp.String())
 
 					cancelByFile(s.Context(), nil, hp.name(), TOW)
 					return
 				}
 
-				print(s2w(s.Context(), s, nil, serial, s2, p2, args.Baud, ". или <^C>", ps...))
+				if repeater {
+					print(s2w(s.Context(), nil, nil, serial, s2, p2, args.Baud, "", PrintNil))
+				} else {
+					print(s2w(s.Context(), s, nil, serial, s2, p2, args.Baud, ". или <^C>", ps...))
+				}
 				return
 			}
 			// dssh -UU :

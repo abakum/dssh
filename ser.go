@@ -72,7 +72,7 @@ func getFirstSerial(isUSB bool, Baud string) (name, list string) {
 			sp, err := serial.Open(port.Name, &mode)
 			if err != nil {
 				list += fmt.Sprintf(" %s", err)
-				if strings.HasSuffix(err.Error(), "Permission denied") && !Win {
+				if strings.HasSuffix(err.Error(), "Permission denied") && !Windows {
 					list += fmt.Sprintf(" try run `sudo usermod -a -G dialout %s` then reboot", winssh.UserName())
 				}
 				continue
@@ -111,7 +111,7 @@ type sideWriter struct {
 
 // Подслушиваем w. Если нажат escapeChar то следующий символ передаём в chanByte.
 // Для протокола используем name, exit и println.
-func newSideWriter(w io.WriteCloser, escapeChar, name string, chanByte chan byte, println ...func(v ...any)) *sideWriter {
+func newSideWriter(w io.WriteCloser, escapeChar, name string, chanByte chan byte) *sideWriter {
 	var t byte
 	switch strings.ToLower(escapeChar) {
 	case "none", "":
@@ -248,7 +248,7 @@ func mess(exit, serial string) string {
 	)
 }
 
-// Через r или напрямую по chanByte управляет режимами последовательного порта w
+// Через r или напрямую по chanByte управляет режимами последовательного порта w.
 func SetMode(w *ser2net.SerialWorker, ctx context.Context, r io.Reader, chanByte chan byte, exit string, Ser2net int, println ...func(v ...any)) {
 	press := mess(exit, w.String())
 	prin := func(a ...any) { println[0](a...) }
