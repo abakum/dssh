@@ -89,10 +89,6 @@ func s2w(ctx context.Context, r io.Reader, chanB chan byte, Serial, host string,
 	go w.Worker()
 
 	t := time.AfterFunc(time.Millisecond*time.Duration(ser2net.TOopen), func() {
-		if r == nil && chanB == nil {
-			return
-		}
-
 		SetMode(w, ctx, r, chanB, exit, wp, println...)
 		w.Stop()
 	})
