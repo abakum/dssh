@@ -489,12 +489,12 @@ Host ` + SSHJ + `
 								createNewConsole(cmd)
 								dotExit(cmd, ctx, os.Stdin, nil, nil, serial, s2, nNear, args.Baud, "."+exit, Println)
 								return
-							} else {
-								cmd.Stdin = os.Stdin
-								go func() {
-									chanError <- s2n(ctx, nil, nil, chanSerialWorker, serial, s2, nNear, args.Baud, "", Println)
-								}()
 							}
+
+							cmd.Stdin = os.Stdin
+							go func() {
+								chanError <- s2n(ctx, nil, nil, chanSerialWorker, serial, s2, nNear, args.Baud, "", Println)
+							}()
 							Println("-zZ22 -zu22 & !existsPuTTY")
 							select {
 							case <-ctx.Done():
@@ -512,57 +512,57 @@ Host ` + SSHJ + `
 								})
 								run()
 							}
-						} else {
-							if ZerroNewWindow {
-								if bin != PLINK {
-									Println("-zu22", fmt.Errorf("plink not found"))
-									return
-								}
-								Println("-zu22")
-								cmdStdin, err := cmd.StdinPipe()
-								if err != nil {
-									Println(cmd, err)
-									return
-								}
-								chanError := make(chan error, 2)
-								chanByte := make(chan byte, B16)
-								chanSerialWorker := make(chan *ser2net.SerialWorker, 2)
-								go func() {
-									chanError <- s2n(ctx, nil, chanByte, chanSerialWorker, serial, s2, nNear, args.Baud, quit, Println)
-								}()
-								select {
-								case <-ctx.Done():
-									Println(ctx.Err())
-								case err = <-chanError:
-									Println(err)
-								case w := <-chanSerialWorker:
-									defer w.Stop()
-									err := cmd.Start()
-									Println(cmd, err)
-									if err != nil {
-										return
-									}
-									setRaw(&once)
-									Println(mess(quit, serial))
-									w.Copy(newSideWriter(cmdStdin, args.EscapeChar, serial, chanByte), os.Stdin)
-									cmd.Wait()
-									return
-								}
+							return
+						}
+						if ZerroNewWindow {
+							if bin != PLINK {
+								Println("-zu22", fmt.Errorf("plink not found"))
 								return
-							} else {
-								if bin != PUTTY {
-									Println("-u22", fmt.Errorf("PuTTY not found"))
-									if bin == PLINK {
-										createNewConsole(cmd)
-									} else {
-										Println("-u22", fmt.Errorf("plink not found"))
-										return
-									}
+							}
+							Println("-zu22")
+							cmdStdin, err := cmd.StdinPipe()
+							if err != nil {
+								Println(cmd, err)
+								return
+							}
+							chanError := make(chan error, 2)
+							chanByte := make(chan byte, B16)
+							chanSerialWorker := make(chan *ser2net.SerialWorker, 2)
+							go func() {
+								chanError <- s2n(ctx, nil, chanByte, chanSerialWorker, serial, s2, nNear, args.Baud, quit, Println)
+							}()
+							select {
+							case <-ctx.Done():
+								Println(ctx.Err())
+							case err = <-chanError:
+								Println(err)
+							case w := <-chanSerialWorker:
+								defer w.Stop()
+								err := cmd.Start()
+								Println(cmd, err)
+								if err != nil {
+									return
 								}
-								Println("-u22")
-								dotExit(cmd, ctx, os.Stdin, nil, nil, serial, s2, nNear, args.Baud, "."+exit, Println)
+								setRaw(&once)
+								Println(mess(quit, serial))
+								w.Copy(newSideWriter(cmdStdin, args.EscapeChar, serial, chanByte), os.Stdin)
+								cmd.Wait()
+								return
+							}
+							return
+						}
+						if bin != PUTTY {
+							Println("-u22", fmt.Errorf("PuTTY not found"))
+							if bin == PLINK {
+								createNewConsole(cmd)
+							} else {
+								Println("-u22", fmt.Errorf("plink not found"))
+								return
 							}
 						}
+						Println("-u22")
+						dotExit(cmd, ctx, os.Stdin, nil, nil, serial, s2, nNear, args.Baud, "."+exit, Println)
+
 						return
 					}
 					cmd.Stdout = os.Stdout
@@ -637,7 +637,7 @@ Host ` + SSHJ + `
 					setRaw(&once)
 
 					if nNear > 0 {
-						Println(s2w(ctx, nil, nil, serial, s2, wNear, args.Baud, "", Println))
+						Println(s2w(ctx, nil, nil, serial, s2, wNear, args.Baud, "", PrintNil))
 					} else {
 						Println(s2w(ctx, ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: os.Stdout}, nil, serial, s2, wNear, args.Baud, ". или ^C", Println))
 					}

@@ -209,7 +209,7 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 				}
 
 				if nNear > 0 {
-					print(s2w(s.Context(), nil, nil, serial, s2, p2, args.Baud, "", Println))
+					print(s2w(s.Context(), nil, nil, serial, s2, p2, args.Baud, "", PrintNil))
 				} else {
 					print(s2w(s.Context(), s, nil, serial, s2, p2, args.Baud, ". или <^C>", ps...))
 				}
