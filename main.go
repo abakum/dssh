@@ -303,6 +303,8 @@ func main() {
 			Println(fmt.Errorf("not found - не найдены PuTTY, plink"))
 		}
 		existsPuTTY = false
+		// В Win7 не могу запустить консольные программы в отдельном окне
+		ZerroNewWindow = ZerroNewWindow || Win7
 	}
 
 	if Cygwin {
@@ -365,10 +367,6 @@ func main() {
 			args.Unix && !external { // -z
 			args.Baud = "9"
 		}
-		if bin == PLINK && Win7 && Cygwin {
-			// -u -> plink -telnet
-			nNear = RFC2217
-		}
 	}
 	serial := usbSerial(args.Serial)
 	BS := args.Baud != "" || serial != ""
@@ -383,7 +381,13 @@ func main() {
 		}
 		if nNear < 0 && (external || usePuTTY) {
 			if loc {
-				if bin == TELNET {
+				switch bin {
+				case PUTTY, PLINK:
+					if Win7 && Cygwin || // plink не прерывается в Win7 из Cygwin
+						!ser2net.SerialPath(serial) { // -Hcmd -H:2322
+						nNear = RFC2217
+					}
+				case TELNET:
 					if Windows {
 						nNear = RFC2217
 					} else {
@@ -599,7 +603,6 @@ Host ` + SSHJ + `
 					return
 				}
 				if wNear > 0 {
-					repeater := false
 					if nNear > 0 {
 						Println(repo, "-H", serial, "-2", nNear)
 						go func() {
@@ -607,10 +610,11 @@ Host ` + SSHJ + `
 							Println(rfc2217(ctx, ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: os.Stdout}, serial, s2, nNear, args.Baud, exit, Println))
 							closer.Close()
 						}()
-						if _, _, err := net.SplitHostPort(serial); err != nil {
+						if _, _, err := net.SplitHostPort(serial); err == nil {
+							// -H:2322
+						} else {
 							// -Hcmd -HH
-							repeater = true
-							time.Sleep(time.Millisecond * 777)
+							time.Sleep(time.Second)
 							serial = JoinHostPort(s2, nNear)
 						}
 					}
@@ -632,8 +636,8 @@ Host ` + SSHJ + `
 
 					setRaw(&once)
 
-					if repeater {
-						Println(s2w(ctx, nil, nil, serial, s2, wNear, args.Baud, "", PrintNil))
+					if nNear > 0 {
+						Println(s2w(ctx, nil, nil, serial, s2, wNear, args.Baud, "", Println))
 					} else {
 						Println(s2w(ctx, ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: os.Stdout}, nil, serial, s2, wNear, args.Baud, ". или ^C", Println))
 					}
@@ -648,7 +652,7 @@ Host ` + SSHJ + `
 				Println(cons(ctx, ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: os.Stdout}, serial, args.Baud, exit, Println))
 				return
 			}
-			Println("Remote serial console - Не локальная последовательная консоль")
+			Println("Remote serial console - Последовательная консоль на сервере")
 			if args.Debug {
 				args.Argument = append(args.Argument, "--debug")
 			}
@@ -829,9 +833,9 @@ Host ` + SSHJ + `
 					// За неимением...
 					execPath = "ssh"
 					opt = args.Destination
-					if Win7 {
-						ZerroNewWindow = true
-					}
+					// if Win7 {
+					// 	ZerroNewWindow = true
+					// }
 				}
 			}
 		}

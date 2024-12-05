@@ -182,17 +182,17 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 				return
 			}
 			if wNear > 0 {
-				repeater := false
 				if nNear > 0 {
 					print(repo, "-H", serial, "-2", nNear)
 					go func() {
 						print(rfc2217(s.Context(), s, serial, s2, portOB(nNear, RFC2217), args.Baud, args.Exit, ps...))
 						s.Close()
 					}()
-					if _, _, err := net.SplitHostPort(serial); err != nil {
+					if _, _, err := net.SplitHostPort(serial); err == nil {
+						// -H:2322
+					} else {
 						// -Hcmd -HH
-						repeater = true
-						time.Sleep(time.Millisecond * 777)
+						time.Sleep(time.Second)
 						serial = JoinHostPort(s2, nNear)
 					}
 				}
@@ -208,8 +208,8 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 					return
 				}
 
-				if repeater {
-					print(s2w(s.Context(), nil, nil, serial, s2, p2, args.Baud, "", PrintNil))
+				if nNear > 0 {
+					print(s2w(s.Context(), nil, nil, serial, s2, p2, args.Baud, "", Println))
 				} else {
 					print(s2w(s.Context(), s, nil, serial, s2, p2, args.Baud, ". или <^C>", ps...))
 				}

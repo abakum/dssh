@@ -93,14 +93,18 @@ func s2n(ctx context.Context, r io.Reader, chanB chan byte, chanW chan *ser2net.
 	if Serial == "" {
 		return ErrNotFoundFreeSerial
 	}
-	print := func(a ...any) {
-		for _, p := range println {
-			p(a...)
-		}
-	}
+
 	w, _ := ser2net.NewSerialWorker(ctx, Serial, ser2net.BaudRate(strconv.Atoi(Baud)))
 	go w.Worker()
 	t := time.AfterFunc(time.Millisecond*time.Duration(ser2net.TOopen), func() {
+		if r == nil && chanB == nil {
+			return
+		}
+		print := func(a ...any) {
+			for _, p := range println {
+				p(a...)
+			}
+		}
 		if strings.Contains(w.String(), "not connected") {
 			print(w)
 			w.Stop()
@@ -117,8 +121,5 @@ func s2n(ctx context.Context, r io.Reader, chanB chan byte, chanW chan *ser2net.
 	err := w.StartTelnet(host, Ser2net)
 	t.Stop()
 
-	if err != nil {
-		print(err)
-	}
 	return err
 }

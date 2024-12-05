@@ -80,15 +80,20 @@ func cons(ctx context.Context, s io.ReadWriteCloser, Serial, Baud, exit string, 
 // SetMode использует r или chanByte для смены serial.Mode порта Serial.
 // На консоль клиента println[0] выводит протокол через ssh канал.
 // Локально println[1] выводит протокол.
-func s2w(ctx context.Context, r io.Reader, chanByte chan byte, Serial, host string, wp int, Baud, exit string, println ...func(v ...any)) error {
+func s2w(ctx context.Context, r io.Reader, chanB chan byte, Serial, host string, wp int, Baud, exit string, println ...func(v ...any)) error {
 	if Serial == "" {
 		return ErrNotFoundFreeSerial
 	}
+
 	w, _ := ser2net.NewSerialWorker(ctx, Serial, ser2net.BaudRate(strconv.Atoi(Baud)))
 	go w.Worker()
 
 	t := time.AfterFunc(time.Millisecond*time.Duration(ser2net.TOopen), func() {
-		SetMode(w, ctx, r, chanByte, exit, wp, println...)
+		if r == nil && chanB == nil {
+			return
+		}
+
+		SetMode(w, ctx, r, chanB, exit, wp, println...)
 		w.Stop()
 	})
 
@@ -97,14 +102,7 @@ func s2w(ctx context.Context, r io.Reader, chanByte chan byte, Serial, host stri
 	err := w.StartGoTTY(host, wp, "", false)
 	t.Stop()
 	hp.remove()
-	if err != nil {
-		print := func(a ...any) {
-			for _, p := range println {
-				p(a...)
-			}
-		}
-		print(err)
-	}
+
 	return err
 }
 
