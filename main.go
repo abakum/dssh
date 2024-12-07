@@ -139,10 +139,10 @@ var (
 	Win7           = isWin7() // Виндовс7 не поддерживает ENABLE_VIRTUAL_TERMINAL_INPUT и ENABLE_VIRTUAL_TERMINAL_PROCESSING
 	usePuTTY       bool
 	once           = false
-	isMicroCom     = false
 	ZerroNewWindow = os.Getenv("SSH_CONNECTION") != ""
 	tmp            = filepath.Join(os.TempDir(), repo)
 	ips            = ser2net.Ints()
+	EED            = "<Enter>~."
 )
 
 //go:generate go run github.com/abakum/version
@@ -260,6 +260,7 @@ func main() {
 	}
 	args.Option.UnmarshalText([]byte("EscapeChar=" + args.EscapeChar))
 
+	EED = "<Enter>" + args.EscapeChar + "."
 	exit := ""
 	if Win7 && Cygwin {
 	} else {
@@ -270,54 +271,8 @@ func main() {
 			exit = " или <^C>"
 		}
 	}
-	quit := "<Enter>" + args.EscapeChar + "." + exit
 
-	bins := []string{PUTTY, PLINK, TELNET}
-
-	ZerroNewWindow = ZerroNewWindow || args.Unix || Win7 && Cygwin
-	// closerBug := args.Putty && Win7 && Cygwin
-	// if closerBug {
-	// 	ZerroNewWindow = false
-	// }
-
-	if ZerroNewWindow {
-		// Используем консольные приложения plink, telnet, microcom
-		bins = bins[1:]
-	}
-	if args.Telnet {
-		// Только телнет или ssh
-		bins = []string{TELNET}
-	}
-	external := args.Putty || args.Telnet
-	existsPuTTY := true
-
-	execPath, bin, err := look(bins...)
-	if err != nil {
-		if external {
-			Println(fmt.Errorf("not found - не найдены %v", bins))
-		}
-		external = false
-		existsPuTTY = false
-	} else if bin == TELNET {
-		if args.Putty {
-			Println(fmt.Errorf("not found - не найдены PuTTY, plink"))
-		}
-		existsPuTTY = false
-		// В Win7 не могу запустить консольные программы в отдельном окне
-		ZerroNewWindow = ZerroNewWindow || Win7
-	}
-
-	if Cygwin {
-		// cygpath -w ~/.ssh
-		cygUserDir, err := cygpath("~")
-		if err != nil {
-			cygUserDir = "~"
-		}
-		cygUserDir = filepath.Join(cygUserDir, ".ssh")
-		Println(fmt.Sprintf(`You can make a link - Можно сделать ссылку 'mklink /d "%s" "%s"'`, cygUserDir, SshUserDir))
-	} else {
-		usePuTTY = Win7 && existsPuTTY && !(args.DisableTTY || args.NoCommand)
-	}
+	quit := EED + exit
 
 	u, h, p := ParseDestination(args.Destination) //tssh
 	s2, dial := dest2hd(h, ips...)
@@ -358,18 +313,99 @@ func main() {
 	}
 	loc = localDestination(args.Destination)
 
+	external := args.Putty || args.Telnet
 	if args.Baud == "" {
+		// -UU
 		if args.Serial == "H" { // -HH
 			args.Serial = ""
-			args.Baud = "9"
+			args.Baud = "U"
 		}
 		if args.Destination == "" && external || // -u или -Z
 			args.Unix && !external { // -z
-			args.Baud = "9"
+			args.Baud = "U"
 		}
 	}
+
 	serial := usbSerial(args.Serial)
+	ZerroNewWindow = ZerroNewWindow || args.Unix || Win7 && Cygwin
+	existsPuTTY := true
 	BS := args.Baud != "" || serial != ""
+	SP := serial == "" || ser2net.SerialPath(serial)
+	bins := []string{PUTTY, PLINK}
+	var execPath, bin string
+	if external {
+		if Windows {
+			bins = append(bins, TELNET)
+		} else {
+			bb, err := exec.LookPath(BUSYBOX)
+			if err == nil {
+				ok := false
+				if SP {
+					// putty plink busybox
+					ok = exec.Command(BUSYBOX, MICROCOM, "--help").Run() == nil
+				} else {
+					// putty plink telnet
+					// putty plink busybox
+					tn, err := exec.LookPath(TELNET)
+					if err == nil {
+						bins = append(bins, tn)
+					} else {
+						ok = exec.Command(BUSYBOX, TELNET).Run() == nil
+					}
+				}
+				if ok {
+					bins = append(bins, bb)
+				}
+			}
+		}
+
+		if ZerroNewWindow {
+			// Используем консольные приложения plink, telnet, microcom
+			bins = bins[1:]
+			// plink busybox
+			// plink telnet
+		}
+		if args.Telnet {
+			if len(bins) > 0 {
+				bins = bins[len(bins)-1:]
+				// busybox
+				// telnet
+			}
+		}
+
+		execPath, bin, err = look(bins...)
+		if err != nil {
+			if external {
+				Println(fmt.Errorf("not found - не найдены %v", bins))
+			}
+			external = false
+			existsPuTTY = false
+		} else if bin == TELNET || bin == BUSYBOX {
+			if args.Putty {
+				Println(fmt.Errorf("not found - не найдены PuTTY, plink"))
+			}
+			existsPuTTY = false
+			// В Win7 не могу запустить консольные программы в отдельном окне
+			ZerroNewWindow = ZerroNewWindow || Win7
+		}
+	}
+
+	if Cygwin {
+		// cygpath -w ~/.ssh
+		cygUserDir, err := cygpath("~")
+		if err != nil {
+			cygUserDir = "~"
+		}
+		cygUserDir = filepath.Join(cygUserDir, ".ssh")
+		Println(fmt.Sprintf(`You can make a link - Можно сделать ссылку 'mklink /d "%s" "%s"'`, cygUserDir, SshUserDir))
+	} else {
+		usePuTTY = Win7 && existsPuTTY && !(args.DisableTTY || args.NoCommand)
+	}
+
+	if nNear < 0 && loc && external && !(SP && existsPuTTY) {
+		nNear = RFC2217
+	}
+
 	if BS || nNear > 0 || wNear > 0 {
 		enableTrzsz = "no"
 		if loc || args.Destination == "." {
@@ -378,28 +414,6 @@ func main() {
 			nNear = comm(serial, s2, nNear, wNear)
 		} else {
 			usePuTTY = false
-		}
-		if nNear < 0 && (external || usePuTTY) {
-			if loc {
-				switch bin {
-				case PUTTY, PLINK:
-					if Win7 && Cygwin || // plink не прерывается в Win7 из Cygwin
-						!ser2net.SerialPath(serial) { // -Hcmd -H:2322
-						nNear = RFC2217
-					}
-				case TELNET:
-					if Windows {
-						nNear = RFC2217
-					} else {
-						isMicroCom = exec.Command(BUSYBOX, MICROCOM, "--help").Run() == nil
-						if !isMicroCom {
-							nNear = RFC2217
-						}
-					}
-				}
-			} else {
-				nNear = RFC2217
-			}
 		}
 	}
 
@@ -459,15 +473,14 @@ Host ` + SSHJ + `
 			if loc {
 				Println("Local serial console - Локальная последовательная консоль")
 				if external {
-					Println("(-UU || -HH || -22 || -88) && (-u || -Z)")
+					Println("(-UU || -HH || -22 || -88) && (-u || -Z)", bins, bin)
 					// dssh -uUU хуже чем `dssh -UU` так как нельзя сменить скорость
 					BaudRate := ser2net.BaudRate(strconv.Atoi(args.Baud))
 					opt := fmt.Sprintln("-serial", serial, "-sercfg", fmt.Sprintf("%d,8,1,N,N", BaudRate))
 					if nNear > 0 {
 						opt = optTelnet(bin == TELNET, nNear)
-					} else if isMicroCom {
+					} else if bin == BUSYBOX {
 						opt = fmt.Sprintln(MICROCOM, "-s", BaudRate, serial)
-						execPath = BUSYBOX
 					}
 
 					cmd := exec.CommandContext(ctx, execPath, strings.Fields(opt)...)
@@ -479,9 +492,7 @@ Host ` + SSHJ + `
 					cmd.Stdout = os.Stdout
 					cmd.Stderr = os.Stdout
 					if nNear > 0 {
-						Println("-22")
 						if bin == TELNET {
-							Println("-Z22  || -Zz22 || -u22 & !existsPuTTY")
 							chanError := make(chan error, 2)
 							chanSerialWorker := make(chan *ser2net.SerialWorker, 2)
 							if !ZerroNewWindow && Windows && !Win7 {
@@ -491,11 +502,11 @@ Host ` + SSHJ + `
 								return
 							}
 
+							Println("-zZ22 -zu22 & !existsPuTTY")
 							cmd.Stdin = os.Stdin
 							go func() {
 								chanError <- s2n(ctx, nil, nil, chanSerialWorker, serial, s2, nNear, args.Baud, "", Println)
 							}()
-							Println("-zZ22 -zu22 & !existsPuTTY")
 							select {
 							case <-ctx.Done():
 								Println(ctx.Err())
@@ -520,6 +531,7 @@ Host ` + SSHJ + `
 								return
 							}
 							Println("-zu22")
+							ConsoleCP()
 							cmdStdin, err := cmd.StdinPipe()
 							if err != nil {
 								Println(cmd, err)
@@ -544,8 +556,13 @@ Host ` + SSHJ + `
 									return
 								}
 								setRaw(&once)
-								Println(mess(quit, serial))
-								w.Copy(newSideWriter(cmdStdin, args.EscapeChar, serial, chanByte), os.Stdin)
+								if SP {
+									Println(mess(quit, serial))
+									w.Copy(newSideWriter(cmdStdin, args.EscapeChar, serial, chanByte), os.Stdin)
+								} else {
+									Println(ToExitPress, EED)
+									w.CancelCopy(newSideWriter(cmdStdin, args.EscapeChar, serial, chanByte), ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: nil})
+								}
 								cmd.Wait()
 								return
 							}
@@ -568,30 +585,14 @@ Host ` + SSHJ + `
 					cmd.Stdout = os.Stdout
 					cmd.Stderr = os.Stdout
 					cmd.Stdin = os.Stdin
-					Println("(-UU || -HH) && (-u || -Z)", ZerroNewWindow)
-					// if !(ZerroNewWindow || Win7 && bin == TELNET) {
-					// dssh -uUU
-					// dssh -uHH
-
-					// !-z && !Win7
-					// dssh -ZUU
-					// dssh -ZHH
-					// notPuttyNewConsole(bin, cmd)
-					// }
-					// if closerBug && bin != TELNET {
-					// 	Println("-u && Win7 && Cygwin && bin != TELNET")
-					// 	setRaw(&once) //Отключаем ^C
-					// 	Println("To exit press [X] button of window " + bin + " - Чтоб выйти нажми  кнопку [X] окна " + bin)
-					// 	run()
-					// 	return
-					// }
+					Println("-u || -zu")
 					exit := "<^C>"
-					if isMicroCom {
+					if SP && bin == BUSYBOX {
 						exit = "<^X>"
 					}
-					if bin != TELNET || isMicroCom {
-						Println(ToExitPress, exit)
-					}
+					// if bin != TELNET || isMicroCom {
+					Println(ToExitPress, exit)
+					// }
 					run()
 					return
 				}

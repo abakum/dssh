@@ -33,7 +33,7 @@ func cons(ctx context.Context, s io.ReadWriteCloser, Serial, Baud, exit string, 
 	if local && !ser2net.SerialPath(Serial) {
 		exit = ""
 	}
-	quit := "<Enter>" + args.EscapeChar + "." + exit
+	quit := EED + exit
 
 	w, _ := ser2net.NewSerialWorker(ctx, Serial, ser2net.BaudRate(strconv.Atoi(Baud)))
 	defer w.Stop()

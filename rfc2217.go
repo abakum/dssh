@@ -28,7 +28,7 @@ func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial, host string, Ser
 	if local && !ser2net.SerialPath(Serial) {
 		exit = ""
 	}
-	quit := "<Enter>" + args.EscapeChar + "." + exit
+	quit := EED + exit
 
 	// hp := fmt.Sprintf("%s:%d", all2dial(host), Ser2net)
 	hp := JoinHostPort(all2dial(host), Ser2net)
