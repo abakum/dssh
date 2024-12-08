@@ -334,6 +334,7 @@ func main() {
 	}
 	ZerroNewWindow = ZerroNewWindow || args.Unix
 	existsPuTTY := true
+	existsTelnet := false
 	BS := args.Baud != "" || serial != ""
 	bins := []string{PUTTY, PLINK}
 	var execPath, bin string
@@ -341,7 +342,14 @@ func main() {
 		if Windows {
 			bins = append(bins, TELNET)
 		} else {
-			bb, err := exec.LookPath(BUSYBOX)
+			if !SP {
+				_, err := exec.LookPath(TELNET)
+				if err == nil {
+					existsTelnet = true
+					bins = append(bins, TELNET)
+				}
+			}
+			_, err := exec.LookPath(BUSYBOX)
 			if err == nil {
 				ok := false
 				if SP {
@@ -350,15 +358,12 @@ func main() {
 				} else {
 					// putty plink telnet
 					// putty plink busybox
-					tn, err := exec.LookPath(TELNET)
-					if err == nil {
-						bins = append(bins, tn)
-					} else {
+					if !existsTelnet {
 						ok = exec.Command(BUSYBOX, TELNET).Run() == nil
 					}
 				}
 				if ok {
-					bins = append(bins, bb)
+					bins = append(bins, BUSYBOX)
 				}
 			}
 		}
@@ -378,17 +383,24 @@ func main() {
 		}
 
 		execPath, bin, err = look(bins...)
+		existsTelnet = false
+		Println(bins, execPath, bin, err)
 		if err != nil {
 			if external {
 				Println(fmt.Errorf("not found - не найдены %v", bins))
 			}
 			external = false
 			existsPuTTY = false
-		} else if bin == TELNET || bin == BUSYBOX {
-			if args.Putty {
-				Println(fmt.Errorf("not found - не найдены PuTTY, plink"))
+		} else {
+			switch bin {
+			case TELNET, BUSYBOX:
+				existsTelnet = true
+				if args.Putty {
+					Println(fmt.Errorf("not found - не найдены PuTTY, plink"))
+				}
+			default:
+				existsPuTTY = true
 			}
-			existsPuTTY = false
 		}
 	}
 
@@ -413,7 +425,9 @@ func main() {
 		if loc || args.Destination == "." {
 			// Локальный последовательный порт
 			serial = getFirstUsbSerial(serial, args.Baud, Print)
-			nNear = comm(serial, s2, nNear, wNear)
+			if serial == "" || existsPuTTY {
+				nNear = comm(serial, s2, nNear, wNear)
+			}
 		} else {
 			usePuTTY = false
 		}
@@ -475,12 +489,12 @@ Host ` + SSHJ + `
 			if loc {
 				Println("Local serial console - Локальная последовательная консоль")
 				if external {
-					Println("(-UU || -HH || -22 || -88) && (-u || -Z)", bins, bin)
+					Println("(-UU || -HH || -22 || -88) && (-u || -Z)", bins, bin, nNear)
 					// dssh -uUU хуже чем `dssh -UU` так как нельзя сменить скорость
 					BaudRate := ser2net.BaudRate(strconv.Atoi(args.Baud))
 					opt := fmt.Sprintln("-serial", serial, "-sercfg", fmt.Sprintf("%d,8,1,N,N", BaudRate))
 					if nNear > 0 {
-						opt = optTelnet(bin == TELNET, nNear)
+						opt = optTelnet(bin, nNear)
 					} else if bin == BUSYBOX {
 						opt = fmt.Sprintln(MICROCOM, "-s", BaudRate, serial)
 					}
@@ -494,7 +508,7 @@ Host ` + SSHJ + `
 					cmd.Stdout = os.Stdout
 					cmd.Stderr = os.Stdout
 					if nNear > 0 {
-						if bin == TELNET {
+						if existsTelnet {
 							chanError := make(chan error, 2)
 							chanSerialWorker := make(chan *ser2net.SerialWorker, 2)
 							if !ZerroNewWindow && Windows { //&& !Win7
@@ -521,7 +535,11 @@ Host ` + SSHJ + `
 							case w := <-chanSerialWorker:
 								defer w.Stop()
 								time.AfterFunc(time.Millisecond*111, func() {
-									exit := "<^]>q<Enter>"
+									ec := "q"
+									if bin == BUSYBOX {
+										ec = "e"
+									}
+									exit := "<^]>" + ec + "<Enter>"
 									if Cygwin && !Win7 {
 										exit = "<^C>"
 									}
@@ -828,7 +846,7 @@ Host ` + SSHJ + `
 			if nNear > 0 {
 				// dssh -u22 :
 				// dssh -Z22 :
-				opt = optTelnet(bin == TELNET, nNear)
+				opt = optTelnet(bin, nNear)
 			} else {
 				// dssh -u :
 				switch bin {
@@ -836,7 +854,7 @@ Host ` + SSHJ + `
 					opt = "@" + args.Destination
 				case PLINK:
 					opt = fmt.Sprintln("-no-antispoof", "-load", args.Destination)
-				case TELNET:
+				case TELNET, BUSYBOX:
 					// dssh -Z :
 					// За неимением...
 					execPath = "ssh"
@@ -876,11 +894,11 @@ Host ` + SSHJ + `
 			}
 		} else {
 			// ZerroNewWindow
-			if bin == TELNET {
+			if existsTelnet {
 				// dssh -zZ :
 				// ssh ssh-j
 				if enableTrzsz == "no" || args.Destination == repo {
-					Println(ToExitPress, "<Enter><"+args.EscapeChar+"><.>")
+					Println(ToExitPress, EED)
 				}
 			} else {
 				// dssh -zu :
@@ -907,7 +925,7 @@ Host ` + SSHJ + `
 			})
 		}
 	} else if (enableTrzsz == "no" || args.Destination == repo) && args.StdioForward == "" {
-		Println(ToExitPress, "<Enter><"+args.EscapeChar+"><.>")
+		Println(ToExitPress, EED)
 	}
 
 	code := Tssh(&args)
@@ -1374,11 +1392,14 @@ func look(bins ...string) (path, bin string, err error) {
 	return
 }
 
-func optTelnet(telnet bool, lNear int) (opt string) {
-	opt = fmt.Sprintln("-telnet", LH, "-P", lNear)
-	if telnet {
-		// dssh --telnet --putty --2217 0 :
+func optTelnet(bin string, lNear int) (opt string) {
+	switch bin {
+	case TELNET:
 		opt = fmt.Sprintln(LH, lNear)
+	case BUSYBOX:
+		opt = fmt.Sprintln(TELNET, LH, lNear)
+	default:
+		opt = fmt.Sprintln("-"+TELNET, LH, "-P", lNear)
 	}
 	return
 }
