@@ -48,10 +48,6 @@ func GlobalSshPath() string {
 
 // cmd = exec.Command("cmd.exe", "/C", fmt.Sprintf(`start %s %s`, bin, opt))
 func createNewConsole(cmd *exec.Cmd) {
-	if isWin7() {
-		// В Win7 проблема запустить консольные программы в отдельном окне
-		return
-	}
 	const CREATE_NEW_CONSOLE = 0x10
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		CreationFlags:    CREATE_NEW_CONSOLE,

@@ -327,10 +327,14 @@ func main() {
 	}
 
 	serial := usbSerial(args.Serial)
-	ZerroNewWindow = ZerroNewWindow || args.Unix || Win7 && Cygwin
+	SP := serial == "" || ser2net.SerialPath(serial)
+	if Win7 && Cygwin && SP {
+		// <^C> не прерывает plink
+		args.Unix = false
+	}
+	ZerroNewWindow = ZerroNewWindow || args.Unix
 	existsPuTTY := true
 	BS := args.Baud != "" || serial != ""
-	SP := serial == "" || ser2net.SerialPath(serial)
 	bins := []string{PUTTY, PLINK}
 	var execPath, bin string
 	if external {
@@ -385,8 +389,6 @@ func main() {
 				Println(fmt.Errorf("not found - не найдены PuTTY, plink"))
 			}
 			existsPuTTY = false
-			// В Win7 не могу запустить консольные программы в отдельном окне
-			ZerroNewWindow = ZerroNewWindow || Win7
 		}
 	}
 
@@ -495,11 +497,15 @@ Host ` + SSHJ + `
 						if bin == TELNET {
 							chanError := make(chan error, 2)
 							chanSerialWorker := make(chan *ser2net.SerialWorker, 2)
-							if !ZerroNewWindow && Windows && !Win7 {
-								Println("-Z22 -u22 & !existsPuTTY")
-								createNewConsole(cmd)
-								dotExit(cmd, ctx, os.Stdin, nil, nil, serial, s2, nNear, args.Baud, "."+exit, Println)
-								return
+							if !ZerroNewWindow && Windows { //&& !Win7
+								if Win7 && !Cygwin {
+									Println(fmt.Errorf("не могу запустить telnet в отдельном окне в Windows7 без Cygwin"))
+								} else {
+									Println("-Z22 -u22 & !existsPuTTY")
+									createNewConsole(cmd)
+									dotExit(cmd, ctx, os.Stdin, nil, nil, serial, s2, nNear, args.Baud, "."+exit, Println)
+									return
+								}
 							}
 
 							Println("-zZ22 -zu22 & !existsPuTTY")
@@ -590,9 +596,10 @@ Host ` + SSHJ + `
 					if SP && bin == BUSYBOX {
 						exit = "<^X>"
 					}
-					// if bin != TELNET || isMicroCom {
+					if Win7 && Cygwin && bin == PUTTY {
+						exit = "[X] on window with - на окне с " + cmd.Args[0]
+					}
 					Println(ToExitPress, exit)
-					// }
 					run()
 					return
 				}
@@ -1720,6 +1727,40 @@ func localDestination(Destination string) (ok bool) {
 	return
 }
 
+func dotExit0(cmd *exec.Cmd, ctx context.Context, _ io.Reader, chanB chan byte, chanW chan *ser2net.SerialWorker, Serial string, host string, Ser2net int, Baud string, exit string, println ...func(v ...any)) {
+	var (
+		in  *ser2net.Stdin
+		err error
+	)
+	delay := time.Second * 2
+	if Cygwin {
+		delay *= 2
+		err = fmt.Errorf("cygwin")
+	} else {
+		in, err = ser2net.NewStdin()
+	}
+	t := time.AfterFunc(delay, func() {
+		Println(cmd, cmd.Start())
+		cmd.Wait()
+		if err == nil {
+			in.Cancel()
+		}
+		closer.Close()
+	})
+	setRaw(&once)
+	if err == nil {
+		Println(s2n(ctx, in, chanB, chanW, Serial, host, Ser2net, Baud, exit, println...))
+		in.Close()
+	} else {
+		if Cygwin {
+			exit += " потом <Enter>"
+		} else {
+			Println(fmt.Errorf("не удалось использовать прерываемый ввод"))
+		}
+		Println(s2n(ctx, os.Stdin, chanB, chanW, Serial, host, Ser2net, Baud, exit, println...))
+	}
+	t.Stop() // Если не успел стартануть то и не надо
+}
 func dotExit(cmd *exec.Cmd, ctx context.Context, r io.Reader, chanB chan byte, chanW chan *ser2net.SerialWorker, Serial string, host string, Ser2net int, Baud string, exit string, println ...func(v ...any)) {
 	delay := time.Second * 2
 	if Cygwin {
@@ -1730,6 +1771,9 @@ func dotExit(cmd *exec.Cmd, ctx context.Context, r io.Reader, chanB chan byte, c
 		cmd.Wait()
 		closer.Close()
 	})
+	if Cygwin {
+		exit += " или [X] on window with - на окне с " + cmd.Args[0] + " а потом <Enter>"
+	}
 	setRaw(&once)
 	Println(s2n(ctx, r, chanB, chanW, Serial, host, Ser2net, Baud, exit, println...))
 	t.Stop() // Если не успел стартануть то и не надо
