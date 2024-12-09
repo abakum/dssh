@@ -333,76 +333,67 @@ func main() {
 		args.Unix = false
 	}
 	ZerroNewWindow = ZerroNewWindow || args.Unix
-	existsPuTTY := true
-	existsTelnet := false
+	existsPuTTY := false
+	extSer := false
+	extTel := false
 	BS := args.Baud != "" || serial != ""
-	bins := []string{PUTTY, PLINK}
+	bins := []string{}
+	if !args.Telnet {
+		if ZerroNewWindow {
+			bins = []string{PLINK}
+		} else {
+			bins = []string{PUTTY, PLINK}
+		}
+	}
 	var execPath, bin string
 	if external {
-		if Windows {
+		_, err := exec.LookPath(TELNET)
+		if err == nil {
+			extTel = true
 			bins = append(bins, TELNET)
-		} else {
-			if !SP {
-				_, err := exec.LookPath(TELNET)
-				if err == nil {
-					existsTelnet = true
-					bins = append(bins, TELNET)
-				}
-			}
+		}
+		if !Windows {
 			_, err := exec.LookPath(BUSYBOX)
 			if err == nil {
-				ok := false
 				if SP {
 					// putty plink busybox
-					ok = exec.Command(BUSYBOX, MICROCOM, "--help").Run() == nil
+					extSer = exec.Command(BUSYBOX, MICROCOM, "--help").Run() == nil
 				} else {
 					// putty plink telnet
 					// putty plink busybox
-					if !existsTelnet {
-						ok = exec.Command(BUSYBOX, TELNET).Run() == nil
+					if !extTel {
+						extTel = exec.Command(BUSYBOX, TELNET).Run() == nil
 					}
 				}
-				if ok {
+				if extSer || extTel {
 					bins = append(bins, BUSYBOX)
 				}
 			}
 		}
 
-		if ZerroNewWindow {
-			// Используем консольные приложения plink, telnet, microcom
-			bins = bins[1:]
-			// plink busybox
-			// plink telnet
-		}
-		if args.Telnet {
-			if len(bins) > 0 {
-				bins = bins[len(bins)-1:]
-				// busybox
-				// telnet
-			}
-		}
-
+		// putty plink telnet - extTel
+		// putty plink busybox - extTel
+		// putty plink busybox - extSer
 		execPath, bin, err = look(bins...)
-		existsTelnet = false
 		Println(bins, execPath, bin, err)
 		if err != nil {
 			if external {
 				Println(fmt.Errorf("not found - не найдены %v", bins))
 			}
-			external = false
-			existsPuTTY = false
 		} else {
 			switch bin {
-			case TELNET, BUSYBOX:
-				existsTelnet = true
+			case PUTTY, PLINK:
+				existsPuTTY = true
+				extSer = true
+				extTel = true
+			default:
 				if args.Putty {
 					Println(fmt.Errorf("not found - не найдены PuTTY, plink"))
 				}
-			default:
-				existsPuTTY = true
 			}
 		}
 	}
+	external = extSer || extTel
 
 	if Cygwin {
 		// cygpath -w ~/.ssh
@@ -416,7 +407,7 @@ func main() {
 		usePuTTY = Win7 && existsPuTTY && !(args.DisableTTY || args.NoCommand)
 	}
 
-	if nNear < 0 && loc && external && !(SP && existsPuTTY) {
+	if nNear < 0 && loc && external && !(SP && extSer) {
 		nNear = RFC2217
 	}
 
@@ -425,7 +416,7 @@ func main() {
 		if loc || args.Destination == "." {
 			// Локальный последовательный порт
 			serial = getFirstUsbSerial(serial, args.Baud, Print)
-			if serial == "" || existsPuTTY {
+			if serial == "" || !extSer {
 				nNear = comm(serial, s2, nNear, wNear)
 			}
 		} else {
@@ -489,7 +480,7 @@ Host ` + SSHJ + `
 			if loc {
 				Println("Local serial console - Локальная последовательная консоль")
 				if external {
-					Println("(-UU || -HH || -22 || -88) && (-u || -Z)", bins, bin, nNear)
+					Println("(-UU || -HH || -22 || -88) && (-u || -Z)", bins, bin, nNear, "extTel", extTel, "extSer", extSer)
 					// dssh -uUU хуже чем `dssh -UU` так как нельзя сменить скорость
 					BaudRate := ser2net.BaudRate(strconv.Atoi(args.Baud))
 					opt := fmt.Sprintln("-serial", serial, "-sercfg", fmt.Sprintf("%d,8,1,N,N", BaudRate))
@@ -508,21 +499,21 @@ Host ` + SSHJ + `
 					cmd.Stdout = os.Stdout
 					cmd.Stderr = os.Stdout
 					if nNear > 0 {
-						if existsTelnet {
+						if extTel && args.Telnet {
 							chanError := make(chan error, 2)
 							chanSerialWorker := make(chan *ser2net.SerialWorker, 2)
-							if !ZerroNewWindow && Windows { //&& !Win7
+							if !ZerroNewWindow && Windows {
 								if Win7 && !Cygwin {
 									Println(fmt.Errorf("не могу запустить telnet в отдельном окне в Windows7 без Cygwin"))
 								} else {
-									Println("-Z22 -u22 & !existsPuTTY")
+									Println("-Z || -u && !existsPuTTY")
 									createNewConsole(cmd)
 									dotExit(cmd, ctx, os.Stdin, nil, nil, serial, s2, nNear, args.Baud, "."+exit, Println)
 									return
 								}
 							}
 
-							Println("-zZ22 -zu22 & !existsPuTTY")
+							Println("-zZ || -zu && !existsPuTTY")
 							cmd.Stdin = os.Stdin
 							go func() {
 								chanError <- s2n(ctx, nil, nil, chanSerialWorker, serial, s2, nNear, args.Baud, "", Println)
@@ -549,6 +540,7 @@ Host ` + SSHJ + `
 							}
 							return
 						}
+						// !extTel || !args.Telnet
 						if ZerroNewWindow {
 							if bin != PLINK {
 								Println("-zu22", fmt.Errorf("plink not found"))
@@ -894,7 +886,7 @@ Host ` + SSHJ + `
 			}
 		} else {
 			// ZerroNewWindow
-			if existsTelnet {
+			if extTel && args.Telnet {
 				// dssh -zZ :
 				// ssh ssh-j
 				if enableTrzsz == "no" || args.Destination == repo {
