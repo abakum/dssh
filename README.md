@@ -120,7 +120,7 @@ dssh:=(tssh from trzsz)+(CA key with embed-encrypt)+(sshd from gliderlabs)+(acce
     1.  `-z` то же что и `-U 9600` см. 1.1
     2.  `-22 x` то же что `-U 9600` плюс запуск RFC2217 telnet сервера на `x:2322` см. 1.11 
     3.  `-Z22 x` то же что и `-22 x` а потом `telnet -e^Q x 2322` для Windows в новом окне см. 1.6. Для Cygwin на Windows7 в том же окне.
-    4.  `-Z` для Linux то же что и  `busybox microcom -s 9600 Y`. Для Windows то же что и 10.3.
+    4.  `-Z x` для Linux то же что и  `busybox microcom -s 9600 Y`. Для Windows то же что и 10.3.
     5.  `-zZ x` то же что и `-20 x` а потом `telnet -e^Q x 2320` для Windows старше 7 в том же окне. Для Linux то же что и 10.4
     6.  `-u22 x` то же что и `-22 x` а потом `putty -telnet x -P 2322` для Windows новом окне см. 1.6. Для Linux то же что и `plink -telnet x -P 2322`.
     7.  `-u` то же что и `putty -serial Y -sercfg 9600,8,1,N,N` для Windows новом окне. Для Linux то же что и `plink -serial Y -sercfg 9600,8,1,N,N` .
