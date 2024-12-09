@@ -1453,7 +1453,7 @@ func dest2hd(Destination string, ips ...string) (host, dial string) {
 	switch Destination {
 	case "_", ips[0]:
 		return ips[0], ips[0]
-	case "*", ips[len(ips)-1], ALL:
+	case "*", ips[len(ips)-1], ALL, "+":
 		return ALL, ips[len(ips)-1]
 	case "", ".", LH:
 		return LH, LH
@@ -1733,7 +1733,7 @@ func JoinHostPort(host string, port int) string {
 
 func localDestination(Destination string) (ok bool) {
 	ok = strings.HasPrefix(Destination, "127.0.0.")
-	for _, ip := range append(ips, "", LH, "_", "*", ALL) {
+	for _, ip := range append(ips, "", LH, "_", "*", ALL, "+") {
 		if ip == args.Destination {
 			ok = true
 			return
@@ -1787,7 +1787,6 @@ func dotExit(bin string, cmd *exec.Cmd, ctx context.Context, r io.Reader, chanB 
 		closer.Close()
 	})
 	if Cygwin && Win7 {
-
 		exit += " или [X] on window with - на окне с " + bin + " а потом <Enter>"
 	}
 	setRaw(&once)

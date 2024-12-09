@@ -21,6 +21,7 @@ func ModTime(name string) (unix int64) {
 // net.SplitHostPort со значениями по умолчанию
 func SplitHostPort(hp, host, port string) (h, p string) {
 	hp = strings.ReplaceAll(hp, "*", ALL)
+	hp = strings.ReplaceAll(hp, "+", ALL) // Linux
 	h, p, err := net.SplitHostPort(hp)
 	if err == nil {
 		if p == "" {
