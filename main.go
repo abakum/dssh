@@ -329,8 +329,8 @@ func main() {
 	serial := usbSerial(args.Serial)
 	SP := serial == "" || ser2net.SerialPath(serial)
 	if Win7 && Cygwin && SP {
-		// <^C> не прерывает plink
 		args.Unix = false
+		Println(fmt.Errorf("не могу прервать plink в Cygwin на Windows7"))
 	}
 	ZerroNewWindow = ZerroNewWindow || args.Unix
 	existsPuTTY := false
@@ -506,11 +506,11 @@ Host ` + SSHJ + `
 							chanSerialWorker := make(chan *ser2net.SerialWorker, 2)
 							if !ZerroNewWindow && Windows {
 								if Win7 && !Cygwin {
-									Println(fmt.Errorf("не могу запустить telnet в отдельном окне в Windows7 без Cygwin"))
+									Println(fmt.Errorf("не могу запустить telnet в отдельном окне в Cygwin на Windows7"))
 								} else {
 									Println("-Z || -u && !existsPuTTY")
 									createNewConsole(cmd)
-									dotExit(cmd, ctx, os.Stdin, nil, nil, serial, s2, nNear, args.Baud, "."+exit, Println)
+									dotExit(bin, cmd, ctx, os.Stdin, nil, nil, serial, s2, nNear, args.Baud, "."+exit, Println)
 									return
 								}
 							}
@@ -596,7 +596,7 @@ Host ` + SSHJ + `
 							}
 						}
 						Println("-u22")
-						dotExit(cmd, ctx, os.Stdin, nil, nil, serial, s2, nNear, args.Baud, "."+exit, Println)
+						dotExit(bin, cmd, ctx, os.Stdin, nil, nil, serial, s2, nNear, args.Baud, "."+exit, Println)
 
 						return
 					}
@@ -1776,7 +1776,7 @@ func dotExit0(cmd *exec.Cmd, ctx context.Context, _ io.Reader, chanB chan byte, 
 	}
 	t.Stop() // Если не успел стартануть то и не надо
 }
-func dotExit(cmd *exec.Cmd, ctx context.Context, r io.Reader, chanB chan byte, chanW chan *ser2net.SerialWorker, Serial string, host string, Ser2net int, Baud string, exit string, println ...func(v ...any)) {
+func dotExit(bin string, cmd *exec.Cmd, ctx context.Context, r io.Reader, chanB chan byte, chanW chan *ser2net.SerialWorker, Serial string, host string, Ser2net int, Baud string, exit string, println ...func(v ...any)) {
 	delay := time.Second * 2
 	if Cygwin {
 		delay *= 2
@@ -1786,8 +1786,9 @@ func dotExit(cmd *exec.Cmd, ctx context.Context, r io.Reader, chanB chan byte, c
 		cmd.Wait()
 		closer.Close()
 	})
-	if Cygwin {
-		exit += " или [X] on window with - на окне с " + cmd.Args[0] + " а потом <Enter>"
+	if Cygwin && Win7 {
+
+		exit += " или [X] on window with - на окне с " + bin + " а потом <Enter>"
 	}
 	setRaw(&once)
 	Println(s2n(ctx, r, chanB, chanW, Serial, host, Ser2net, Baud, exit, println...))
