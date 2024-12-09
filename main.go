@@ -532,7 +532,7 @@ Host ` + SSHJ + `
 									if bin == BUSYBOX {
 										ec = "e"
 									}
-									exit := "<^]>" + ec + "<Enter>"
+									exit := "<^Q>" + ec + "<Enter>"
 									if Cygwin && !Win7 {
 										exit = "<^C>"
 									}
