@@ -508,11 +508,16 @@ Host ` + SSHJ + `
 							chanSerialWorker := make(chan *ser2net.SerialWorker, 2)
 							if !ZerroNewWindow && Windows {
 								if Win7 && !Cygwin {
-									Println(fmt.Errorf("не могу запустить telnet в отдельном окне в Cygwin на Windows7"))
+									Println(fmt.Errorf("не могу запустить telnet в отдельном окне на Windows7 без Cygwin "))
 								} else {
 									Println("-Z || -u && !existsPuTTY")
 									createNewConsole(cmd)
-									dotExit(bin, cmd, ctx, os.Stdin, nil, nil, serial, s2, nNear, args.Baud, "."+exit, Println)
+									exit = "." + exit
+									if Win7 && Cygwin {
+										exit = "[X] on window with - на окне с telnet потом <^Z>"
+									}
+									Println(runTelnet(cmd, ctx, os.Stdin, serial, s2, nNear, args.Baud, exit, Println))
+									closer.Close()
 									return
 								}
 							}
@@ -598,8 +603,11 @@ Host ` + SSHJ + `
 							}
 						}
 						Println("-u22")
-						dotExit(bin, cmd, ctx, os.Stdin, nil, nil, serial, s2, nNear, args.Baud, "."+exit, Println)
-
+						exit = "." + exit
+						if Win7 && Cygwin {
+							exit = "<^Z><^Z>"
+						}
+						Println(runTelnet(cmd, ctx, os.Stdin, serial, s2, nNear, args.Baud, exit, Println))
 						return
 					}
 					cmd.Stdout = os.Stdout
@@ -611,7 +619,7 @@ Host ` + SSHJ + `
 						exit = "<^X>"
 					}
 					if Win7 && Cygwin && bin == PUTTY {
-						exit = "[X] on window with - на окне с " + cmd.Args[0]
+						exit = "[X] on window with - на окне с PuTTY"
 					}
 					Println(ToExitPress, exit)
 					run()
@@ -1778,7 +1786,7 @@ func dotExit0(cmd *exec.Cmd, ctx context.Context, _ io.Reader, chanB chan byte, 
 	}
 	t.Stop() // Если не успел стартануть то и не надо
 }
-func dotExit(bin string, cmd *exec.Cmd, ctx context.Context, r io.Reader, chanB chan byte, chanW chan *ser2net.SerialWorker, Serial string, host string, Ser2net int, Baud string, exit string, println ...func(v ...any)) {
+func dotExit2(bin string, cmd *exec.Cmd, ctx context.Context, r io.Reader, chanB chan byte, chanW chan *ser2net.SerialWorker, Serial string, host string, Ser2net int, Baud string, exit string, println ...func(v ...any)) {
 	delay := time.Second * 2
 	if Cygwin {
 		delay *= 2
@@ -1794,4 +1802,112 @@ func dotExit(bin string, cmd *exec.Cmd, ctx context.Context, r io.Reader, chanB 
 	setRaw(&once)
 	Println(s2n(ctx, r, chanB, chanW, Serial, host, Ser2net, Baud, exit, println...))
 	t.Stop() // Если не успел стартануть то и не надо
+}
+func dotExitx(bin string, cmd *exec.Cmd, ctx context.Context, r io.Reader, _ chan byte, _ chan *ser2net.SerialWorker, Serial string, host string, Ser2net int, Baud string, exit string, println ...func(v ...any)) {
+	cmdStdin, err := cmd.StdinPipe()
+	if err != nil {
+		Println(cmd, err)
+		return
+	}
+	setRaw(&once)
+	chanError := make(chan error, 2)
+	chanByte := make(chan byte, B16)
+	chanSerialWorker := make(chan *ser2net.SerialWorker, 2)
+	if Cygwin && Win7 {
+		exit += " или [X] on window with - на окне с " + bin + " а потом <Enter>"
+	}
+	go func() {
+		chanError <- s2n(ctx, r, chanByte, chanSerialWorker, Serial, host, Ser2net, Baud, exit, Println)
+		// closer.Close()
+	}()
+	select {
+	case <-ctx.Done():
+		Println(ctx.Err())
+	case err = <-chanError:
+		Println(err)
+	case w := <-chanSerialWorker:
+		defer w.Stop()
+		go func() {
+			err := cmd.Start()
+			Println(cmd, err)
+			if err != nil {
+				return
+			}
+			cmd.Wait()
+			w.Cancel()
+			// closer.Close()
+		}()
+		// if SP {
+		// 	Println(mess(quit, serial))
+		// 	w.Copy(newSideWriter(cmdStdin, args.EscapeChar, Serial, chanByte), os.Stdin)
+		// } else {
+		// Println(ToExitPress, EED)
+		w.CancelCopy(newSideWriter(cmdStdin, args.EscapeChar, Serial, chanByte), ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: nil})
+		// }
+
+		// cmd.Wait()
+		// cmd.Process.Release()
+	}
+}
+func runTelnet0(bin string, cmd *exec.Cmd, ctx context.Context, r io.Reader, chanB chan byte, chanW chan *ser2net.SerialWorker, Serial string, host string, Ser2net int, Baud string, exit string, println ...func(v ...any)) (err error) {
+	chanError := make(chan error, 2)
+	chanByte := make(chan byte, B16)
+	chanSerialWorker := make(chan *ser2net.SerialWorker, 2)
+	var in *ser2net.Stdin
+	in, err = ser2net.NewStdin()
+	if err != nil {
+		return
+	}
+	go func() {
+		setRaw(&once)
+		chanError <- s2n(ctx, in, chanByte, chanSerialWorker, Serial, host, Ser2net, Baud, exit, println...)
+	}()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case err = <-chanError:
+		return
+	case w := <-chanSerialWorker:
+		defer func() {
+			if in != nil {
+				in.Cancel()
+			}
+			w.Stop()
+		}()
+		time.Sleep(time.Millisecond * 222)
+		err = cmd.Start()
+		Println(cmd, err)
+		if err != nil {
+			return
+		}
+		cmd.Wait()
+	}
+	return
+}
+func runTelnet(cmd *exec.Cmd, ctx context.Context, r io.Reader, Serial string, host string, Ser2net int, Baud string, exit string, println ...func(v ...any)) (err error) {
+	chanError := make(chan error, 1)
+	chanByte := make(chan byte, B16)
+	chanSerialWorker := make(chan *ser2net.SerialWorker, 1)
+	setRaw(&once)
+	go func() {
+		chanError <- s2n(ctx, r, chanByte, chanSerialWorker, Serial, host, Ser2net, Baud, exit, println...)
+	}()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case err = <-chanError:
+		return
+	case w := <-chanSerialWorker:
+		defer func() {
+			w.Stop()
+		}()
+		time.Sleep(time.Millisecond * 333)
+		err = cmd.Start()
+		Println(cmd, err)
+		if err != nil {
+			return
+		}
+		cmd.Wait()
+	}
+	return
 }
