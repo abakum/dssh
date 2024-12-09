@@ -329,8 +329,10 @@ func main() {
 	serial := usbSerial(args.Serial)
 	SP := serial == "" || ser2net.SerialPath(serial)
 	if Win7 && Cygwin && SP {
+		if args.Unix {
+			Println(fmt.Errorf("не могу прервать plink в Cygwin на Windows7"))
+		}
 		args.Unix = false
-		Println(fmt.Errorf("не могу прервать plink в Cygwin на Windows7"))
 	}
 	ZerroNewWindow = ZerroNewWindow || args.Unix
 	existsPuTTY := false
@@ -486,7 +488,7 @@ Host ` + SSHJ + `
 					opt := fmt.Sprintln("-serial", serial, "-sercfg", fmt.Sprintf("%d,8,1,N,N", BaudRate))
 
 					if nNear > 0 {
-						opt = optTelnet(bin, nNear)
+						opt = optTelnet(bin, s2, nNear)
 					} else if !existsPuTTY && extSer {
 						opt = fmt.Sprintln(MICROCOM, "-s", BaudRate, serial)
 						execPath = BUSYBOX
@@ -840,7 +842,7 @@ Host ` + SSHJ + `
 			if nNear > 0 {
 				// dssh -u22 :
 				// dssh -Z22 :
-				opt = optTelnet(bin, nNear)
+				opt = optTelnet(bin, LH, nNear)
 			} else {
 				// dssh -u :
 				switch bin {
@@ -1386,14 +1388,14 @@ func look(bins ...string) (path, bin string, err error) {
 	return
 }
 
-func optTelnet(bin string, lNear int) (opt string) {
+func optTelnet(bin, host string, lNear int) (opt string) {
 	switch bin {
 	case TELNET:
-		opt = fmt.Sprintln("-e\021", LH, lNear) // -e^Q
+		opt = fmt.Sprintln("-e\021", host, lNear) // -e^Q
 	case BUSYBOX:
-		opt = fmt.Sprintln(TELNET, "-e\021", LH, lNear) // -e^Q
+		opt = fmt.Sprintln(TELNET, "-e\021", host, lNear) // -e^Q
 	default:
-		opt = fmt.Sprintln("-"+TELNET, LH, "-P", lNear)
+		opt = fmt.Sprintln("-"+TELNET, host, "-P", lNear)
 	}
 	return
 }
