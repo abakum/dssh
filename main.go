@@ -484,10 +484,12 @@ Host ` + SSHJ + `
 					// dssh -uUU хуже чем `dssh -UU` так как нельзя сменить скорость
 					BaudRate := ser2net.BaudRate(strconv.Atoi(args.Baud))
 					opt := fmt.Sprintln("-serial", serial, "-sercfg", fmt.Sprintf("%d,8,1,N,N", BaudRate))
+
 					if nNear > 0 {
 						opt = optTelnet(bin, nNear)
-					} else if bin == BUSYBOX {
+					} else if !existsPuTTY && extSer {
 						opt = fmt.Sprintln(MICROCOM, "-s", BaudRate, serial)
+						execPath = BUSYBOX
 					}
 
 					cmd := exec.CommandContext(ctx, execPath, strings.Fields(opt)...)
@@ -601,9 +603,9 @@ Host ` + SSHJ + `
 					cmd.Stdout = os.Stdout
 					cmd.Stderr = os.Stdout
 					cmd.Stdin = os.Stdin
-					Println("-u || -zu")
+					Println("-u || -zu || extSer")
 					exit := "<^C>"
-					if SP && bin == BUSYBOX {
+					if !existsPuTTY && extSer {
 						exit = "<^X>"
 					}
 					if Win7 && Cygwin && bin == PUTTY {
@@ -1387,9 +1389,9 @@ func look(bins ...string) (path, bin string, err error) {
 func optTelnet(bin string, lNear int) (opt string) {
 	switch bin {
 	case TELNET:
-		opt = fmt.Sprintln(LH, lNear)
+		opt = fmt.Sprintln("-e\021", LH, lNear) // -e^Q
 	case BUSYBOX:
-		opt = fmt.Sprintln(TELNET, LH, lNear)
+		opt = fmt.Sprintln(TELNET, "-e\021", LH, lNear) // -e^Q
 	default:
 		opt = fmt.Sprintln("-"+TELNET, LH, "-P", lNear)
 	}
