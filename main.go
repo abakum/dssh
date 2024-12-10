@@ -329,7 +329,7 @@ func main() {
 	}
 
 	serial := usbSerial(args.Serial)
-	SP := serial == "" || ser2net.SerialPath(serial)
+	SP = serial == "" || ser2net.SerialPath(serial)
 	if Win7 && Cygwin && SP {
 		if args.Unix {
 			Println(fmt.Errorf("не могу прервать plink в Cygwin на Windows7"))
@@ -519,7 +519,7 @@ Host ` + SSHJ + `
 										exit = "[X] on window with - на окне с telnet потом <^Z>"
 									}
 
-									Println(cmd, cmdRun(cmd, ctx, os.Stdin, false, serial, s2, nNear, args.Baud, exit, Println))
+									Println(cmdRun(cmd, ctx, os.Stdin, false, serial, s2, nNear, args.Baud, exit, Println))
 									closer.Close()
 									return
 								}
@@ -535,7 +535,7 @@ Host ` + SSHJ + `
 							if Cygwin && !Win7 {
 								exit = "<^C>"
 							}
-							Println(cmd, cmdRun(cmd, ctx, nil, false, serial, s2, nNear, args.Baud, exit, PrintNil))
+							Println(cmdRun(cmd, ctx, nil, false, serial, s2, nNear, args.Baud, exit, PrintNil))
 							return
 							// go func() {
 							// 	chanError <- s2n(ctx, nil, nil, chanSerialWorker, serial, s2, nNear, args.Baud, "", Println)
@@ -575,7 +575,7 @@ Host ` + SSHJ + `
 							// 	Println(cmd, err)
 							// 	return
 							// }
-							Println(cmd, cmdRun(cmd, ctx, nil, true, serial, s2, nNear, args.Baud, exit, Println))
+							Println(cmdRun(cmd, ctx, nil, true, serial, s2, nNear, args.Baud, exit, Println))
 							return
 							// chanError := make(chan error, 2)
 							// chanByte := make(chan byte, B16)
@@ -622,7 +622,7 @@ Host ` + SSHJ + `
 						if Win7 && Cygwin {
 							exit = "<^Z><^Z>"
 						}
-						Println(cmd, cmdRun(cmd, ctx, os.Stdin, false, serial, s2, nNear, args.Baud, exit, Println))
+						Println(cmdRun(cmd, ctx, os.Stdin, false, serial, s2, nNear, args.Baud, exit, Println))
 						return
 					}
 					cmd.Stdout = os.Stdout
@@ -1769,17 +1769,16 @@ func localDestination(Destination string) (ok bool) {
 
 func cmdRun(cmd *exec.Cmd, ctx context.Context, r io.Reader, pipe bool, Serial, host string, Ser2net int, Baud string, exit string, println ...func(v ...any)) (err error) {
 	var wc io.WriteCloser
-	chanByte := make(chan byte, B16)
 	if pipe {
+		// -zu
 		wc, err = cmd.StdinPipe()
 		if err != nil {
 			return
 		}
-	} else {
-		chanByte = nil
 	}
 
 	chanError := make(chan error, 1)
+	chanByte := make(chan byte, B16)
 	chanSerialWorker := make(chan *ser2net.SerialWorker, 1)
 	if r != nil || pipe {
 		setRaw(&once)
@@ -1795,22 +1794,25 @@ func cmdRun(cmd *exec.Cmd, ctx context.Context, r io.Reader, pipe bool, Serial, 
 	case w := <-chanSerialWorker:
 		defer w.Stop()
 		err = cmd.Start()
+		Println(cmd)
 		if err != nil {
 			return
 		}
-		if r == nil {
+
+		if pipe {
+			if SP {
+				// -zu22
+				Println(mess(quit, Serial))
+				w.Copy(newSideWriter(wc, args.EscapeChar, Serial, chanByte), os.Stdin)
+			} else {
+				// -zuHcmd
+				Println(ToExitPress, EED)
+				w.CancelCopy(newSideWriter(wc, args.EscapeChar, Serial, chanByte), ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: nil})
+			}
+		} else if r == nil {
 			time.AfterFunc(time.Millisecond*111, func() {
 				Println(ToExitPress, exit)
 			})
-		}
-		if pipe {
-			// if SP {
-			Println(mess(quit, Serial))
-			w.Copy(newSideWriter(wc, args.EscapeChar, Serial, chanByte), os.Stdin)
-			// } else {
-			// 	Println(ToExitPress, EED)
-			// 	w.CancelCopy(newSideWriter(wc, args.EscapeChar, Serial, chanByte), ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: nil})
-			// }
 		}
 		cmd.Wait()
 	}
