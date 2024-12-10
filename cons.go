@@ -37,7 +37,6 @@ func cons(ctx context.Context, s io.ReadWriteCloser, Serial, Baud, exit string, 
 
 	w, _ := ser2net.NewSerialWorker(ctx, Serial, ser2net.BaudRate(strconv.Atoi(Baud)))
 	defer w.Stop()
-
 	go w.Worker()
 
 	c, err := w.NewIoReadWriteCloser()
@@ -52,6 +51,7 @@ func cons(ctx context.Context, s io.ReadWriteCloser, Serial, Baud, exit string, 
 		SetMode(w, ctx, nil, chanByte, quit, 0, println...)
 		w.Stop()
 	})
+	defer t.Stop()
 
 	ss := "Serial"
 	sp := Serial
@@ -72,7 +72,6 @@ func cons(ctx context.Context, s io.ReadWriteCloser, Serial, Baud, exit string, 
 
 	go w.CopyCancel(s, c)
 	_, err = w.CancelCopy(newSideWriter(c, args.EscapeChar, Serial, chanByte), s)
-	t.Stop()
 	return
 }
 
@@ -86,20 +85,20 @@ func s2w(ctx context.Context, r io.Reader, chanB chan byte, Serial, host string,
 	}
 
 	w, _ := ser2net.NewSerialWorker(ctx, Serial, ser2net.BaudRate(strconv.Atoi(Baud)))
+	defer w.Stop()
 	go w.Worker()
 
 	t := time.AfterFunc(time.Millisecond*time.Duration(ser2net.TOopen), func() {
 		SetMode(w, ctx, r, chanB, exit, wp, println...)
 		w.Stop()
 	})
+	defer t.Stop()
 
 	hp := newHostPort(host, wp, Serial)
+	defer hp.remove()
 	hp.write()
-	err := w.StartGoTTY(host, wp, "", false)
-	t.Stop()
-	hp.remove()
 
-	return err
+	return w.StartGoTTY(host, wp, "", false)
 }
 
 type hostPort struct {

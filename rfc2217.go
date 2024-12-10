@@ -95,8 +95,10 @@ func s2n(ctx context.Context, r io.Reader, chanB chan byte, chanW chan *ser2net.
 	}
 
 	w, _ := ser2net.NewSerialWorker(ctx, Serial, ser2net.BaudRate(strconv.Atoi(Baud)))
+	defer w.Stop()
 	go w.Worker()
 	t := time.AfterFunc(time.Millisecond*time.Duration(ser2net.TOopen), func() {
+		defer w.Stop()
 		print := func(a ...any) {
 			for _, p := range println {
 				p(a...)
@@ -104,7 +106,7 @@ func s2n(ctx context.Context, r io.Reader, chanB chan byte, chanW chan *ser2net.
 		}
 		if strings.Contains(w.String(), "not connected") {
 			print(w)
-			w.Stop()
+			// w.Stop()
 			return
 		}
 		hp := JoinHostPort(host, Ser2net)
@@ -113,10 +115,9 @@ func s2n(ctx context.Context, r io.Reader, chanB chan byte, chanW chan *ser2net.
 			chanW <- w
 		}
 		SetMode(w, ctx, r, chanB, exit, Ser2net, println...)
-		w.Stop()
+		// w.Stop()
 	})
-	err := w.StartTelnet(host, Ser2net)
-	t.Stop()
+	defer t.Stop()
 
-	return err
+	return w.StartTelnet(host, Ser2net)
 }
