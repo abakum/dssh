@@ -379,7 +379,6 @@ func main() {
 		// putty plink busybox - extTel
 		// putty plink busybox - extSer
 		execPath, bin, err = look(bins...)
-		Println(bins, execPath, bin, err)
 		if err != nil {
 			if external {
 				Println(fmt.Errorf("not found - не найдены %v", bins))
@@ -489,7 +488,7 @@ Host ` + SSHJ + `
 					opt := fmt.Sprintln("-serial", serial, "-sercfg", fmt.Sprintf("%d,8,1,N,N", BaudRate))
 
 					if nNear > 0 {
-						opt = optTelnet(bin, s2, nNear)
+						opt = optTelnet(bin, dial, nNear)
 					} else if !existsPuTTY && extSer {
 						opt = fmt.Sprintln(MICROCOM, "-s", BaudRate, serial)
 						execPath = BUSYBOX
@@ -1686,7 +1685,9 @@ func JoinHostPort(host string, port int) string {
 }
 
 func localDestination(Destination string) (ok bool) {
-	ok = strings.HasPrefix(Destination, "127.0.0.")
+	if strings.HasPrefix(Destination, "127.0.0.") {
+		return true
+	}
 	for _, ip := range append(ips, "", LH, "_", "*", ALL, "+") {
 		if ip == args.Destination {
 			ok = true
