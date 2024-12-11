@@ -277,7 +277,7 @@ func main() {
 	quit = EED + exit
 
 	u, h, p := ParseDestination(args.Destination) //tssh
-	s2, dial := dest2hd(h, ips...)
+	s2, dial := host2ld(h)
 
 	loc := localDestination(args.Destination)
 
@@ -293,7 +293,7 @@ func main() {
 		}
 		djh, djp, err = net.SplitHostPort(dj)
 		if err == nil {
-			s2, dial = dest2hd(djh, ips...)
+			s2, dial = host2ld(djh)
 			djh = dial
 			args.Destination = repo // Не локальный
 			if djh == LH {
@@ -317,21 +317,21 @@ func main() {
 
 	external := args.Putty || args.Telnet
 	if args.Baud == "" {
-		// -UU
 		if args.Serial == "H" { // -HH
 			args.Serial = ""
-			args.Baud = "U"
+			args.Baud = "9"
 		}
 		if args.Destination == "" && external || // -u или -Z
 			args.Unix && !external { // -z
-			args.Baud = "U"
+			args.Baud = "9"
 		}
 	}
 
 	serial := usbSerial(args.Serial)
 	SP = serial == "" || ser2net.SerialPath(serial)
+	serial = ser2net.LocalPort(serial)
 	if Win7 && Cygwin && SP {
-		if args.Unix {
+		if args.Unix && args.Putty {
 			Println(fmt.Errorf("не могу прервать plink в Cygwin на Windows7"))
 		}
 		args.Unix = false
@@ -467,7 +467,7 @@ Host ` + SSHJ + `
  EnableTrzsz ` + enableTrzsz
 
 	if args.Restart || BS || nNear > 0 || wNear > 0 {
-		Println("-r || -UU || -HH || -22 || -88")
+		// Println("-r || -UU || -HH || -22 || -88")
 		// CGI
 		cli = true
 		args.Command = repo
@@ -1410,24 +1410,17 @@ func TimeDone(after, before time.Time) {
 	}
 }
 
-func dest2hd(Destination string, ips ...string) (host, dial string) {
-	switch Destination {
-	case "_", ips[0]:
+func host2ld(host string) (listen, dial string) {
+	switch host {
+	case "_":
 		return ips[0], ips[0]
-	case "*", ips[len(ips)-1], ALL, "+":
+	case "*", "+", ALL:
 		return ALL, ips[len(ips)-1]
 	case "", ".", LH:
 		return LH, LH
 	default:
-		return Destination, Destination
+		return host, host
 	}
-}
-
-func all2dial(host string) string {
-	if host == ALL {
-		return ips[len(ips)-1]
-	}
-	return host
 }
 
 func portOB(opt, base int) int {

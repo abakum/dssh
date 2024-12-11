@@ -31,7 +31,7 @@ func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial, host string, Ser
 	quit := EED + exit
 
 	// hp := fmt.Sprintf("%s:%d", all2dial(host), Ser2net)
-	hp := JoinHostPort(all2dial(host), Ser2net)
+	hp := JoinHostPort(ser2net.LocalPort(host), Ser2net)
 	if isHP(hp) {
 		// Подключаемся к существующему сеансу
 		return cons(ctx, s, hp, args.Baud, exit, println...)

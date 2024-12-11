@@ -109,7 +109,7 @@ type hostPort struct {
 
 func newHostPort(host string, port int, path string) hostPort {
 	os.MkdirAll(tmp, DIRMODE)
-	return hostPort{all2dial(host), port, path}
+	return hostPort{ser2net.LocalPort(host), port, path}
 
 }
 
