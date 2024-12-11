@@ -1412,9 +1412,9 @@ func TimeDone(after, before time.Time) {
 func host2ld(host string) (listen, dial string) {
 	switch host {
 	case "_":
-		return ips[0], ips[0]
+		return ips[len(ips)-1], ips[len(ips)-1]
 	case "*", "+", ALL:
-		return ALL, ips[len(ips)-1]
+		return ALL, ips[0]
 	case "", ".", LH:
 		return LH, LH
 	default:
