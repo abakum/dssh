@@ -340,7 +340,6 @@ func main() {
 	existsPuTTY := false
 	extSer := false
 	extTel := false
-	BS := args.Baud != "" || serial != ""
 	bins := []string{}
 	if !args.Telnet {
 		if ZerroNewWindow {
@@ -413,14 +412,15 @@ func main() {
 	if nNear < 0 && loc && external && !(SP && extSer) {
 		nNear = RFC2217
 	}
-
-	if BS || nNear > 0 || wNear > 0 {
+	BSnw := args.Baud != "" || serial != "" || nNear > 0 || wNear > 0
+	if BSnw {
 		enableTrzsz = "no"
 		if loc || args.Destination == "." {
 			// Локальный последовательный порт
 			serial = getFirstUsbSerial(serial, args.Baud, Print)
 			if serial == "" || !extSer {
 				nNear = comm(serial, s2, nNear, wNear)
+				BSnw = BSnw || nNear > 0
 			}
 		} else {
 			usePuTTY = false
@@ -465,11 +465,10 @@ Host ` + SSHJ + `
  ProxyJump ` + u + `@` + JumpHost + `
  EnableTrzsz ` + enableTrzsz
 
-	if args.Restart || BS || nNear > 0 || wNear > 0 {
+	if args.Restart || BSnw {
 		// Println("-r || -UU || -HH || -22 || -88")
 		// CGI
 		cli = true
-		args.Command = repo
 		// args.ForceTTY = true
 		args.Argument = []string{}
 		if args.Restart {
@@ -477,11 +476,12 @@ Host ` + SSHJ + `
 			if args.Destination == "" {
 				args.Destination = ":" // Рестарт сервера за NAT
 			}
+			args.Command = repo
 			args.Argument = append(args.Argument, "--restart")
 		} else {
 			// Println("-UU || -HH || -22 || -88")
 			if loc {
-				Println("Local serial console - Локальная последовательная консоль")
+				Println("Local console - Локальная консоль", serial)
 				if external {
 					// Println("(-UU || -HH || -22 || -88) && (-u || -Z)", bins, bin, nNear, "extTel", extTel, "extSer", extSer)
 					BaudRate := ser2net.BaudRate(strconv.Atoi(args.Baud))
@@ -577,7 +577,7 @@ Host ` + SSHJ + `
 					run()
 					return
 				}
-				// setRaw(&once)
+				// !external && loc
 				if nNear > 0 && wNear < 0 {
 					Println(repo, "-H", serial, "-2", nNear)
 					setRaw(&once)
@@ -626,30 +626,49 @@ Host ` + SSHJ + `
 
 					return
 				}
+				// (args.Baud != "" || serial != "") && nNear < 0 && wNear < 0
 				// Println("-HH || -Hcmd | -H:2322")
 				setRaw(&once)
 				Println(cons(ctx, ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: os.Stdout}, serial, args.Baud, exit, Println))
 				return
 			}
-			Println("Remote serial console - Последовательная консоль на сервере")
-			if args.Debug {
-				args.Argument = append(args.Argument, "--debug")
-			}
-			if args.Baud != "" {
-				args.Argument = append(args.Argument, "--baud", args.Baud)
-			}
-			if serial != "" {
-				args.Argument = append(args.Argument, "--path", serial)
-			}
-			if nFar > 0 {
-				args.Argument = append(args.Argument, "--2217", strconv.Itoa(nFar))
-			}
-			if wFar > 0 {
-				args.Argument = append(args.Argument, "--web", strconv.Itoa(wFar))
-			}
-			if exit != "" {
-				args.Argument = append(args.Argument, "--exit", exit)
-			}
+			// !loc
+			// 		switch args.Destination {
+			// 		case ".", ":":
+			// 			Println("Remote console - Консоль", serial, "на", repo)
+			// 			if args.Debug {
+			// 				args.Argument = append(args.Argument, "--debug")
+			// 			}
+			// 			if args.Baud != "" {
+			// 				args.Argument = append(args.Argument, "--baud", args.Baud)
+			// 			}
+			// 			if serial != "" {
+			// 				args.Argument = append(args.Argument, "--path", serial)
+			// 			}
+			// 			if nFar > 0 {
+			// 				args.Argument = append(args.Argument, "--2217", strconv.Itoa(nFar))
+			// 			}
+			// 			if wFar > 0 {
+			// 				args.Argument = append(args.Argument, "--web", strconv.Itoa(wFar))
+			// 			}
+			// 			if exit != "" {
+			// 				args.Argument = append(args.Argument, "--exit", exit)
+			// 			}
+			// 			if len(args.Argument) > 0 {
+			// 				args.Command = repo
+			// 			}
+			// 			default:
+			// 				if h, p, err := net.SplitHostPort(serial); err == nil {
+			// 					Println("Remote console - Консоль", serial, "через", args.Destination)
+			// 					args.LocalForward.UnmarshalText([]byte(fmt.Sprintf("%s:%s:%s:%s", LH, p, h, p)))
+			// 					args.NoCommand = true
+			// 					go Tssh(&args)
+			// 					time.Sleep(time.Second)
+			// 					setRaw(&once)
+			// 					Println(cons(ctx, ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: os.Stdout}, net.JoinHostPort(LH, p), args.Baud, exit, Println))
+			// 					return
+			// 				}
+			// }
 		}
 	}
 
@@ -869,14 +888,51 @@ Host ` + SSHJ + `
 	}
 	// dssh -HH :
 	// dssh -22 :
-	if BS || nNear > 0 || wNear > 0 {
+	// dssh -88 :
+	if BSnw {
 		setRaw(&once)
-		if wNear > 0 {
-			// dssh -88 :
-			// dssh -88 .
-			time.AfterFunc(time.Second*2, func() {
-				Println(browse(ctx, dial, wFar, nil))
-			})
+		switch args.Destination {
+		case ".", ":":
+			Println("Remote console - Консоль", serial, "на", repo)
+			if args.Debug {
+				args.Argument = append(args.Argument, "--debug")
+			}
+			if args.Baud != "" {
+				args.Argument = append(args.Argument, "--baud", args.Baud)
+			}
+			if serial != "" {
+				args.Argument = append(args.Argument, "--path", serial)
+			}
+			if nFar > 0 {
+				args.Argument = append(args.Argument, "--2217", strconv.Itoa(nFar))
+			}
+			if wFar > 0 {
+				args.Argument = append(args.Argument, "--web", strconv.Itoa(wFar))
+			}
+			if exit != "" {
+				args.Argument = append(args.Argument, "--exit", exit)
+			}
+			if len(args.Argument) > 0 {
+				args.Command = repo
+			}
+			if wNear > 0 {
+				// dssh -88 :
+				// dssh -88 .
+				time.AfterFunc(time.Second, func() {
+					Println(browse(ctx, dial, wFar, nil))
+				})
+			}
+		default:
+			if h, p, err := net.SplitHostPort(serial); err == nil {
+				Println("Remote console - Консоль", serial, "через", args.Destination)
+				args.LocalForward.UnmarshalText([]byte(fmt.Sprintf("%s:%s:%s:%s", LH, p, h, p)))
+				args.NoCommand = true
+				LHp := net.JoinHostPort(LH, p)
+				time.AfterFunc(time.Second, func() {
+					Println(cons(ctx, ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: os.Stdout}, LHp, args.Baud, exit, Println))
+					closer.Close()
+				})
+			}
 		}
 	} else if (enableTrzsz == "no" || args.Destination == repo) && args.StdioForward == "" {
 		Println(ToExitPress, EED)
@@ -1433,20 +1489,16 @@ func near2far(iNear int, args *SshArgs, s2 string, loc bool) (oNear, oFar int) {
 	oNear = iNear
 	oFar = iNear
 	if iNear > -1 {
-		if !loc {
-			if args.Destination == "." {
-				oNear += 10
-			}
+		if loc {
+			return
+		}
+		switch args.Destination {
+		case ".":
+			oNear += 10
+			fallthrough
+		case ":":
 			args.LocalForward.UnmarshalText([]byte(fmt.Sprintf("%s:%d:%s:%d", LH, oNear, s2, oFar)))
 		}
-		// switch args.Destination {
-		// case "", LH, "_", ips[0], "*", ips[len(ips)-1], ALL:
-		// case ".":
-		// 	oNear += 10
-		// 	fallthrough
-		// default:
-		// 	args.LocalForward.UnmarshalText([]byte(fmt.Sprintf("%s:%d:%s:%d", LH, oNear, s2, oFar)))
-		// }
 	}
 	return
 }
