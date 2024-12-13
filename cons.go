@@ -64,7 +64,7 @@ func cons(ctx context.Context, s io.ReadWriteCloser, Serial, Baud, exit string, 
 		if !ser2net.SerialPath(Serial) {
 			ss = "Connection"
 		}
-		time.AfterFunc(time.Millisecond*333, func() { println[0](mess(quit, w.String())) })
+		time.AfterFunc(time.Second, func() { println[0](mess(quit, w.String())) })
 	}
 	defer func() {
 		print(ss, sp, "closed", w.SerialClose(), w)
