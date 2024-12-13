@@ -443,11 +443,7 @@ func main() {
 		return
 	}
 	nw := func(s2, dial string) {
-		if nNear > 0 && wNear < 0 {
-			Println(repo, "-H", serial, "-2", nNear)
-			setRaw(&once)
-			Println(rfc2217(ctx, ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: os.Stdout}, serial, s2, nNear, args.Baud, exit, Println))
-		} else if wNear > 0 {
+		if wNear > 0 {
 			if nNear > 0 {
 				Println(repo, "-H", serial, "-2", nNear)
 				go func() {
@@ -473,20 +469,24 @@ func main() {
 				go cancelByFile(ctx, cancel, hp.name(), TOW)
 				Println(ToExitPress, "<^C>")
 				Println(browse(ctx, dial, wFar, cancel))
-			} else {
-				// Стартуем веб сервер
-				t := time.AfterFunc(time.Second*2, func() {
-					Println(browse(ctx, dial, wFar, nil))
-				})
-				defer t.Stop() // Если не успел стартануть то и не надо
-
-				setRaw(&once)
-				if nNear > 0 {
-					Println(s2w(ctx, nil, nil, serial, s2, wNear, args.Baud, "", PrintNil))
-				} else {
-					Println(s2w(ctx, ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: os.Stdout}, nil, serial, s2, wNear, args.Baud, ". или ^C", Println))
-				}
+				return
 			}
+			// Стартуем веб сервер
+			t := time.AfterFunc(time.Second*2, func() {
+				Println(browse(ctx, dial, wFar, nil))
+			})
+			defer t.Stop() // Если не успел стартануть то и не надо
+
+			setRaw(&once)
+			if nNear > 0 {
+				Println(s2w(ctx, nil, nil, serial, s2, wNear, args.Baud, "", PrintNil))
+			} else {
+				Println(s2w(ctx, ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: os.Stdout}, nil, serial, s2, wNear, args.Baud, ". или ^C", Println))
+			}
+		} else {
+			Println(repo, "-H", serial, "-2", nNear)
+			setRaw(&once)
+			Println(rfc2217(ctx, ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: os.Stdout}, serial, s2, nNear, args.Baud, exit, Println))
 		}
 	}
 
@@ -626,6 +626,7 @@ Host ` + SSHJ + `
 				}
 				// !external && loc
 				if nNear > 0 || wNear > 0 {
+					// Println("nNear > 0 || wNear > 0")
 					nw(s2, dial)
 					return
 				}
