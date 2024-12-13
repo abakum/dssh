@@ -1479,15 +1479,12 @@ func portOB(opt, base int) int {
 func near2far(iNear int, args *SshArgs, s2 string, loc bool) (oNear, oFar int) {
 	oNear = iNear
 	oFar = iNear
-	if iNear > -1 {
-		if loc || args.Share {
-			return
-		}
+	if iNear > -1 && !loc && !args.Share {
 		switch args.Destination {
-		case ".":
+		case ".", repo:
 			oNear += 10
 			fallthrough
-		case ":":
+		case ":", SSHJ:
 			args.LocalForward.UnmarshalText([]byte(fmt.Sprintf("%s:%d:%s:%d", LH, oNear, s2, oFar)))
 		}
 	}
