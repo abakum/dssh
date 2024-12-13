@@ -100,6 +100,7 @@ type SshArgs struct {
 	EscapeChar     string  `arg:"-e,--escape-char" placeholder:"EscapeChar" help:"set escape character for sessions"` // default:"~"
 	Socks5         bool    `arg:"-5,--socks5" help:"for dynamic port forwarding forces ssh to use version 5 of socks"`
 	DirectJump     string  `arg:"-j,--" placeholder:"destination" help:"jump to daemon by destination"`
+	Share          bool    `arg:"-s,--share" help:"share local console"`
 }
 
 func (SshArgs) Description() string {
