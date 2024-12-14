@@ -145,6 +145,7 @@ var (
 	ips            = ser2net.Ints()
 	EED            = "<Enter>~."
 	quit           = EED
+	ioc            = ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: os.Stdout, Cygwin: Cygwin}
 )
 
 //go:generate go run github.com/abakum/version
@@ -439,7 +440,7 @@ func main() {
 		// Телнет сервер dssh -22
 		// Телнет клиент без RFC2217 dssh -W:2322
 		setRaw(&once)
-		forwardSTDio(ctx, ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: os.Stdout}, args.StdioForward, quit, Println)
+		forwardSTDio(ctx, ioc, args.StdioForward, quit, Println)
 		return
 	}
 	nw := func(s2, dial string) {
@@ -448,7 +449,7 @@ func main() {
 				Println(repo, "-H", serial, "-2", nNear)
 				go func() {
 					setRaw(&once)
-					Println(rfc2217(ctx, ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: os.Stdout}, serial, s2, nNear, args.Baud, exit, Println))
+					Println(rfc2217(ctx, ioc, serial, s2, nNear, args.Baud, exit, Println))
 					closer.Close()
 				}()
 				if _, _, err := net.SplitHostPort(serial); err == nil {
@@ -481,12 +482,12 @@ func main() {
 			if nNear > 0 {
 				Println(s2w(ctx, nil, nil, serial, s2, wNear, args.Baud, "", PrintNil))
 			} else {
-				Println(s2w(ctx, ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: os.Stdout}, nil, serial, s2, wNear, args.Baud, ". или ^C", Println))
+				Println(s2w(ctx, ioc, nil, serial, s2, wNear, args.Baud, ". или ^C", Println))
 			}
 		} else {
 			Println(repo, "-H", serial, "-2", nNear)
 			setRaw(&once)
-			Println(rfc2217(ctx, ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: os.Stdout}, serial, s2, nNear, args.Baud, exit, Println))
+			Println(rfc2217(ctx, ioc, serial, s2, nNear, args.Baud, exit, Println))
 		}
 	}
 
@@ -639,7 +640,7 @@ Host ` + SSHJ + `
 				}
 				// Println("-HH || -Hcmd | -H:2322")
 				setRaw(&once)
-				Println(cons(ctx, ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: os.Stdout}, serial, args.Baud, exit, Println))
+				Println(cons(ctx, ioc, serial, args.Baud, exit, Println))
 				return
 			}
 		}
@@ -889,7 +890,7 @@ Host ` + SSHJ + `
 				LHp := net.JoinHostPort(LH, p)
 				time.AfterFunc(time.Second, func() {
 					setRaw(&once)
-					Println(cons(ctx, ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: os.Stdout}, LHp, args.Baud, exit, Println))
+					Println(cons(ctx, ioc, LHp, args.Baud, exit, Println))
 					closer.Close()
 				})
 			}
@@ -1784,7 +1785,7 @@ func cmdRun(cmd *exec.Cmd, ctx context.Context, r io.Reader, pipe bool, Serial, 
 			} else {
 				// -zuHcmd
 				Println(ToExitPress, EED)
-				w.CancelCopy(newSideWriter(wc, args.EscapeChar, Serial, chanByte), ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: nil})
+				w.CancelCopy(newSideWriter(wc, args.EscapeChar, Serial, chanByte), ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: nil, Cygwin: Cygwin})
 			}
 		} else if r == nil {
 			time.AfterFunc(time.Millisecond*111, func() {

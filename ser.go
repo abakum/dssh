@@ -243,8 +243,8 @@ func mess(exit, serial string) string {
 	}
 	return rn("",
 		l1,
-		"To change mode of serial port press - Чтоб сменить режим последовательного порта нажми "+esc+"x",
-		"Where x from 0 to 9 - Где 0[115200], 1[19200], 2[2400], 3[38400], 4[4800], 5[57600], 6[DataBits], 7[Parity], 8[StopBits], 9[9600]",
+		"To change mode of serial port press - Чтоб сменить режим последовательного порта нажми "+esc+"x, 0≤x≤9:",
+		"0[115200], 1[19200], 2[2400], 3[38400], 4[4800], 5[57600], 6[DataBits], 7[Parity], 8[StopBits], 9[9600]",
 	)
 }
 
