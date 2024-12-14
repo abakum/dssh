@@ -583,12 +583,13 @@ Host ` + SSHJ + `
 						}
 						// !extTel || !args.Telnet
 						if ZerroNewWindow {
-							if bin != PLINK {
+							if bin == PLINK {
+								ConsoleCP()
+							} else {
 								Println("-zu22", fmt.Errorf("plink not found"))
 								return
 							}
 							// Println("-zu22")
-							ConsoleCP()
 							Println(cmdRun(cmd, ctx, nil, true, serial, s2, nNear, args.Baud, exit, Println))
 							return
 						}
@@ -614,11 +615,17 @@ Host ` + SSHJ + `
 					cmd.Stdin = os.Stdin
 					// Println("-u || -zu || extSer")
 					exit := "<^C>"
-					if !existsPuTTY && extSer {
-						exit = "<^X>"
-					}
-					if Win7 && Cygwin && bin == PUTTY {
-						exit = "[X] on window with - на окне с PuTTY"
+					switch bin {
+					case PUTTY:
+						if Win7 && Cygwin {
+							exit = "[X] on window with - на окне с PuTTY"
+						}
+					case PLINK:
+						ConsoleCP()
+					default:
+						if extSer {
+							exit = "<^X>"
+						}
 					}
 					Println(ToExitPress, exit)
 					run()

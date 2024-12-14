@@ -78,7 +78,11 @@ func GlobalSshPath() string {
 	return path.Join("/etc", "ssh")
 }
 
-func createNewConsole(_ *exec.Cmd) {}
-func isWin7() bool                 { return false }
+func createNewConsole(*exec.Cmd) {
 
-func ConsoleCP() {}
+}
+func isWin7() bool { return false }
+
+func ConsoleCP() {
+	setRaw(&once)
+}
