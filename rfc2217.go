@@ -38,9 +38,9 @@ func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial, host string, Ser
 	}
 
 	// Новый сеанс
+	chanError := make(chan error, 1)
 	chanByte := make(chan byte, B16)
-	chanError := make(chan error, 2)
-	chanSerialWorker := make(chan *ser2net.SerialWorker, 2)
+	chanSerialWorker := make(chan *ser2net.SerialWorker, 1)
 	go func() {
 		chanError <- s2n(ctx, nil, chanByte, chanSerialWorker, Serial, host, Ser2net, Baud, quit, println...)
 	}()

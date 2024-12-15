@@ -14,7 +14,7 @@ import (
 	"github.com/abakum/go-ser2net/pkg/ser2net"
 )
 
-// Подключаем консоль Serial к сессии ssh или локально.
+// Подключаем консоль Serial к сессии ssh или локально через s.
 // Завершение сессии через `<Enter>~.`
 func cons(ctx context.Context, s io.ReadWriteCloser, Serial, Baud, exit string, println ...func(v ...any)) (err error) {
 	if Serial == "" {

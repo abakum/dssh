@@ -329,6 +329,12 @@ func main() {
 	}
 
 	serial := usbSerial(args.Serial)
+	if nNear > 0 {
+		hp := JoinHostPort(ser2net.LocalPort(s2), nNear)
+		if isHP(hp) {
+			serial = hp
+		}
+	}
 	SP = serial == "" || ser2net.SerialPath(serial)
 	serial = ser2net.LocalPort(serial)
 	if Win7 && Cygwin && SP {
@@ -527,7 +533,7 @@ Host ` + SSHJ + `
 			args.Command = repo
 			args.Argument = append(args.Argument, "--restart")
 		} else {
-			// Println("-UU || -HH || -22 || -88")
+			Println("-UU || -HH || -22 || -88")
 			if loc {
 				Println("Local console - Локальная консоль", serial)
 				if external {
@@ -556,7 +562,7 @@ Host ` + SSHJ + `
 								if Win7 && !Cygwin {
 									Println(fmt.Errorf("не могу запустить telnet в отдельном окне на Windows7 без Cygwin "))
 								} else {
-									// Println("-Z || -u && !existsPuTTY")
+									Println("-Z || -u && !existsPuTTY")
 									createNewConsole(cmd)
 									exit = "." + exit
 									if Win7 && Cygwin {
@@ -569,7 +575,7 @@ Host ` + SSHJ + `
 								}
 							}
 
-							// Println("-zZ || -zu && !existsPuTTY")
+							Println("-zZ || -zu && !existsPuTTY")
 							cmd.Stdin = os.Stdin
 							ec := "q"
 							if bin == BUSYBOX {
@@ -590,12 +596,12 @@ Host ` + SSHJ + `
 								Println("-zu22", fmt.Errorf("plink not found"))
 								return
 							}
-							// Println("-zu22")
+							Println("-zu22")
 							Println(cmdRun(cmd, ctx, nil, true, serial, s2, nNear, args.Baud, exit, Println))
 							return
 						}
 						if bin != PUTTY {
-							// Println("-u22", fmt.Errorf("PuTTY not found"))
+							Println("-u22", fmt.Errorf("PuTTY not found"))
 							if bin == PLINK {
 								createNewConsole(cmd)
 							} else {
@@ -603,7 +609,7 @@ Host ` + SSHJ + `
 								return
 							}
 						}
-						// Println("-u22")
+						Println("-u22")
 						exit = "." + exit
 						if Win7 && Cygwin {
 							exit = "<^Z><^Z>"
@@ -614,7 +620,7 @@ Host ` + SSHJ + `
 					cmd.Stdout = os.Stdout
 					cmd.Stderr = os.Stdout
 					cmd.Stdin = os.Stdin
-					// Println("-u || -zu || extSer")
+					Println("-u || -zu || extSer")
 					exit := "<^C>"
 					switch bin {
 					case PUTTY:
@@ -634,11 +640,11 @@ Host ` + SSHJ + `
 				}
 				// !external && loc
 				if nNear > 0 || wNear > 0 {
-					// Println("nNear > 0 || wNear > 0")
+					Println("nNear > 0 || wNear > 0")
 					nw(s2, dial)
 					return
 				}
-				// Println("-HH || -Hcmd | -H:2322")
+				Println("-HH || -Hcmd | -H:2322")
 				setRaw(&once)
 				Println(cons(ctx, ioc, serial, args.Baud, exit, Println))
 				return
@@ -1746,6 +1752,48 @@ func localDestination(Destination string) (ok bool) {
 }
 
 func cmdRun(cmd *exec.Cmd, ctx context.Context, r io.Reader, pipe bool, Serial, host string, Ser2net int, Baud string, exit string, println ...func(v ...any)) (err error) {
+	PrintLn(3, cmd, r, pipe, Serial, "-------")
+	hp := JoinHostPort(ser2net.LocalPort(host), Ser2net)
+	if isHP(hp) {
+		// Подключаемся к существующему сеансу
+		if pipe {
+			if true {
+				// -zu22
+				// Без управления
+				cmd.Stdin = os.Stdin
+				Println(ToExitPress, "<^C>")
+				err = cmd.Start()
+				Println(cmd, err)
+				if err != nil {
+					return
+				}
+				cmd.Wait()
+			} else {
+				// -22
+				cons(ctx, ioc, hp, args.Baud, exit, println...)
+			}
+			return
+		}
+		go func() {
+			err = cmd.Start()
+			Println(cmd, err)
+			if err != nil {
+				return
+			}
+
+			if r == nil {
+				// -Z
+				time.AfterFunc(time.Millisecond*111, func() {
+					Println(ToExitPress, exit)
+				})
+			}
+			cmd.Wait()
+			closer.Close()
+		}()
+		// С управлением
+		return cons(ctx, ioc, hp, args.Baud, exit, println...)
+	}
+
 	var wc io.WriteCloser
 	if pipe {
 		// -zu
@@ -1772,7 +1820,7 @@ func cmdRun(cmd *exec.Cmd, ctx context.Context, r io.Reader, pipe bool, Serial, 
 	case w := <-chanSerialWorker:
 		defer w.Stop()
 		err = cmd.Start()
-		Println(cmd)
+		Println(cmd, err)
 		if err != nil {
 			return
 		}
@@ -1781,12 +1829,13 @@ func cmdRun(cmd *exec.Cmd, ctx context.Context, r io.Reader, pipe bool, Serial, 
 			if SP {
 				// -zu22
 				Println(mess(quit, Serial))
-				w.Copy(newSideWriter(wc, args.EscapeChar, Serial, chanByte), os.Stdin)
+				// w.Copy(newSideWriter(wc, args.EscapeChar, Serial, chanByte), os.Stdin)
 			} else {
 				// -zuHcmd
 				Println(ToExitPress, EED)
-				w.CancelCopy(newSideWriter(wc, args.EscapeChar, Serial, chanByte), ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: nil, Cygwin: Cygwin})
+				// w.CancelCopy(newSideWriter(wc, args.EscapeChar, Serial, chanByte), ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: nil, Cygwin: Cygwin})
 			}
+			w.CancelCopy(newSideWriter(wc, args.EscapeChar, Serial, chanByte), ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: nil, Cygwin: Cygwin})
 		} else if r == nil {
 			time.AfterFunc(time.Millisecond*111, func() {
 				Println(ToExitPress, exit)
