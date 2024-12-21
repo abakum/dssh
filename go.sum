@@ -28,6 +28,10 @@ github.com/abakum/go-ser2net v0.0.2-0.20241211214956-9eecc2100f83 h1:Eot9HcIc2+E
 github.com/abakum/go-ser2net v0.0.2-0.20241211214956-9eecc2100f83/go.mod h1:c3onCGWs0CQE8mICgLOAksXiP+uqfRAN8VOnupcns0s=
 github.com/abakum/go-ser2net v0.0.2-0.20241214222459-f067510cbd8b h1:1qJ/3mt8B36fon16NfYzyUkiIcXq3mJIzYD8FRSuW+I=
 github.com/abakum/go-ser2net v0.0.2-0.20241214222459-f067510cbd8b/go.mod h1:c3onCGWs0CQE8mICgLOAksXiP+uqfRAN8VOnupcns0s=
+github.com/abakum/go-ser2net v0.0.2-0.20241220122914-7fa40a7ce9b2 h1:tXWqZIRwPST1abmPYWor0i1/kgOc0HosOo2O/CuqjMQ=
+github.com/abakum/go-ser2net v0.0.2-0.20241220122914-7fa40a7ce9b2/go.mod h1:c3onCGWs0CQE8mICgLOAksXiP+uqfRAN8VOnupcns0s=
+github.com/abakum/go-ser2net v0.0.2-0.20241221102609-08b43d06560f h1:5Ug7PPegIae7+JGPfvgYiOhi31jNjop6050qAMYhgWY=
+github.com/abakum/go-ser2net v0.0.2-0.20241221102609-08b43d06560f/go.mod h1:c3onCGWs0CQE8mICgLOAksXiP+uqfRAN8VOnupcns0s=
 github.com/abakum/go-terminal-size v0.0.0-20241120142632-2e3252fa87fa h1:i4hZfxHcUwpuepDRXWSaTTXwbSUemJGgVxnggUXXDmc=
 github.com/abakum/go-terminal-size v0.0.0-20241120142632-2e3252fa87fa/go.mod h1:pXwxWIukuSCoRfQTfc+DUtibVYfh8nd1Ed0wy8uOW/A=
 github.com/abakum/menu v0.0.2-lw h1:iHzkBf9DwXXmVR0iFUBMetI6rnDHltA3LPLxlnCWLZg=

@@ -78,7 +78,7 @@ func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial, host string, Ser
 	}()
 
 	go w.CopyCancel(s, c)
-	println[0](mess(quit, w.String()))
+	// println[0](mess(quit, w.String()))
 	_, err = w.CancelCopy(newSideWriter(c, args.EscapeChar, Serial, chanByte), s)
 	// Последний выдох
 	ser2net.IAC(c, telnet.DO, telnet.TeloptLOGOUT)
@@ -106,7 +106,6 @@ func s2n(ctx context.Context, r io.Reader, chanB chan byte, chanW chan *ser2net.
 		}
 		if strings.Contains(w.String(), "not connected") {
 			print(w)
-			// w.Stop()
 			return
 		}
 		hp := JoinHostPort(host, Ser2net)
@@ -114,8 +113,8 @@ func s2n(ctx context.Context, r io.Reader, chanB chan byte, chanW chan *ser2net.
 		if chanW != nil {
 			chanW <- w
 		}
+		// time.Sleep(time.Second)
 		SetMode(w, ctx, r, chanB, exit, Ser2net, println...)
-		// w.Stop()
 	})
 	defer t.Stop()
 

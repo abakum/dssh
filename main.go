@@ -328,7 +328,7 @@ func main() {
 		}
 	}
 
-	serial, sw, sh, sp := swSerial(args.Serial, loc || args.Destination == ".")
+	serial, sw, sh, sp := swSerial(args.Serial)
 	SP = serial == "" || sw == "s"
 	if Win7 && Cygwin && SP {
 		if args.Unix && args.Putty {
@@ -420,29 +420,32 @@ func main() {
 				Println(fmt.Errorf("not connected to - не удалось подключиться к %q", serial))
 				return
 			}
-		case "s":
+		case "", "s":
 			if nNear < 0 && !extSer {
 				nNear = RFC2217
 			}
-		case "", "c":
+		case "c":
 			if nNear < 0 {
 				nNear = RFC2217
 			}
 		}
 	}
-	BSnw := args.Baud != "" || serial != "" || nNear > 0 || wNear > 0
+	BSnw := serial != "" || args.Baud != "" || nNear > 0 || wNear > 0
 	if BSnw {
 		enableTrzsz = "no"
-		// if loc || args.Destination == "." {
-		// 	// Локальный последовательный порт
-		// 	serial = getFirstUsbSerial(serial, args.Baud, Print)
-		// 	if serial == "" || !extSer {
-		// 		nNear = comm(serial, s2, nNear, wNear)
-		// 		BSnw = BSnw || nNear > 0
-		// 	}
-		// } else {
-		// 	usePuTTY = false
-		// }
+		if loc || args.Destination == "." {
+			// Локальный последовательный порт
+			// serial = getFirstUsbSerial(serial, args.Baud, Print)
+			serial, sw, sh, sp = swSerial(getFirstUsbSerial(serial, args.Baud, Print))
+			SP = serial == "" || sw == "s"
+			BSnw = BSnw || serial != ""
+			// if serial == "" || !extSer {
+			// 	nNear = comm(serial, s2, nNear, wNear)
+			// 	BSnw = BSnw || nNear > 0
+			// }
+		} else {
+			usePuTTY = false
+		}
 	}
 
 	// Println(fmt.Sprintf("args %+v", args))
@@ -548,7 +551,6 @@ Host ` + SSHJ + `
 			if loc {
 				Println("Local console - Локальная консоль", serial)
 				if external {
-					// Println("(-UU || -HH || -22 || -88) && (-u || -Z)", bins, bin, nNear, "extTel", extTel, "extSer", extSer)
 					BaudRate := ser2net.BaudRate(strconv.Atoi(args.Baud))
 					opt := fmt.Sprintln("-serial", serial, "-sercfg", fmt.Sprintf("%d,8,1,N,N", BaudRate))
 
@@ -579,7 +581,7 @@ Host ` + SSHJ + `
 										exit = "[X] on window with - на окне с telnet потом <^Z>"
 									}
 
-									Println(cmdRun(cmd, ctx, os.Stdin, false, true, serial, s2, nNear, args.Baud, exit, Println))
+									Println(cmdRun(cmd, ctx, os.Stdin, false, serial, s2, nNear, args.Baud, exit, Println))
 									return
 								}
 							}
@@ -594,7 +596,7 @@ Host ` + SSHJ + `
 							if Cygwin && !Win7 {
 								exit = "<^C>"
 							}
-							Println(cmdRun(cmd, ctx, nil, false, true, serial, s2, nNear, args.Baud, exit, PrintNil))
+							Println(cmdRun(cmd, ctx, nil, false, serial, s2, nNear, args.Baud, exit, PrintNil))
 							return
 						}
 						// !extTel || !args.Telnet
@@ -606,7 +608,7 @@ Host ` + SSHJ + `
 								return
 							}
 							Println("-zu22")
-							Println(cmdRun(cmd, ctx, nil, true, false, serial, s2, nNear, args.Baud, exit, Println))
+							Println(cmdRun(cmd, ctx, nil, true, serial, s2, nNear, args.Baud, exit, Println))
 							return
 						}
 						if bin != PUTTY {
@@ -622,7 +624,7 @@ Host ` + SSHJ + `
 						if Win7 && Cygwin {
 							exit = "<^Z><^Z>"
 						}
-						Println(cmdRun(cmd, ctx, os.Stdin, false, false, serial, s2, nNear, args.Baud, exit, Println))
+						Println(cmdRun(cmd, ctx, os.Stdin, false, serial, s2, nNear, args.Baud, exit, Println))
 						return
 					}
 					cmd.Stdout = os.Stdout
@@ -1062,7 +1064,7 @@ func cleanup() {
 	// winssh.KidsDone(os.Getpid())
 	time.Sleep(time.Millisecond * 111)
 	KidsDone(os.Getpid())
-	Println("cleanup done\033[?25h") // Показать курсор
+	Println("cleanup done" + DECTCEM) // Показать курсор
 	// if !IsConsole() {
 	// 	menu.PressAnyKey("Press any key - Нажмите любую клавишу", TOW)
 	// }
@@ -1759,8 +1761,9 @@ func localHost(host string) (ok bool) {
 	return
 }
 
-func cmdRun(cmd *exec.Cmd, ctx context.Context, r io.Reader, zu, Z bool, Serial, host string, Ser2net int, Baud string, exit string, println ...func(v ...any)) (err error) {
-	// PrintLn(3, cmd, r, zu, Z, Serial)
+func cmdRun(cmd *exec.Cmd, ctx context.Context, r io.Reader, zu bool, Serial, host string, Ser2net int, Baud string, exit string, println ...func(v ...any)) (err error) {
+	// PrintLn(3, cmd, r, zu, Z, Serial, host, Ser2net)
+	// time.Sleep(time.Second * 5)
 	run := func() {
 		err = cmd.Start()
 		PrintLn(3, cmd, err)
@@ -1771,31 +1774,62 @@ func cmdRun(cmd *exec.Cmd, ctx context.Context, r io.Reader, zu, Z bool, Serial,
 	hp := JoinHostPort(host, Ser2net)
 	if isHP(hp) {
 		// Подключаемся к существующему сеансу
-		if Z {
-			// -Z22
-			time.AfterFunc(time.Millisecond*111, func() {
-				Println(ToExitPress, exit, "                          ")
-			})
+		if r != nil {
+			// -Z22 && serial==""
+			// -u22 && serial==""
+			// -uH:2322 && serial!=""
+			go func() {
+				run()
+				closer.Close()
+			}()
+			return cons(ctx, ioc, hp, Baud, " или <^C>", println...)
 		}
-		if r == nil {
-			// -zu22
-			// -zZ22
+
+		if !zu {
 			// Без управления
-			cmd.Stdin = os.Stdin
-			if zu {
-				Println(ToExitPress, "<^C>")
-			}
+			time.AfterFunc(time.Millisecond*111, func() {
+				Println(ToExitPress, exit+EL)
+			})
 			run()
 			return
 		}
-		// -Z22
-		// -u22
-		go func() {
-			run()
-			closer.Close()
+
+		// -zu
+		var wc io.WriteCloser
+		wc, err = cmd.StdinPipe()
+		if err != nil {
+			return
+		}
+		err = cmd.Start()
+		Println(cmd, err)
+		if err != nil {
+			return
+		}
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
+		w, _ := ser2net.NewSerialWorker(ctx, hp, ser2net.BaudRate(strconv.Atoi(Baud)))
+		defer w.Stop()
+		go w.Worker()
+
+		defer func() {
+			println[0]("Connection", hp, "closed", w.SerialClose(), w)
 		}()
-		// С управлением
-		return cons(ctx, ioc, hp, Baud, exit, println...)
+
+		chanByte := make(chan byte, B16)
+		t := time.AfterFunc(time.Millisecond*time.Duration(ser2net.TOopen), func() {
+			SetMode(w, ctx, nil, chanByte, EED, 0, println...)
+		})
+		defer t.Stop()
+
+		w.NewCancel(func() error {
+			closer.Close()
+			return nil
+		})
+		setRaw(&once)
+		w.CancelCopy(newSideWriter(wc, args.EscapeChar, hp, chanByte), ioc)
+		cmd.Cancel()
+		return
 	}
 
 	if r != nil {
@@ -1841,19 +1875,11 @@ func cmdRun(cmd *exec.Cmd, ctx context.Context, r io.Reader, zu, Z bool, Serial,
 		}
 
 		if zu {
-			if SP {
-				// -zu
-				Println(mess(quit, Serial))
-			} else {
-				// -zuHcmd
-				// -zuH:2322
-				Println(ToExitPress, EED)
-			}
-			w.CancelCopy(newSideWriter(wc, args.EscapeChar, Serial, chanByte), ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: nil, Cygwin: Cygwin})
-		}
-		if Z {
+			// w.CancelCopy(newSideWriter(wc, args.EscapeChar, Serial, chanByte), ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: nil, Cygwin: Cygwin})
+			w.CancelCopy(newSideWriter(wc, args.EscapeChar, Serial, chanByte), ioc)
+		} else {
 			time.AfterFunc(time.Millisecond*111, func() {
-				Println(ToExitPress, exit, "                          ")
+				Println(ToExitPress, exit+EL)
 			})
 		}
 		cmd.Wait()
@@ -1861,11 +1887,8 @@ func cmdRun(cmd *exec.Cmd, ctx context.Context, r io.Reader, zu, Z bool, Serial,
 	return
 }
 
-func swSerial(s string, search bool) (serial, sw, h string, p int) {
+func swSerial(s string) (serial, sw, h string, p int) {
 	serial = s
-	if serial == "" && search {
-		serial = getFirstUsbSerial(serial, args.Baud, Print)
-	}
 	if serial == "" {
 		return
 	}

@@ -15,11 +15,17 @@ import (
 	"github.com/xlab/closer"
 )
 
+const (
+	EL      = "\033[K"
+	REL     = "\r\033[K"
+	DECTCEM = "\033[?25h"
+)
+
 var (
-	lef = log.New(Std, "\r"+menu.BUG, log.Lshortfile)
-	le  = log.New(Std, "\r"+menu.BUG, 0)
-	lf  = log.New(Std, "\r"+menu.GT, log.Lshortfile)
-	l   = log.New(Std, "\r"+menu.GT, 0)
+	lef = log.New(Std, REL+menu.BUG, log.Lshortfile)
+	le  = log.New(Std, REL+menu.BUG, 0)
+	lf  = log.New(Std, REL+menu.GT, log.Lshortfile)
+	l   = log.New(Std, REL+menu.GT, 0)
 	// lt  = log.New(Std, "\t", 0)
 )
 

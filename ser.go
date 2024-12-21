@@ -256,8 +256,9 @@ func SetMode(w *ser2net.SerialWorker, ctx context.Context, r io.Reader, chanByte
 	if chanByte == nil {
 		chanByte = make(chan byte, B16)
 	}
+	prin(press)
 	if r != nil {
-		prin(press)
+		// prin(press)
 		buffer := make([]byte, B16)
 		go func() {
 			for {
