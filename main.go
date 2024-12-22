@@ -469,7 +469,7 @@ func main() {
 				Println(repo, "-H", serial, "-2", nNear)
 				go func() {
 					setRaw(&once)
-					Println(rfc2217(ctx, ioc, serial, s2, nNear, args.Baud, exit, Println))
+					Println(rfc2217(ctx, ioc, serial, s2, nNear, args.Baud, s2e(serial, exit), Println))
 					closer.Close()
 				}()
 				if _, _, err := net.SplitHostPort(serial); err == nil {
@@ -507,7 +507,7 @@ func main() {
 		} else {
 			Println(repo, "-H", serial, "-2", nNear)
 			setRaw(&once)
-			Println(rfc2217(ctx, ioc, serial, s2, nNear, args.Baud, exit, Println))
+			Println(rfc2217(ctx, ioc, serial, s2, nNear, args.Baud, s2e(serial, exit), Println))
 		}
 	}
 
@@ -656,7 +656,7 @@ Host ` + SSHJ + `
 				}
 				Println("-HH || -Hcmd | -H:2322")
 				setRaw(&once)
-				Println(cons(ctx, ioc, serial, args.Baud, exit, Println))
+				Println(cons(ctx, ioc, serial, args.Baud, s2e(serial, exit), Println))
 				return
 			}
 		}
@@ -906,7 +906,7 @@ Host ` + SSHJ + `
 				LHp := net.JoinHostPort(LH, p)
 				time.AfterFunc(time.Second, func() {
 					setRaw(&once)
-					Println(cons(ctx, ioc, LHp, args.Baud, exit, Println))
+					Println(cons(ctx, ioc, LHp, args.Baud, "", Println))
 					closer.Close()
 				})
 			}
@@ -1833,14 +1833,14 @@ func cmdRun(cmd *exec.Cmd, ctx context.Context, r io.Reader, zu bool, Serial, ho
 	}
 
 	if r != nil {
-		// -Z
-		// -u
+		// -Z22
+		// -u22
 		time.AfterFunc(time.Second, func() {
 			run()
 			closer.Close()
 		})
 		setRaw(&once)
-		return rfc2217(ctx, ioc, Serial, host, Ser2net, Baud, exit, println...)
+		return rfc2217(ctx, ioc, Serial, host, Ser2net, Baud, s2e(Serial, exit), println...)
 	}
 
 	// -zu
@@ -1910,4 +1910,11 @@ func swSerial(s string) (serial, sw, h string, p int) {
 		sw = "s"
 	}
 	return
+}
+
+func s2e(s, e string) string {
+	if !ser2net.SerialPath(s) {
+		return ""
+	}
+	return e
 }

@@ -33,7 +33,7 @@ func cons(ctx context.Context, s io.ReadWriteCloser, Serial, Baud, exit string, 
 	// if local && !ser2net.SerialPath(Serial) {
 	// 	exit = ""
 	// }
-	quit := EED + exit
+	// quit := EED + exit
 
 	w, _ := ser2net.NewSerialWorker(ctx, Serial, ser2net.BaudRate(strconv.Atoi(Baud)))
 	defer w.Stop()
@@ -48,7 +48,7 @@ func cons(ctx context.Context, s io.ReadWriteCloser, Serial, Baud, exit string, 
 	chanByte := make(chan byte, B16)
 
 	t := time.AfterFunc(time.Millisecond*time.Duration(ser2net.TOopen), func() {
-		SetMode(w, ctx, nil, chanByte, quit, 0, println...)
+		SetMode(w, ctx, nil, chanByte, EED+exit, 0, println...)
 		w.Stop()
 	})
 	defer t.Stop()

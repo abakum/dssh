@@ -24,11 +24,11 @@ func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial, host string, Ser
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	_, local := s.(ser2net.ReadWriteCloser)
-	if local && !ser2net.SerialPath(Serial) {
-		exit = ""
-	}
-	quit := EED + exit
+	// _, local := s.(ser2net.ReadWriteCloser)
+	// if local && !ser2net.SerialPath(Serial) {
+	// 	exit = ""
+	// }
+	// quit := EED + exit
 
 	// hp := fmt.Sprintf("%s:%d", all2dial(host), Ser2net)
 	hp := JoinHostPort(ser2net.LocalPort(host), Ser2net)
@@ -42,7 +42,7 @@ func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial, host string, Ser
 	chanByte := make(chan byte, B16)
 	chanSerialWorker := make(chan *ser2net.SerialWorker, 1)
 	go func() {
-		chanError <- s2n(ctx, nil, chanByte, chanSerialWorker, Serial, host, Ser2net, Baud, quit, println...)
+		chanError <- s2n(ctx, nil, chanByte, chanSerialWorker, Serial, host, Ser2net, Baud, EED+exit, println...)
 	}()
 	var (
 		w *ser2net.SerialWorker
