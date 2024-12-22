@@ -113,7 +113,7 @@ func s2n(ctx context.Context, r io.Reader, chanB chan byte, chanW chan *ser2net.
 		if chanW != nil {
 			chanW <- w
 		}
-		// time.Sleep(time.Second)
+		time.Sleep(time.Second)
 		SetMode(w, ctx, r, chanB, exit, Ser2net, println...)
 	})
 	defer t.Stop()

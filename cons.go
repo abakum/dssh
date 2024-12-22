@@ -47,7 +47,8 @@ func cons(ctx context.Context, s io.ReadWriteCloser, Serial, Baud, exit string, 
 
 	chanByte := make(chan byte, B16)
 
-	t := time.AfterFunc(time.Millisecond*time.Duration(ser2net.TOopen), func() {
+	// t := time.AfterFunc(time.Millisecond*time.Duration(ser2net.TOopen), func() {
+	t := time.AfterFunc(time.Second, func() {
 		SetMode(w, ctx, nil, chanByte, EED+exit, 0, println...)
 		w.Stop()
 	})
@@ -88,7 +89,8 @@ func s2w(ctx context.Context, r io.Reader, chanB chan byte, Serial, host string,
 	defer w.Stop()
 	go w.Worker()
 
-	t := time.AfterFunc(time.Millisecond*time.Duration(ser2net.TOopen), func() {
+	// t := time.AfterFunc(time.Millisecond*time.Duration(ser2net.TOopen), func() {
+	t := time.AfterFunc(time.Second, func() {
 		SetMode(w, ctx, r, chanB, exit, wp, println...)
 		w.Stop()
 	})

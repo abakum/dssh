@@ -1832,7 +1832,8 @@ func cmdRun(cmd *exec.Cmd, ctx context.Context, r io.Reader, zu bool, Serial, ho
 		}()
 
 		chanByte := make(chan byte, B16)
-		t := time.AfterFunc(time.Millisecond*time.Duration(ser2net.TOopen), func() {
+		// t := time.AfterFunc(time.Millisecond*time.Duration(ser2net.TOopen), func() {
+		t := time.AfterFunc(time.Second, func() {
 			SetMode(w, ctx, nil, chanByte, EED, 0, println...)
 		})
 		defer t.Stop()
