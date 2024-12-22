@@ -316,6 +316,21 @@ func main() {
 	}
 	loc = localHost(args.Destination)
 
+	if Win7 && args.Telnet {
+		if loc {
+			if !args.Putty {
+				args.Unix = true
+			}
+			if Cygwin {
+				args.Telnet = false
+				Println(fmt.Errorf("не могу запускать telnet в Cygwin на Windows7"))
+			}
+		} else {
+			args.Unix = true
+			Println(fmt.Errorf("не могу запускать ssh в отдельном окне на Windows7"))
+		}
+	}
+
 	external := args.Putty || args.Telnet
 	if args.Baud == "" {
 		if args.Serial == "H" { // -HH
@@ -330,7 +345,7 @@ func main() {
 
 	serial, sw, sh, sp := swSerial(args.Serial)
 	SP = serial == "" || sw == "s"
-	if Win7 && Cygwin && SP {
+	if loc && Win7 && Cygwin && SP {
 		if args.Unix && args.Putty {
 			Println(fmt.Errorf("не могу прервать plink в Cygwin на Windows7"))
 		}
@@ -355,6 +370,7 @@ func main() {
 			extTel = true
 			bins = append(bins, TELNET)
 		}
+
 		if !Windows {
 			_, err := exec.LookPath(BUSYBOX)
 			if err == nil {
@@ -573,13 +589,11 @@ Host ` + SSHJ + `
 						if extTel && args.Telnet {
 							if !ZerroNewWindow && Windows {
 								if Win7 && !Cygwin {
-									Println(fmt.Errorf("не могу запустить telnet в отдельном окне на Windows7 без Cygwin "))
+									Println(fmt.Errorf("не могу запустить telnet в отдельном окне на Windows7"))
+									time.Sleep(time.Second * 3)
 								} else {
 									Println("-Z || -u && !existsPuTTY")
 									createNewConsole(cmd)
-									if Win7 && Cygwin {
-										exit = "[X] on window with - на окне с telnet потом <^Z>"
-									}
 
 									Println(cmdRun(cmd, ctx, os.Stdin, false, serial, s2, nNear, args.Baud, exit, Println))
 									return
@@ -1782,7 +1796,8 @@ func cmdRun(cmd *exec.Cmd, ctx context.Context, r io.Reader, zu bool, Serial, ho
 				run()
 				closer.Close()
 			}()
-			return cons(ctx, ioc, hp, Baud, " или <^C>", println...)
+			setRaw(&once)
+			return cons(ctx, ioc, hp, Baud, "", println...)
 		}
 
 		if !zu {
@@ -1835,7 +1850,11 @@ func cmdRun(cmd *exec.Cmd, ctx context.Context, r io.Reader, zu bool, Serial, ho
 	if r != nil {
 		// -Z22
 		// -u22
-		time.AfterFunc(time.Second, func() {
+		delay := time.Second
+		if Cygwin {
+			delay *= 2
+		}
+		time.AfterFunc(delay, func() {
 			run()
 			closer.Close()
 		})
@@ -1852,7 +1871,6 @@ func cmdRun(cmd *exec.Cmd, ctx context.Context, r io.Reader, zu bool, Serial, ho
 		if err != nil {
 			return
 		}
-		setRaw(&once)
 	}
 
 	chanError := make(chan error, 1)
@@ -1876,6 +1894,7 @@ func cmdRun(cmd *exec.Cmd, ctx context.Context, r io.Reader, zu bool, Serial, ho
 
 		if zu {
 			// w.CancelCopy(newSideWriter(wc, args.EscapeChar, Serial, chanByte), ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: nil, Cygwin: Cygwin})
+			setRaw(&once)
 			w.CancelCopy(newSideWriter(wc, args.EscapeChar, Serial, chanByte), ioc)
 		} else {
 			time.AfterFunc(time.Millisecond*111, func() {
