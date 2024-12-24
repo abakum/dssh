@@ -154,7 +154,6 @@ func Tssh(args *SshArgs) int {
 	var err error
 	defer func() {
 		if err != nil {
-			// fmt.Fprintf(os.Stderr, "%v\r\n", err)
 			warning("%v", err)
 		}
 	}()
@@ -351,14 +350,15 @@ func sshStart(args *SshArgs) error {
 
 	// cleanup and wait for exit
 	afterLoginFuncs.Cleanup()
-	err = ss.session.Wait()
-	restoreStdFuncs.Cleanup()
 
-	debug("session done with error:%v", err)
-
+	ss.session.Wait()
 	if args.Background {
-		err = ss.client.Wait()
-		debug("client done with error:%v", err)
+		ss.client.Wait()
+	}
+
+	// wait for the output to be read by the parent process
+	if !isTerminal {
+		outputWaitGroup.Wait()
 	}
 	return err
 }

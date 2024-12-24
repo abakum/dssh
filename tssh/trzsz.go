@@ -32,10 +32,14 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/trzsz/trzsz-go/trzsz"
+	"github.com/xlab/closer"
 )
+
+var outputWaitGroup sync.WaitGroup
 
 func writeAll(dst io.Writer, data []byte) error {
 	m := 0
@@ -55,6 +59,11 @@ func writeAll(dst io.Writer, data []byte) error {
 func wrapStdIO(serverIn io.WriteCloser, serverOut io.Reader, serverErr io.Reader, tty bool, escapeChar string) {
 	win := runtime.GOOS == "windows"
 	forwardIO := func(reader io.Reader, writer io.WriteCloser, input bool) {
+		done := true
+		if !input {
+			done = false
+			outputWaitGroup.Add(1)
+		}
 		defer writer.Close()
 		buffer := make([]byte, 32*1024)
 		for {
@@ -73,17 +82,33 @@ func wrapStdIO(serverIn io.WriteCloser, serverOut io.Reader, serverErr io.Reader
 					return
 				}
 			}
-			if err == io.EOF {
-				if win && tty && input {
+			if err != nil {
+				if err == io.EOF && win && isTerminal && tty && input {
 					_, _ = writer.Write([]byte{0x1A}) // ctrl + z
 					continue
 				}
-				break
+				if input {
+					if strings.HasSuffix(err.Error(), "was pressed") {
+						debug("%v", err)
+						time.AfterFunc(time.Millisecond*222, func() {
+							onExitFuncs.Cleanup()
+							// fmt.Fprintln(os.Stderr, "To exit press - Чтоб выйти нажми <^C>")
+							closer.Close()
+						})
+					}
+					return // input EOF
+				}
+				// ignore output EOF
+				if !done {
+					outputWaitGroup.Done()
+					done = true
+				}
+				time.Sleep(100 * time.Millisecond)
+				continue
 			}
-			if err != nil {
-				warning("wrap stdio read failed: %v", err)
-				return
-			}
+			// if err != nil {
+			// 	return
+			// }
 		}
 	}
 	if serverIn != nil {
@@ -212,7 +237,7 @@ func newTildaReader(r io.Reader, escapeChar string) *tildaReader {
 }
 
 // Заменяем `<Enter><EscapeChar><EscapeChar>` на `<Enter><EscapeChar>`.
-// Реагируем на `<Enter><EscapeChar><.>`
+// Реагируем на `<Enter><EscapeChar>.`
 func (r *tildaReader) Read(pp []byte) (int, error) {
 	if r.t == 0 {
 		return r.Reader.Read(pp)
@@ -226,7 +251,7 @@ func (r *tildaReader) Read(pp []byte) (int, error) {
 	p = append(r.l, p[:n]...) //+2
 	switch {
 	case bytes.Contains(p, []byte{'\r', r.t, '.'}):
-		return 0, fmt.Errorf(`<Enter><%c><.> was pressed`, r.t)
+		return 0, fmt.Errorf(`<Enter>%c. was pressed`, r.t)
 	case bytes.Contains(p, []byte{'\r', r.t, r.t}):
 		p = bytes.ReplaceAll(p, []byte{'\r', r.t, r.t}, []byte{'\r', r.t})
 	}

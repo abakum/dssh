@@ -19,6 +19,7 @@ import (
 const (
 	CtrlC       = 0x03 // ^C END OF TEXT
 	CtrlZ       = 0x1A // ^Z SUBSTITUTE
+	CtrlD       = 0x04 // ^D END OF TRANSMISSION
 	BackSpace   = 0x7F
 	IS3         = 0x1D // ^] INFORMATION SEPARATOR THREE (group separator)
 	ToExitPress = "To exit press - Чтоб выйти нажми"
@@ -151,6 +152,18 @@ func (w *sideWriter) Write(pp []byte) (int, error) {
 	o := len(pp)
 	p := append(w.l, pp...) //+2
 	switch {
+	case Windows && bytes.Contains(p, []byte{CtrlZ}):
+		if w.chanByte != nil {
+			w.chanByte <- CtrlZ
+		}
+		w.Write1(p)
+		return 0, fmt.Errorf(`<^Z> was pressed`)
+	case !Windows && bytes.Contains(p, []byte{CtrlD}):
+		if w.chanByte != nil {
+			w.chanByte <- CtrlD
+		}
+		w.Write1(p)
+		return 0, fmt.Errorf(`<^D> was pressed`)
 	case bytes.Contains(p, []byte{'\r', w.t, '.'}):
 		if w.chanByte != nil {
 			w.chanByte <- '.'
@@ -165,7 +178,7 @@ func (w *sideWriter) Write(pp []byte) (int, error) {
 	case w.name != "" && bytes.Contains(p, []byte{'\r', w.t}):
 		// w.println(mess("", w.exit))
 		fmt.Fprint(os.Stderr, "\a")
-		for _, key := range []byte{'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'z', 'Z', w.t} {
+		for _, key := range []byte{'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'z', 'Z', 'd', 'D', w.t} {
 			if bytes.Contains(p, []byte{'\r', w.t, key}) {
 				switch key {
 				case w.t:
@@ -179,6 +192,12 @@ func (w *sideWriter) Write(pp []byte) (int, error) {
 						p = bytes.ReplaceAll(p, []byte{'\r', w.t, key}, []byte{CtrlZ})
 					} else {
 						p = bytes.ReplaceAll(p, []byte{'\r', w.t, key}, []byte{'\r', w.t, BackSpace, CtrlZ})
+					}
+				case 'd', 'D':
+					if o > 1 {
+						p = bytes.ReplaceAll(p, []byte{'\r', w.t, key}, []byte{CtrlD})
+					} else {
+						p = bytes.ReplaceAll(p, []byte{'\r', w.t, key}, []byte{'\r', w.t, BackSpace, CtrlD})
 					}
 				default:
 					if w.chanByte != nil {
@@ -269,7 +288,11 @@ func SetMode(w *ser2net.SerialWorker, ctx context.Context, r io.Reader, chanByte
 				default:
 					n, err := r.Read(buffer)
 					if err != nil {
-						chanByte <- CtrlZ
+						if Windows {
+							chanByte <- CtrlZ
+						} else {
+							chanByte <- CtrlD
+						}
 						return
 					}
 					for _, b := range buffer[:n] {
@@ -320,7 +343,7 @@ func SetMode(w *ser2net.SerialWorker, ctx context.Context, r io.Reader, chanByte
 			switch b {
 			case '\n':
 				continue
-			case '.', CtrlC, CtrlZ:
+			case '.', CtrlC, CtrlZ, CtrlD:
 				return
 			case '6':
 				switch mode.DataBits {

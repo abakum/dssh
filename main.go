@@ -972,7 +972,9 @@ Host ` + SSHJ + `
 		Println("tssh started in background with code:", code)
 		closer.Hold()
 	} else {
-		Println("tssh exit with code:", code)
+		if code != 0 {
+			Println("tssh exit with code:", code)
+		}
 	}
 }
 
