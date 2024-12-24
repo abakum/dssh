@@ -144,7 +144,7 @@ var (
 	tmp            = filepath.Join(os.TempDir(), repo)
 	ips            = ser2net.Ints()
 	EED            = "<Enter>~."
-	quit           = EED
+	EEDE           = EED
 	ioc            = ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: os.Stdout, Cygwin: Cygwin}
 )
 
@@ -264,18 +264,11 @@ func main() {
 	args.Option.UnmarshalText([]byte("EscapeChar=" + args.EscapeChar))
 
 	EED = "<Enter>" + args.EscapeChar + "."
-	exit := ""
-	if Win7 && Cygwin {
-	} else {
-		if Windows {
-			exit = " или <^Z>"
-		}
-		if Cygwin {
-			exit = " или <^C>"
-		}
+	exit := " или <^D>"
+	if Windows {
+		exit = " или <^Z>"
 	}
-
-	quit = EED + exit
+	EEDE = EED + exit
 
 	u, h, p := ParseDestination(args.Destination) //tssh
 	s2, dial := host2LD(h)
@@ -476,7 +469,7 @@ func main() {
 		// Телнет сервер dssh -22
 		// Телнет клиент без RFC2217 dssh -W:2322
 		setRaw(&once)
-		forwardSTDio(ctx, ioc, args.StdioForward, quit, Println)
+		forwardSTDio(ctx, ioc, args.StdioForward, EEDE, Println)
 		return
 	}
 	nw := func(s2, dial string) {
@@ -485,7 +478,7 @@ func main() {
 				Println(repo, "-H", serial, "-2", nNear)
 				go func() {
 					setRaw(&once)
-					Println(rfc2217(ctx, ioc, serial, s2, nNear, args.Baud, s2e(serial, exit), Println))
+					Println(rfc2217(ctx, ioc, serial, s2, nNear, args.Baud, exit, Println))
 					closer.Close()
 				}()
 				if _, _, err := net.SplitHostPort(serial); err == nil {
@@ -523,7 +516,7 @@ func main() {
 		} else {
 			Println(repo, "-H", serial, "-2", nNear)
 			setRaw(&once)
-			Println(rfc2217(ctx, ioc, serial, s2, nNear, args.Baud, s2e(serial, exit), Println))
+			Println(rfc2217(ctx, ioc, serial, s2, nNear, args.Baud, exit, Println))
 		}
 	}
 
@@ -563,7 +556,7 @@ Host ` + SSHJ + `
 			args.Command = repo
 			args.Argument = append(args.Argument, "--restart")
 		} else {
-			Println("-UU || -HH || -22 || -88")
+			// Println("-UU || -HH || -22 || -88")
 			if loc {
 				Println("Local console - Локальная консоль", serial)
 				if external {
@@ -592,7 +585,7 @@ Host ` + SSHJ + `
 									Println(fmt.Errorf("не могу запустить telnet в отдельном окне на Windows7"))
 									time.Sleep(time.Second * 3)
 								} else {
-									Println("-Z || -u && !existsPuTTY")
+									// Println("-Z || -u && !existsPuTTY")
 									createNewConsole(cmd)
 
 									Println(cmdRun(cmd, ctx, os.Stdin, false, serial, s2, nNear, args.Baud, exit, Println))
@@ -600,7 +593,7 @@ Host ` + SSHJ + `
 								}
 							}
 
-							Println("-zZ || -zu && !existsPuTTY")
+							// Println("-zZ || -zu && !existsPuTTY")
 							cmd.Stdin = os.Stdin
 							ec := "q"
 							if bin == BUSYBOX {
@@ -621,7 +614,7 @@ Host ` + SSHJ + `
 								Println("-zu22", fmt.Errorf("plink not found"))
 								return
 							}
-							Println("-zu22")
+							// Println("-zu22")
 							Println(cmdRun(cmd, ctx, nil, true, serial, s2, nNear, args.Baud, exit, Println))
 							return
 						}
@@ -634,7 +627,7 @@ Host ` + SSHJ + `
 								return
 							}
 						}
-						Println("-u22")
+						// Println("-u22")
 						if Win7 && Cygwin {
 							exit = "<^Z><^Z>"
 						}
@@ -644,7 +637,7 @@ Host ` + SSHJ + `
 					cmd.Stdout = os.Stdout
 					cmd.Stderr = os.Stdout
 					cmd.Stdin = os.Stdin
-					Println("-u || -zu || extSer")
+					// Println("-u || -zu || extSer")
 					exit := "<^C>"
 					switch bin {
 					case PUTTY:
@@ -664,13 +657,13 @@ Host ` + SSHJ + `
 				}
 				// !external && loc
 				if nNear > 0 || wNear > 0 {
-					Println("nNear > 0 || wNear > 0")
+					// Println("nNear > 0 || wNear > 0")
 					nw(s2, dial)
 					return
 				}
-				Println("-HH || -Hcmd | -H:2322")
+				// Println("-HH || -Hcmd | -H:2322")
 				setRaw(&once)
-				Println(cons(ctx, ioc, serial, args.Baud, s2e(serial, exit), Println))
+				Println(cons(ctx, ioc, serial, args.Baud, exit, Println))
 				return
 			}
 		}
@@ -920,7 +913,7 @@ Host ` + SSHJ + `
 				LHp := net.JoinHostPort(LH, p)
 				time.AfterFunc(time.Second, func() {
 					setRaw(&once)
-					Println(cons(ctx, ioc, LHp, args.Baud, "", Println))
+					Println(cons(ctx, ioc, LHp, args.Baud, exit, Println))
 					closer.Close()
 				})
 			}
@@ -1799,7 +1792,7 @@ func cmdRun(cmd *exec.Cmd, ctx context.Context, r io.Reader, zu bool, Serial, ho
 				closer.Close()
 			}()
 			setRaw(&once)
-			return cons(ctx, ioc, hp, Baud, "", println...)
+			return cons(ctx, ioc, hp, Baud, exit, println...)
 		}
 
 		if !zu {
@@ -1862,7 +1855,7 @@ func cmdRun(cmd *exec.Cmd, ctx context.Context, r io.Reader, zu bool, Serial, ho
 			closer.Close()
 		})
 		setRaw(&once)
-		return rfc2217(ctx, ioc, Serial, host, Ser2net, Baud, s2e(Serial, exit), println...)
+		return rfc2217(ctx, ioc, Serial, host, Ser2net, Baud, exit, println...)
 	}
 
 	// -zu
@@ -1932,11 +1925,4 @@ func swSerial(s string) (serial, sw, h string, p int) {
 		sw = "s"
 	}
 	return
-}
-
-func s2e(s, e string) string {
-	if !ser2net.SerialPath(s) {
-		return ""
-	}
-	return e
 }
