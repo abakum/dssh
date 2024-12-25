@@ -281,6 +281,7 @@ func main() {
 			if err == nil {
 				s = "PuTTY"
 				args.Putty = true
+				args.Telnet = false
 			}
 		}
 		Println(fmt.Errorf("в Windows7 пробую использовать " + s))
