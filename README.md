@@ -126,10 +126,10 @@ dssh:=(tssh from trzsz)+(CA key with embed-encrypt)+(sshd from gliderlabs)+(acce
 >3.  `-ZH host:port` то же что и `telnet -e^Q host port` для Windows в новом окне см. 1.6. Для Cygwin на Windows7 или Linux в том же окне.
 >4.  `-Z22 x` то же что и `-22 x` + `telnet -e^Q x 2322` для Windows в новом окне. Для Cygwin на Windows7 или Linux в том же окне.
 >5.  `-Z x` для Linux то же что и `busybox microcom -s 9600 Y`. Для Windows то же что и 10.4.
->6.  `-zZ x` то же что и `-20 x` + `telnet -e^Q x 2320` том же окне.
+>6.  `-zZ x` то же что и `-20 x` + `telnet -e^Q x 2320` том же окне и без управлением режимом консоли.
 >7.  `-u22 x` то же что и `-22 x` + `putty -telnet x -P 2322` см. 1.4.
->8.  `-u` то же что и `putty -serial Y -sercfg 9600,8,1,N,N`.
->9.  `-zu` то же что и `plink -serial Y -sercfg 9600,8,1,N,N`. Для Cygwin на Windows7 `putty -serial Y -sercfg 9600,8,1,N,N`.
+>8.  `-u` то же что и `putty -serial Y -sercfg 9600,8,1,N,N` и без управлением режимом консоли.
+>9.  `-zu` то же что и `plink -serial Y -sercfg 9600,8,1,N,N` и без управлением режимом консоли. Для Cygwin на Windows7 `putty -serial Y -sercfg 9600,8,1,N,N`.
 >10.  `-uH host:port` то же что и `putty -telnet host -P port` см. 1.4.
 >11.  `-88 x` то же что `-U 9600` + стартует веб-сервер на `x:8088` + `chrome http:\x:8088`
 >12.  `-22 -88 x` то же что `-U 9600` + стартует RFC2217 телнет-сервер на `x:2322` + стартует веб-сервер на `x:8088` + `chrome http:\x:8088`
