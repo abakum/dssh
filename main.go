@@ -13,13 +13,13 @@ package main
 `go run github.com/abakum/embed-encrypt` этим генерируется код для вложений `encrypted_fs.go`
 `go install`
 
-Запускаем `dssh -v` как сервис. Первый раз с `-v` чтоб зарезервировать `~/.ssh/config`.
-Пробно запускаем `dssh .` или `ssh dssh` как клиента на том же хосте что и сервис.
-Запускаем `dssh -v :` или `ssh ssh-j` как клиента через посредника `dssh@ssh-j.com` на хосте за NAT. Первый раз с `-v` чтоб зарезервировать `~/.ssh/config`.
-
+Запускаем `dssh -v` как сервис. Первый раз с `-v`. Если указан параметр `-v` или `--debug` то на всякий случай создаются копии старых файлов .old
+Обязательно запускаем `dssh :` как клиента через посредника `dssh@ssh-j.com` на хосте за NAT.
 В файл ~/.ssh/config дописываются алиасы хостов dssh, ssh-j, ssh-j.com.
-Если указан параметр `-v` или `--debug` то на всякий случай создаются копии старых файлов .old
-Создаются файлы `~/.ssh/ssh-j` и `~/.ssh/dssh`
+Создаются файлы известных хостов `~/.ssh/ssh-j` (по запросу) и `~/.ssh/dssh`
+Создаётся файл сертифицированного замка `~/.ssh/id_ecdsa-cert.pub`
+Если агент ключей получает ключ id_rsa то создаётся файл сертифицированного замка `~/.ssh/id_rsa-cert.pub`
+Без этого файла и доступа к агенту ключей в момент запуска доступ к dssh-серверу через putty или ssh не возможен.
 
 Если указан параметр `-u` или `--putty` то:
 Создаются файлы сессий из `~/.ssh/config` в `~/.putty/sessions`
@@ -1134,12 +1134,14 @@ func bool2string(b bool) string {
 // Алиас rc это клиент дальнего переноса -R на стороне sshd
 func sshJ(host, u, h, p string) string {
 	//ssh-keyscan ssh-j.com -f ~/.ssh/ssh-j
-	s := `ssh-j.com ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCf7bgcKf2oDCpMdHjIqUkMihxpiVZ3j0zrRUeKhgn4FXx1FXerCe7cojAVuGcFsTH4JzIiK6SInKMRt8UANUBggae2llCHFsjV7L6NcLPgaByhWi4gOZba+FT1A0PSX7T8BFNPOmcu696PNILFru98BRf2Vd43E9mBAintLH5Ya6XnOQf9D44XNWToebokcEv48ju0dWDiRwt5IhQPj+cVZstWWJaqGueoR9GWcgSiPT6bISp0lSJfSq/ird7EEKJrU3f2g7Zi20DiDNJS7lfuWDKZeAphoZTXhciIlVRDWQHR8ssgiWVkcjWWi0LgDZ7hhhh+pcfvf71qpnOR0m2b
-ssh-j.com ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBPXSkWZ8MqLVM68cMjm+YR4geDGfqKPEcIeC9aKVyUW32brmgUrFX2b0I+z4g6rHYRwGeqrnAqLmJ6JJY0Ufm80=
-ssh-j.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIiyFQuTwegicQ+8w7dLA7A+4JMZkCk8TLWrKPklWcRt
-`
 	if args.Putty || usePuTTY {
-		for _, line := range strings.Split(s, "\n") {
+		name := path.Join(SshUserDir, SSHJ)
+		bs, err := os.ReadFile(name)
+		if err != nil {
+			Println(err)
+			return ""
+		}
+		for _, line := range strings.Split(string(bs), "\n") {
 			if line == "" {
 				continue
 			}
@@ -1151,13 +1153,6 @@ ssh-j.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIiyFQuTwegicQ+8w7dLA7A+4JMZkCk8TL
 				Conf(SshHostKeys, " ", map[string]string{k: v})
 			}
 		}
-	}
-	// Для ssh и tssh
-	name := path.Join(SshUserDir, SSHJ)
-	err := WriteFile(name, []byte(s), FILEMODE)
-	if err != nil {
-		Println(err)
-		return ""
 	}
 	alias := `
 Host ` + host + `
