@@ -138,7 +138,6 @@ var (
 	Cygwin     = isatty.IsCygwinTerminal(os.Stdin.Fd())
 	Win7       = isWin7() // Виндовс7 не поддерживает ENABLE_VIRTUAL_TERMINAL_INPUT и ENABLE_VIRTUAL_TERMINAL_PROCESSING
 	once,
-	usePuTTY,
 	SP bool
 	ZerroNewWindow = os.Getenv("SSH_CONNECTION") != ""
 	tmp            = filepath.Join(os.TempDir(), repo)
@@ -274,6 +273,18 @@ func main() {
 	s2, dial := host2LD(h)
 
 	loc := localHost(args.Destination)
+	if !loc && Win7 && !(args.DisableTTY || args.NoCommand || Cygwin || args.Putty || args.Telnet) {
+		s := "ssh"
+		args.Telnet = true
+		if !args.Unix {
+			_, err := exec.LookPath(PUTTY)
+			if err == nil {
+				s = "PuTTY"
+				args.Putty = true
+			}
+		}
+		Println(fmt.Errorf("в Windows7 пробую использовать " + s))
+	}
 
 	nNear, nFar := near2far(portOB(args.Ser2net, RFC2217), &args, s2, loc)
 	wNear, wFar := near2far(portOB(args.Ser2web, WEB2217), &args, s2, loc)
@@ -414,8 +425,6 @@ func main() {
 		}
 		cygUserDir = filepath.Join(cygUserDir, ".ssh")
 		Println(fmt.Sprintf(`You can make a link - Можно сделать ссылку 'mklink /d "%s" "%s"'`, cygUserDir, SshUserDir))
-	} else {
-		usePuTTY = (loc || args.Destination == ".") && Win7 && existsPuTTY && !(args.DisableTTY || args.NoCommand)
 	}
 
 	if external && loc {
@@ -452,8 +461,6 @@ func main() {
 			// 	nNear = comm(serial, s2, nNear, wNear)
 			// 	BSnw = BSnw || nNear > 0
 			// }
-		} else {
-			usePuTTY = false
 		}
 	}
 
@@ -809,7 +816,7 @@ Host ` + SSHJ + `
 		client(signer, sshj+sshJ(JumpHost, u, "", p), repo, SSHJ)
 	}
 	// Println(fmt.Sprintf("%+v",args))
-	if external || usePuTTY {
+	if external {
 		opt := ""
 		if args.Destination != "" {
 			if nNear > 0 {
@@ -1008,7 +1015,7 @@ func client(signer ssh.Signer, config string, hosts ...string) {
 		args.Config.CASigner[alias] = caSigner
 		args.Config.Include.Add(alias)
 
-		if args.Putty || usePuTTY {
+		if args.Putty {
 			if i == 0 {
 				Conf(filepath.Join(Sessions, "Default%20Settings"), EQ, newMap(Keys, Defs))
 				data := ssh.MarshalAuthorizedKey(signer.PublicKey())
@@ -1134,7 +1141,7 @@ func bool2string(b bool) string {
 // Алиас rc это клиент дальнего переноса -R на стороне sshd
 func sshJ(host, u, h, p string) string {
 	//ssh-keyscan ssh-j.com -f ~/.ssh/ssh-j
-	if args.Putty || usePuTTY {
+	if args.Putty {
 		name := path.Join(SshUserDir, SSHJ)
 		bs, err := os.ReadFile(name)
 		if err != nil {
