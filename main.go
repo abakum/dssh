@@ -275,16 +275,19 @@ func main() {
 	loc := localHost(args.Destination)
 	if !loc && Win7 && !(args.DisableTTY || args.NoCommand || Cygwin || args.Putty || args.Telnet) {
 		s := "ssh"
-		args.Telnet = true
+		_, err := exec.LookPath(s)
+		args.Telnet = err == nil
 		if !args.Unix {
 			_, err := exec.LookPath(PUTTY)
 			if err == nil {
-				s = "PuTTY"
+				s = PUTTY
 				args.Putty = true
 				args.Telnet = false
 			}
 		}
-		Println(fmt.Errorf("в Windows7 пробую использовать " + s))
+		if args.Telnet || args.Putty {
+			Println(fmt.Errorf("в Windows7 пробую использовать " + s))
+		}
 	}
 
 	nNear, nFar := near2far(portOB(args.Ser2net, RFC2217), &args, s2, loc)

@@ -59,8 +59,8 @@ dssh:=(tssh from trzsz)+(CA key with embed-encrypt)+(sshd from gliderlabs)+(acce
 
 # 5.    Как использовать на Windows 7:
 1.  Если есть Cygwin, MSYS2/MINGW, git-bash то как обычно `dssh alias`
-2.  Иначе используем вместе с PuTTY - `dssh -u alias` или `dssh alias`. Чтобы запустить без PuTTY - `dssh -T alias` или `dssh -ND:1080 alias`
-3.  Иначе используем вместе с ssh - `dssh -Z alias`.
+2.  Иначе вместо `dssh alias` если есть PuTTY будет `dssh -u alias`. Чтобы запустить без PuTTY `dssh -T alias` или `dssh -ND:1080 alias` или `dssh -Z alias` или `dssh -z alias`.
+3.  Иначе используем вместе с ssh `dssh -Z alias` или `dssh -z alias`.
 4.  Иначе для доступа к локальной последовательной консоли через браузер `dssh -88`
 5.  Иначе для доступа к удалённой последовательной консоли через браузер `dssh -88 :`
 6.  Иначе для доступа к удалённой консоли на Linux через браузер `dssh -Hbash -88 :` или для Windows `dssh -Hcmd -88 :`.
