@@ -50,6 +50,7 @@ import (
 	"github.com/abakum/embed-encrypt/encryptedfs"
 	"github.com/abakum/go-ser2net/pkg/ser2net"
 	"github.com/abakum/menu"
+	"github.com/abakum/pageant"
 	"github.com/abakum/winssh"
 	"github.com/containerd/console"
 	"github.com/mattn/go-isatty"
@@ -63,6 +64,7 @@ import (
 	version "github.com/abakum/version/lib"
 	"github.com/xlab/closer"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 )
 
 type Parser struct {
@@ -284,7 +286,7 @@ func main() {
 			}
 		}
 		if args.Telnet || args.Putty {
-			Println(fmt.Errorf("в Windows7 пробую использовать " + s))
+			Println(fmt.Errorf("trying to use - в Windows 7 пробую использовать " + s))
 		}
 	}
 
@@ -329,11 +331,11 @@ func main() {
 			}
 			if Cygwin {
 				args.Telnet = false
-				Println(fmt.Errorf("не могу запускать telnet в Cygwin на Windows7"))
+				Println(fmt.Errorf("can't run - не могу запускать telnet в Cygwin на Windows 7"))
 			}
 		} else {
 			args.Unix = true
-			Println(fmt.Errorf("не могу запускать ssh в отдельном окне на Windows7"))
+			Println(fmt.Errorf("can't run in a separate window - не могу запускать ssh в отдельном окне на Windows 7"))
 		}
 	}
 
@@ -348,26 +350,13 @@ func main() {
 			args.Baud = "9"
 		}
 	}
-	switch args.Destination {
-	case ".", ":", repo, SSHJ:
-		if external && !isFileExist(filepath.Join(SshUserDir, "id_ecdsa-cert.pub")) {
-			s := "-u"
-			args.Putty = false
-			if args.Telnet {
-				s = "-Z"
-				args.Telnet = false
-			}
-			Println(fmt.Errorf("до запуска `%s %s %s` нужно однократно запустить `%s %s`", repo, s, args.Destination, repo, args.Destination))
-			external = false
-			args.Command = "exit"
-		}
-	}
+	signers := externalClient(&external)
 
 	serial, sw, sh, sp := swSerial(args.Serial)
 	SP = serial == "" || sw == "s"
 	if loc && Win7 && Cygwin && SP {
 		if args.Unix && args.Putty {
-			Println(fmt.Errorf("не могу прервать plink в Cygwin на Windows7"))
+			Println(fmt.Errorf("can't interrupt - не могу прервать plink в Cygwin на Windows 7"))
 		}
 		args.Unix = false
 	}
@@ -605,7 +594,7 @@ Host ` + SSHJ + `
 						if extTel && args.Telnet {
 							if !ZerroNewWindow && Windows {
 								if Win7 && !Cygwin {
-									Println(fmt.Errorf("не могу запустить telnet в отдельном окне на Windows7"))
+									Println(fmt.Errorf("can't run in a separate window - не могу запустить telnet в отдельном окне на Windows 7"))
 									time.Sleep(time.Second * 3)
 								} else {
 									// Println("-Z || -u && !existsPuTTY")
@@ -758,7 +747,7 @@ Host ` + SSHJ + `
 				p = strconv.Itoa(args.Port)
 			}
 		}
-		client(signer, local(hh, p, repo)+sshj+sshJ(JumpHost, u, hh, p))
+		client(signer, signers, local(hh, p, repo)+sshj+sshJ(JumpHost, u, hh, p))
 		args.Destination = JumpHost
 		go func() {
 			s := fmt.Sprintf("`tssh %s`", JumpHost)
@@ -827,9 +816,9 @@ Host ` + SSHJ + `
 
 	// Клиенты
 	if djh != "" && djp != "" {
-		client(signer, local(djh, djp, repo)+sshj+sshJ(JumpHost, u, djh, djp), repo, SSHJ)
+		client(signer, signers, local(djh, djp, repo)+sshj+sshJ(JumpHost, u, djh, djp), repo, SSHJ)
 	} else {
-		client(signer, sshj+sshJ(JumpHost, u, "", p), repo, SSHJ)
+		client(signer, signers, sshj+sshJ(JumpHost, u, "", p), repo, SSHJ)
 	}
 	// Println(fmt.Sprintf("%+v",args))
 	if external {
@@ -1012,7 +1001,7 @@ func isFileExist(path string) bool {
 }
 
 // Пишем config для ssh клиентов
-func client(signer ssh.Signer, config string, hosts ...string) {
+func client(signer ssh.Signer, signers []ssh.Signer, config string, hosts ...string) {
 	cfg, err := ssh_config.Decode(strings.NewReader(config))
 	if err != nil {
 		Println(err)
@@ -1043,16 +1032,18 @@ func client(signer ssh.Signer, config string, hosts ...string) {
 					"PermitRSASHA512": "1",
 				})
 			}
-			for _, pref := range KeyAlgo2id {
-				name := filepath.Join(SshUserDir, pref+".pub")
-				if !isFileExist(name) {
+			for _, sig := range signers {
+				pref, ok := KeyAlgo2id[sig.PublicKey().Type()]
+				if !ok {
 					continue
 				}
-				name = filepath.Join(SshUserDir, pref+"-cert.pub")
-				if canReadFile(name) {
-					Conf(filepath.Join(Sessions, alias), EQ, map[string]string{"DetachedCertificate": name})
-					break
+				name := filepath.Join(SshUserDir, pref+"-cert.pub")
+				if !isFileExist(name) || !canReadFile(name) {
+					continue
 				}
+				Conf(filepath.Join(Sessions, alias), EQ, map[string]string{"DetachedCertificate": name})
+				// PuTTY может принять только один сертифицикат
+				break
 			}
 		}
 	}
@@ -1941,6 +1932,51 @@ func swSerial(s string) (serial, sw, h string, p int) {
 		// Последовательный порт
 		serial = usbSerial(serial)
 		sw = "s"
+	}
+	return
+}
+
+func externalClient(external *bool) (signers []ssh.Signer) {
+	switch args.Destination {
+	case ".", ":", repo, SSHJ:
+		if *external {
+			s := "-u"
+			if args.Telnet {
+				s = "-Z"
+			}
+			s = fmt.Sprintf(" `%s %s %s`", repo, s, args.Destination)
+			conn, err := pageant.NewConn()
+			if err != nil {
+				Println(fmt.Errorf("requires a ssh-agent - для запуска %s нужен агент ключей", s))
+				args.Putty = false
+				args.Telnet = false
+				*external = false
+				return
+			}
+			defer conn.Close()
+			signers, err = agent.NewClient(conn).Signers()
+			if err != nil || len(signers) < 1 {
+				Println(fmt.Errorf("requires at least one key from the ssh-agent - для запуска %s нужен хотя бы один ключ от агента ключей", s))
+				args.Putty = false
+				args.Telnet = false
+				*external = false
+				return
+			}
+			for _, sig := range signers {
+				pref, ok := KeyAlgo2id[sig.PublicKey().Type()]
+				if !ok {
+					continue
+				}
+				if !isFileExist(filepath.Join(SshUserDir, pref+"-cert.pub")) {
+					args.Putty = false
+					args.Telnet = false
+					*external = false
+					args.Command = "exit"
+					Println(fmt.Errorf("must be run at least once before - до запуска %s нужно хотя бы раз запустить `%s %s`", s, repo, args.Destination))
+					return
+				}
+			}
+		}
 	}
 	return
 }
