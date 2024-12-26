@@ -180,10 +180,12 @@ func addCertSigner(args *SshArgs, param *sshParam, signer ssh.Signer, fingerprin
 				continue
 			}
 
-			err = writeFile(filepath.Join(userHomeSsh, pref+"-cert.pub"),
-				ssh.MarshalAuthorizedKey(&cert), 0644)
-			if err != nil {
-				warning("%v", err)
+			if fpSigner != fpCA {
+				err = writeFile(filepath.Join(userHomeSsh, pref+"-cert.pub"),
+					ssh.MarshalAuthorizedKey(&cert), 0644)
+				if err != nil {
+					warning("%v", err)
+				}
 			}
 		}
 	}
