@@ -41,7 +41,6 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -51,7 +50,6 @@ import (
 	"github.com/abakum/embed-encrypt/encryptedfs"
 	"github.com/abakum/go-ser2net/pkg/ser2net"
 	"github.com/abakum/menu"
-	"github.com/abakum/putty_hosts"
 	"github.com/abakum/winssh"
 	"github.com/containerd/console"
 	"github.com/mattn/go-isatty"
@@ -348,6 +346,20 @@ func main() {
 		if args.Destination == "" && external || // -u или -Z
 			args.Unix && !external { // -z
 			args.Baud = "9"
+		}
+	}
+	switch args.Destination {
+	case ".", ":", repo, SSHJ:
+		if external && !isFileExist(filepath.Join(SshUserDir, "id_ecdsa-cert.pub")) {
+			s := "-u"
+			args.Putty = false
+			if args.Telnet {
+				s = "-Z"
+				args.Telnet = false
+			}
+			Println(fmt.Errorf("до запуска `%s %s %s` нужно однократно запустить `%s %s`", repo, s, args.Destination, repo, args.Destination))
+			external = false
+			args.Command = "exit"
 		}
 	}
 
@@ -1145,26 +1157,26 @@ func bool2string(b bool) string {
 // Алиас rc это клиент дальнего переноса -R на стороне sshd
 func sshJ(host, u, h, p string) string {
 	//ssh-keyscan ssh-j.com -f ~/.ssh/ssh-j
-	if args.Putty {
-		name := path.Join(SshUserDir, SSHJ)
-		bs, err := os.ReadFile(name)
-		if err != nil {
-			Println(err)
-			return ""
-		}
-		for _, line := range strings.Split(string(bs), "\n") {
-			if line == "" {
-				continue
-			}
-			k, v, err := putty_hosts.ToPutty(line)
-			if err != nil {
-				Println(err)
-				return ""
-			} else {
-				Conf(SshHostKeys, " ", map[string]string{k: v})
-			}
-		}
-	}
+	// if args.Putty {
+	// 	name := path.Join(SshUserDir, SSHJ)
+	// 	bs, err := os.ReadFile(name)
+	// 	if err != nil {
+	// 		Println(err)
+	// 		return ""
+	// 	}
+	// 	for _, line := range strings.Split(string(bs), "\n") {
+	// 		if line == "" {
+	// 			continue
+	// 		}
+	// 		k, v, err := putty_hosts.ToPutty(line)
+	// 		if err != nil {
+	// 			Println(err)
+	// 			return ""
+	// 		} else {
+	// 			Conf(SshHostKeys, " ", map[string]string{k: v})
+	// 		}
+	// 	}
+	// }
 	alias := `
 Host ` + host + `
  User ` + u + `
