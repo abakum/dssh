@@ -17,14 +17,12 @@ package main
 Обязательно запускаем `dssh :` как клиента через посредника `dssh@ssh-j.com` на хосте за NAT.
 В файл ~/.ssh/config дописываются алиасы хостов dssh, ssh-j, ssh-j.com.
 Создаются файлы известных хостов `~/.ssh/ssh-j` (по запросу) и `~/.ssh/dssh`
-Создаётся файл сертифицированного замка `~/.ssh/id_ecdsa-cert.pub`
-Если агент ключей получает ключ id_rsa то создаётся файл сертифицированного замка `~/.ssh/id_rsa-cert.pub`
+Если агент ключей получает ключ id_x то создаётся сертификат `~/.ssh/id_x-cert.pub`
 Без этого файла и доступа к агенту ключей в момент запуска доступ к dssh-серверу через putty или ssh не возможен.
 
 Если указан параметр `-u` или `--putty` то:
 Создаются файлы сессий из `~/.ssh/config` в `~/.putty/sessions`
-Создаются файлы сертификатов хостов  в `~/.putty/sshhostcas`
-Дописывается файл `~/.putty/sshhostkeys` замками ssh-j.com
+Создаётся сертификат хоста  в `~/.putty/sshhostcas`
 Тоже самое и для Windows из %USERPROFILE%\.ssh\config в реестр CURRENT_USER\SOFTWARE\SimonTatham\PuTTY
 */
 
@@ -136,7 +134,7 @@ var (
 	imag       string       // Имя исполняемого файла `dssh` его можно изменить чтоб не указывать имя для посредника.
 	Windows    = runtime.GOOS == "windows"
 	Cygwin     = isatty.IsCygwinTerminal(os.Stdin.Fd())
-	Win7       = isWin7() // Виндовс7 не поддерживает ENABLE_VIRTUAL_TERMINAL_INPUT и ENABLE_VIRTUAL_TERMINAL_PROCESSING
+	Win7       = isWin7() // Windows 7 не поддерживает ENABLE_VIRTUAL_TERMINAL_INPUT и ENABLE_VIRTUAL_TERMINAL_PROCESSING
 	once,
 	SP bool
 	ZerroNewWindow = os.Getenv("SSH_CONNECTION") != ""
@@ -198,7 +196,7 @@ func main() {
 	parser, err := NewParser(arg.Config{}, &args)
 	Fatal(err)
 
-	a2s := make([]string, 0) // Без встроенных параметров -h -v
+	a2s := []string{} // Без встроенных параметров -h -v
 	// cli := false
 	for _, arg := range os.Args[1:] {
 		switch arg {
@@ -350,7 +348,10 @@ func main() {
 			args.Baud = "9"
 		}
 	}
-	signers := externalClient(&external)
+	signers, err := externalClient(&external, exe)
+	if err != nil {
+		Println(err)
+	}
 
 	serial, sw, sh, sp := swSerial(args.Serial)
 	SP = serial == "" || sw == "s"
@@ -1936,7 +1937,7 @@ func swSerial(s string) (serial, sw, h string, p int) {
 	return
 }
 
-func externalClient(external *bool) (signers []ssh.Signer) {
+func externalClient(external *bool, exe string) (signers []ssh.Signer, err error) {
 	switch args.Destination {
 	case ".", ":", repo, SSHJ:
 		if *external {
@@ -1945,9 +1946,10 @@ func externalClient(external *bool) (signers []ssh.Signer) {
 				s = "-Z"
 			}
 			s = fmt.Sprintf(" `%s %s %s`", repo, s, args.Destination)
-			conn, err := pageant.NewConn()
+			var conn net.Conn
+			conn, err = pageant.NewConn()
 			if err != nil {
-				Println(fmt.Errorf("requires a ssh-agent - для запуска %s нужен агент ключей", s))
+				err = fmt.Errorf("requires a ssh-agent - для запуска %s нужен агент ключей %v", s, err)
 				args.Putty = false
 				args.Telnet = false
 				*external = false
@@ -1956,7 +1958,33 @@ func externalClient(external *bool) (signers []ssh.Signer) {
 			defer conn.Close()
 			signers, err = agent.NewClient(conn).Signers()
 			if err != nil || len(signers) < 1 {
-				Println(fmt.Errorf("requires at least one key from the ssh-agent - для запуска %s нужен хотя бы один ключ от агента ключей", s))
+				err = fmt.Errorf("requires at least one key from the ssh-agent - для запуска %s нужен хотя бы один ключ от агента ключей", s)
+				args.Putty = false
+				args.Telnet = false
+				*external = false
+				return
+			}
+			run := func(s, cert string) (err error) {
+				if isFileExist(cert) {
+					return
+				}
+				opts := []string{}
+				if args.LoginName != "" {
+					opts = append(opts, "-l", args.LoginName)
+				}
+				cmd := exec.Command(exe, append(opts, args.Destination, "exit")...)
+				Println(fmt.Errorf("must be run at least once before - до запуска %s нужно хотя бы раз запустить `%s`", s, cmd))
+				cmd.Stdin = os.Stdin
+				cmd.Stdout = os.Stdout
+				cmd.Stderr = os.Stderr
+				cmd.Run()
+				if isFileExist(cert) {
+					return
+				}
+				return fmt.Errorf("couldn't create certificate - не удалось создать сертификат %s", cert)
+			}
+			err = run(s, filepath.Join(SshUserDir, repo))
+			if err != nil {
 				args.Putty = false
 				args.Telnet = false
 				*external = false
@@ -1967,12 +1995,11 @@ func externalClient(external *bool) (signers []ssh.Signer) {
 				if !ok {
 					continue
 				}
-				if !isFileExist(filepath.Join(SshUserDir, pref+"-cert.pub")) {
+				err = run(s, filepath.Join(SshUserDir, pref+"-cert.pub"))
+				if err != nil {
 					args.Putty = false
 					args.Telnet = false
 					*external = false
-					args.Command = "exit"
-					Println(fmt.Errorf("must be run at least once before - до запуска %s нужно хотя бы раз запустить `%s %s`", s, repo, args.Destination))
 					return
 				}
 			}
