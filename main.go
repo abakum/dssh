@@ -48,7 +48,6 @@ import (
 	"github.com/abakum/embed-encrypt/encryptedfs"
 	"github.com/abakum/go-ser2net/pkg/ser2net"
 	"github.com/abakum/menu"
-	"github.com/abakum/pageant"
 	"github.com/abakum/winssh"
 	"github.com/containerd/console"
 	"github.com/mattn/go-isatty"
@@ -62,7 +61,6 @@ import (
 	version "github.com/abakum/version/lib"
 	"github.com/xlab/closer"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
 )
 
 type Parser struct {
@@ -94,16 +92,8 @@ const (
 	OSSH     = "OpenSSH_for_Windows"
 	RESTART  = "--restart"
 	SSHJ     = "ssh-j"
-	SSHJ2    = LH //"127.0.0.2"
+	SSHJ2    = LH
 	JumpHost = SSHJ + ".com"
-	EQ       = "="
-	TERM     = "xterm-256color"
-	PUTTY    = "putty" // signed https://www.chiark.greenend.org.uk/~sgtatham/putty/latest.html
-	LISTEN   = PORT + PORT
-	TELNET   = "telnet"
-	PLINK    = "plink"
-	BUSYBOX  = "busybox"
-	MICROCOM = "microcom"
 	RFC2217  = 2320
 	WEB2217  = 8080
 	LockFile = "lockfile"
@@ -463,10 +453,8 @@ func main() {
 			serial, sw, sh, sp = swSerial(getFirstUsbSerial(serial, args.Baud, Print))
 			SP = serial == "" || sw == "s"
 			BSnw = BSnw || serial != ""
-			// if serial == "" || !extSer {
-			// 	nNear = comm(serial, s2, nNear, wNear)
-			// 	BSnw = BSnw || nNear > 0
-			// }
+			nNear = comm(serial, s2, nNear, wNear)
+			BSnw = BSnw || nNear > 0 || wNear > 0
 		}
 	}
 
@@ -1001,261 +989,15 @@ func isFileExist(path string) bool {
 	return true
 }
 
-// Пишем config для ssh клиентов
-func client(signer ssh.Signer, signers []ssh.Signer, config string, hosts ...string) {
-	cfg, err := ssh_config.Decode(strings.NewReader(config))
-	if err != nil {
-		Println(err)
-		return
-	}
-	switch args.Destination {
-	case repo, SSHJ, JumpHost:
-		Println(config)
-	}
-	args.Config = NewConfig(cfg)
-
-	cert := NewCertificate(0, ssh.UserCert, repo, ssh.CertTimeInfinity, 0, repo)
-	caSigner := []*CASigner{NewCASigner(cert, signer)}
-	for i, alias := range hosts {
-		// args.Config.Signers[alias] = []ssh.Signer{signer} // Не буду использовать CA как ключ
-		args.Config.CASigner[alias] = caSigner
-		args.Config.Include.Add(alias)
-
-		if args.Putty {
-			if i == 0 {
-				Conf(filepath.Join(Sessions, "Default%20Settings"), EQ, newMap(Keys, Defs))
-				data := ssh.MarshalAuthorizedKey(signer.PublicKey())
-				Conf(filepath.Join(SshHostCAs, alias), EQ, map[string]string{
-					"PublicKey":       strings.TrimSpace(strings.TrimPrefix(string(data), signer.PublicKey().Type())),
-					"Validity":        "*",
-					"PermitRSASHA1":   "0",
-					"PermitRSASHA256": "1",
-					"PermitRSASHA512": "1",
-				})
-			}
-			for _, sig := range signers {
-				pref, ok := KeyAlgo2id[sig.PublicKey().Type()]
-				if !ok {
-					continue
-				}
-				name := filepath.Join(SshUserDir, pref+"-cert.pub")
-				if !isFileExist(name) || !canReadFile(name) {
-					continue
-				}
-				Conf(filepath.Join(Sessions, alias), EQ, map[string]string{"DetachedCertificate": name})
-				// PuTTY может принять только один сертифицикат
-				break
-			}
-		}
-	}
-	b, err := os.ReadFile(Cfg)
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		Fatal(err)
-	}
-	old, err := ssh_config.DecodeBytes(b)
-	if err != nil {
-		Println(err)
-		return
-	}
-
-	cfg = MergeConfigs(old, cfg)
-	if cfg == nil {
-		Println("empty config")
-		return
-	}
-	err = WriteFile(Cfg, []byte(cfg.String()), FILEMODE)
-	if err != nil {
-		Println(err)
-	}
-	if args.Putty || (Win7 && !Cygwin) {
-		Println("SshToPutty", SshToPutty())
-	}
-}
-
-// Пишем файл name если его содержимое отличается от data
-func WriteFile(name string, data []byte, perm fs.FileMode) error {
-	old, err := os.ReadFile(name)
-	if err != nil || !bytes.EqualFold(old, data) {
-		if err == nil && args.Debug {
-			os.WriteFile(name+".old", old, perm)
-		}
-		return os.WriteFile(name, data, perm)
-	}
-	return nil
-}
-
 func cleanup() {
 	// winssh.KidsDone(os.Getpid())
 	time.Sleep(time.Millisecond * 111)
 	KidsDone(os.Getpid())
 	Println("cleanup done" + DECTCEM) // Показать курсор
-	// if !IsConsole() {
-	// 	menu.PressAnyKey("Press any key - Нажмите любую клавишу", TOW)
-	// }
 }
 
 func FingerprintSHA256(pubKey ssh.PublicKey) string {
 	return pubKey.Type() + " " + ssh.FingerprintSHA256(pubKey)
-}
-
-func SshToPutty() (err error) {
-	bs, err := os.ReadFile(Cfg)
-	if err != nil {
-		return
-	}
-	cfg, err := ssh_config.DecodeBytes(bs)
-	if err != nil {
-		return
-	}
-	for _, host := range cfg.Hosts {
-		for _, pattern := range host.Patterns {
-			s := pattern.String()
-			if s != "*" && !strings.Contains(s, ".") {
-				session := strings.ReplaceAll(s, "?", "7")
-				session = strings.ReplaceAll(session, "*", "8")
-				Conf(filepath.Join(Sessions, session), EQ, newMap(Keys, Defs,
-					ssh_config.Get(s, "User"),
-					ssh_config.Get(s, "HostName"),
-					ssh_config.Get(s, "Port"),
-					yes(ssh_config.Get(s, "ForwardAgent")),
-					ssh_config.Get(s, "RemoteForward"),
-					ssh_config.Get(s, "LocalForward"),
-					ssh_config.Get(s, "DynamicForward"),
-					ssh_config.Get(s, "ProxyJump"),
-				))
-			}
-		}
-	}
-	return
-
-}
-
-func yes(s string) string {
-	if strings.EqualFold(s, "yes") {
-		return "1"
-	}
-	return "0"
-}
-
-func bool2string(b bool) string {
-	if b {
-		return "1"
-	}
-	return "0"
-}
-
-// Пишем config для ssh клиента
-
-// Алиас rc это клиент дальнего переноса -R на стороне sshd
-func sshJ(host, u, h, p string) string {
-	//ssh-keyscan ssh-j.com -f ~/.ssh/ssh-j
-	// if args.Putty {
-	// 	name := path.Join(SshUserDir, SSHJ)
-	// 	bs, err := os.ReadFile(name)
-	// 	if err != nil {
-	// 		Println(err)
-	// 		return ""
-	// 	}
-	// 	for _, line := range strings.Split(string(bs), "\n") {
-	// 		if line == "" {
-	// 			continue
-	// 		}
-	// 		k, v, err := putty_hosts.ToPutty(line)
-	// 		if err != nil {
-	// 			Println(err)
-	// 			return ""
-	// 		} else {
-	// 			Conf(SshHostKeys, " ", map[string]string{k: v})
-	// 		}
-	// 	}
-	// }
-	alias := `
-Host ` + host + `
- User ` + u + `
- UserKnownHostsFile ~/.ssh/` + SSHJ + `
- PasswordAuthentication no
- PubkeyAuthentication no
- KbdInteractiveAuthentication no`
-	if h != "" {
-		alias += `
- SessionType none
- ExitOnForwardFailure yes
- StdinNull no
- LogLevel debug
- RequestTTY no
- RemoteForward ` + SSHJ2 + `:` + PORT + ` ` + h + `:` + p + `
-`
-	}
-	return alias
-}
-
-// Алиас для локального доступа. Попробовать sshd.
-func local(h, p, repo string) string {
-	alias := `
-Host ` + repo + `
- User _
- HostName ` + h + `
- Port ` + p + `
- UserKnownHostsFile ~/.ssh/` + repo + `
- KbdInteractiveAuthentication no
- PasswordAuthentication no
- ` // EnableTrzsz ` + enableTrzsz
-	return alias
-}
-
-// Разбивает ProxyHost на части для putty
-func newMap(keys, defs []string, values ...string) (kv map[string]string) {
-	kv = make(map[string]string)
-	ProxyLocalhost := false
-	for i, k := range keys {
-		v := defs[i]
-		if len(values) > i {
-			v = values[i]
-		}
-		switch k {
-		case "HostName":
-			ProxyLocalhost = strings.HasPrefix(v, "127.0.0.")
-		case "RemoteForward":
-			if v == "" {
-				continue
-			}
-			k = "PortForwardings"
-			v = "R" + strings.Replace(v, " ", "=", 1)
-		case "LocalForward":
-			if v == "" {
-				continue
-			}
-			k = "PortForwardings"
-			v = "L" + strings.Replace(v, " ", "=", 1)
-		case "DynamicForward":
-			if v == "" {
-				continue
-			}
-			k = "PortForwardings"
-			v = "D" + v
-		case "ProxyHost":
-			if v == "" {
-				defs[i+1] = "0"
-				defs[i+2] = defs[0]
-				defs[i+3] = defs[2]
-			} else {
-				defs[i+1] = "6"
-				ss := strings.Split(v, "@")
-				if len(ss) > 1 {
-					defs[i+2] = ss[0]
-					v = ss[1]
-				}
-				ss = strings.Split(v, ":")
-				if len(ss) > 1 {
-					v = ss[0]
-					defs[i+3] = ss[1]
-				}
-				defs[i+4] = bool2string(ProxyLocalhost)
-			}
-		}
-		kv[k] = v
-	}
-	return
 }
 
 // Получить один замок
@@ -1422,36 +1164,6 @@ func sttyReset(settings string) {
 	cmd := exec.Command("stty", settings)
 	cmd.Stdin = os.Stdin
 	_ = cmd.Run()
-}
-
-func look(bins ...string) (path, bin string, err error) {
-	for _, item := range bins {
-		path, err = exec.LookPath(item)
-		if err == nil {
-			bin = item
-			return
-		}
-		err = fmt.Errorf("not found - не найден %s", item)
-	}
-	return
-}
-
-func optTelnet(bin, host string, lNear int) (opt string) {
-	switch bin {
-	case TELNET:
-		opt = fmt.Sprintln("-e\021", host, lNear) // -e^Q
-	case BUSYBOX:
-		opt = fmt.Sprintln(TELNET, "-e\021", host, lNear) // -e^Q
-	default:
-		opt = fmt.Sprintln("-"+TELNET, host, "-P", lNear)
-	}
-	return
-}
-
-func notPuttyNewConsole(bin string, cmd *exec.Cmd) {
-	if bin != PUTTY {
-		createNewConsole(cmd)
-	}
 }
 
 func IsConsole() bool {
@@ -1623,7 +1335,7 @@ func KidsDone(ppid int) {
 	}
 }
 
-// Если serial это команда то запускаем web-сервер или telnet-сервер.
+// Если serial занят то запускаем web-сервер или telnet-сервер.
 // Даже если параметр --2217 не задан.
 func comm(serial, s2 string, nNear, wNear int) int {
 	if serial == "" {
@@ -1661,43 +1373,6 @@ func cancelByFile(ctx context.Context, cancel func(), name string, delay time.Du
 			}
 		}
 	}
-}
-
-// Чтоб  использовать третий порт для windows используй -H3 или -Hcom3 или -H\\.\com3.
-// Можно указать -H1410 или -Hcu.usbserial-1410 или -H/dev/cu.usbserial-1410 для darwin.
-// Можно указать -H0 или -HttyUSB0 или -H/dev/ttyUSB0.
-func usbSerial(s string) (path string) {
-	if !ser2net.SerialPath(s) {
-		// Поиск первого USB порта getFirstUsbSerial
-		return s
-	}
-	trim := func(r string) string {
-		return r
-	}
-	dir := "/dev/"
-	s2l := strings.ToLower(s)
-	base := "ttyUSB"
-	switch runtime.GOOS {
-	case "darwin":
-		base = "cu.usbserial-"
-	case "windows":
-		dir = `\\.\`
-		base = "COM"
-		trim = func(r string) string {
-			if strings.HasPrefix(strings.ToUpper(r), dir+base) {
-				return strings.TrimPrefix(r, dir)
-			}
-			return r
-		}
-	}
-	_, err := strconv.Atoi(s)
-	if err != nil {
-		if strings.HasPrefix(s2l, dir) {
-			return trim(s)
-		}
-		return trim(dir + s)
-	}
-	return trim(dir + base + s)
 }
 
 func psPrintln(name, parent string, ppid int) {
@@ -1780,138 +1455,6 @@ func localHost(host string) (ok bool) {
 	return
 }
 
-func cmdRun(cmd *exec.Cmd, ctx context.Context, r io.Reader, zu bool, Serial, host string, Ser2net int, Baud string, exit string, println ...func(v ...any)) (err error) {
-	// PrintLn(3, cmd, r, zu, Z, Serial, host, Ser2net)
-	// time.Sleep(time.Second * 5)
-	run := func() {
-		err = cmd.Start()
-		PrintLn(3, cmd, err)
-		if err == nil {
-			cmd.Wait()
-		}
-	}
-	hp := JoinHostPort(host, Ser2net)
-	if isHP(hp) {
-		// Подключаемся к существующему сеансу
-		if r != nil {
-			// -Z22 && serial==""
-			// -u22 && serial==""
-			// -uH:2322 && serial!=""
-			go func() {
-				run()
-				closer.Close()
-			}()
-			setRaw(&once)
-			return cons(ctx, ioc, hp, Baud, exit, println...)
-		}
-
-		if !zu {
-			// Без управления
-			time.AfterFunc(time.Millisecond*111, func() {
-				Println(ToExitPress, exit+EL)
-			})
-			run()
-			return
-		}
-
-		// -zu
-		var wc io.WriteCloser
-		wc, err = cmd.StdinPipe()
-		if err != nil {
-			return
-		}
-		err = cmd.Start()
-		Println(cmd, err)
-		if err != nil {
-			return
-		}
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
-
-		w, _ := ser2net.NewSerialWorker(ctx, hp, ser2net.BaudRate(strconv.Atoi(Baud)))
-		defer w.Stop()
-		go w.Worker()
-
-		defer func() {
-			println[0]("Connection", hp, "closed", w.SerialClose(), w)
-		}()
-
-		chanByte := make(chan byte, B16)
-		// t := time.AfterFunc(time.Millisecond*time.Duration(ser2net.TOopen), func() {
-		t := time.AfterFunc(time.Second, func() {
-			SetMode(w, ctx, nil, chanByte, EED, 0, println...)
-		})
-		defer t.Stop()
-
-		w.NewCancel(func() error {
-			closer.Close()
-			return nil
-		})
-		setRaw(&once)
-		w.CancelCopy(newSideWriter(wc, args.EscapeChar, hp, chanByte), ioc)
-		cmd.Cancel()
-		return
-	}
-
-	if r != nil {
-		// -Z22
-		// -u22
-		delay := time.Second
-		if Cygwin {
-			delay *= 2
-		}
-		time.AfterFunc(delay, func() {
-			run()
-			closer.Close()
-		})
-		setRaw(&once)
-		return rfc2217(ctx, ioc, Serial, host, Ser2net, Baud, exit, println...)
-	}
-
-	// -zu
-	// -zZ
-	var wc io.WriteCloser
-	if zu {
-		// -zu
-		wc, err = cmd.StdinPipe()
-		if err != nil {
-			return
-		}
-	}
-
-	chanError := make(chan error, 1)
-	chanByte := make(chan byte, B16)
-	chanSerialWorker := make(chan *ser2net.SerialWorker, 1)
-	go func() {
-		chanError <- s2n(ctx, r, chanByte, chanSerialWorker, Serial, host, Ser2net, Baud, exit, println...)
-	}()
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case err = <-chanError:
-		return
-	case w := <-chanSerialWorker:
-		defer w.Stop()
-		err = cmd.Start()
-		Println(cmd, err)
-		if err != nil {
-			return
-		}
-
-		if zu {
-			// w.CancelCopy(newSideWriter(wc, args.EscapeChar, Serial, chanByte), ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: nil, Cygwin: Cygwin})
-			setRaw(&once)
-			w.CancelCopy(newSideWriter(wc, args.EscapeChar, Serial, chanByte), ioc)
-		} else {
-			time.AfterFunc(time.Millisecond*111, func() {
-				Println(ToExitPress, exit+EL)
-			})
-		}
-		cmd.Wait()
-	}
-	return
-}
-
 func swSerial(s string) (serial, sw, h string, p int) {
 	serial = s
 	if serial == "" {
@@ -1933,77 +1476,6 @@ func swSerial(s string) (serial, sw, h string, p int) {
 		// Последовательный порт
 		serial = usbSerial(serial)
 		sw = "s"
-	}
-	return
-}
-
-func externalClient(external *bool, exe string) (signers []ssh.Signer, err error) {
-	switch args.Destination {
-	case ".", ":", repo, SSHJ:
-		if *external {
-			s := "-u"
-			if args.Telnet {
-				s = "-Z"
-			}
-			s = fmt.Sprintf(" `%s %s %s`", repo, s, args.Destination)
-			var conn net.Conn
-			conn, err = pageant.NewConn()
-			if err != nil {
-				err = fmt.Errorf("requires a ssh-agent - для запуска %s нужен агент ключей %v", s, err)
-				args.Putty = false
-				args.Telnet = false
-				*external = false
-				return
-			}
-			defer conn.Close()
-			signers, err = agent.NewClient(conn).Signers()
-			if err != nil || len(signers) < 1 {
-				err = fmt.Errorf("requires at least one key from the ssh-agent - для запуска %s нужен хотя бы один ключ от агента ключей", s)
-				args.Putty = false
-				args.Telnet = false
-				*external = false
-				return
-			}
-			run := func(s, cert string) (err error) {
-				if isFileExist(cert) {
-					return
-				}
-				opts := []string{}
-				if args.LoginName != "" {
-					opts = append(opts, "-l", args.LoginName)
-				}
-				cmd := exec.Command(exe, append(opts, args.Destination, "exit")...)
-				Println(fmt.Errorf("must be run at least once before - до запуска %s нужно хотя бы раз запустить `%s`", s, cmd))
-				cmd.Stdin = os.Stdin
-				cmd.Stdout = os.Stdout
-				cmd.Stderr = os.Stderr
-				cmd.Run()
-				if isFileExist(cert) {
-					return
-				}
-				return fmt.Errorf("couldn't create certificate - не удалось создать сертификат %s", cert)
-			}
-			err = run(s, filepath.Join(SshUserDir, repo))
-			if err != nil {
-				args.Putty = false
-				args.Telnet = false
-				*external = false
-				return
-			}
-			for _, sig := range signers {
-				pref, ok := KeyAlgo2id[sig.PublicKey().Type()]
-				if !ok {
-					continue
-				}
-				err = run(s, filepath.Join(SshUserDir, pref+"-cert.pub"))
-				if err != nil {
-					args.Putty = false
-					args.Telnet = false
-					*external = false
-					return
-				}
-			}
-		}
 	}
 	return
 }

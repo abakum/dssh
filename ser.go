@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -404,4 +405,41 @@ func SetMode(w *ser2net.SerialWorker, ctx context.Context, r io.Reader, chanByte
 			w.SetMode(&mode)
 		}
 	}
+}
+
+// Чтоб  использовать третий порт для windows используй -H3 или -Hcom3 или -H\\.\com3.
+// Можно указать -H1410 или -Hcu.usbserial-1410 или -H/dev/cu.usbserial-1410 для darwin.
+// Можно указать -H0 или -HttyUSB0 или -H/dev/ttyUSB0.
+func usbSerial(s string) (path string) {
+	if !ser2net.SerialPath(s) {
+		// Поиск первого USB порта getFirstUsbSerial
+		return s
+	}
+	trim := func(r string) string {
+		return r
+	}
+	dir := "/dev/"
+	s2l := strings.ToLower(s)
+	base := "ttyUSB"
+	switch runtime.GOOS {
+	case "darwin":
+		base = "cu.usbserial-"
+	case "windows":
+		dir = `\\.\`
+		base = "COM"
+		trim = func(r string) string {
+			if strings.HasPrefix(strings.ToUpper(r), dir+base) {
+				return strings.TrimPrefix(r, dir)
+			}
+			return r
+		}
+	}
+	_, err := strconv.Atoi(s)
+	if err != nil {
+		if strings.HasPrefix(s2l, dir) {
+			return trim(s)
+		}
+		return trim(dir + s)
+	}
+	return trim(dir + base + s)
 }
