@@ -18,6 +18,7 @@ import (
 	. "github.com/abakum/dssh/tssh"
 	"github.com/abakum/go-ser2net/pkg/ser2net"
 	"github.com/abakum/pageant"
+	"github.com/abakum/winssh"
 	"github.com/trzsz/ssh_config"
 	"github.com/xlab/closer"
 	"golang.org/x/crypto/ssh"
@@ -33,6 +34,21 @@ const (
 	PLINK    = "plink"
 	BUSYBOX  = "busybox"
 	MICROCOM = "microcom"
+)
+
+var (
+	Keys = []string{
+		"UserName", "HostName", "PortNumber", "AgentFwd",
+		"RemoteForward", "LocalForward", "DynamicForward",
+		"ProxyHost", "ProxyMethod", "ProxyUsername", "ProxyPort", "ProxyLocalhost", "ProxyDNS", "ProxyTelnetCommand",
+		"Protocol", "WarnOnClose", "FullScreenOnAltEnter", "TerminalType",
+	}
+	Defs = []string{
+		winssh.UserName(), LH, PORT, "0",
+		"", "", "",
+		"", "0", "", PORT, "1", "1", "",
+		"ssh", "0", "1", TERM,
+	}
 )
 
 func notPuttyNewConsole(bin string, cmd *exec.Cmd) {
@@ -297,23 +313,57 @@ func newMap(keys, defs []string, values ...string) (kv map[string]string) {
 			k = "PortForwardings"
 			v = "D" + v
 		case "ProxyHost":
-			if v == "" {
-				defs[i+1] = "0"
-				defs[i+2] = defs[0]
-				defs[i+3] = defs[2]
-			} else {
-				defs[i+1] = "6"
-				ss := strings.Split(v, "@")
-				if len(ss) > 1 {
-					defs[i+2] = ss[0]
-					v = ss[1]
+			ProxyMethod := i + 1
+			ProxyUsername := i + 2
+			ProxyPort := i + 3
+			ProxyLocalHost := i + 4
+			ProxyDNS := i + 5
+			ProxyTelnetCommand := i + 6
+			userHostPort := func(metod, port string) {
+				defs[ProxyMethod] = metod
+				userV := strings.Split(v, "@")
+				if len(userV) > 1 {
+					defs[ProxyUsername] = userV[0]
+					v = userV[1]
 				}
-				ss = strings.Split(v, ":")
-				if len(ss) > 1 {
-					v = ss[0]
-					defs[i+3] = ss[1]
+				hostV := strings.Split(v, ":")
+				if len(hostV) > 1 {
+					v = hostV[0]
+					defs[ProxyPort] = hostV[1]
+				} else {
+					defs[ProxyPort] = port
 				}
-				defs[i+4] = bool2string(ProxyLocalhost)
+				defs[ProxyLocalHost] = bool2string(ProxyLocalhost)
+			}
+			metodV := strings.Split(v, "://")
+			switch strings.ToLower(metodV[0]) {
+			case "":
+				defs[ProxyMethod] = "0"
+				defs[ProxyUsername] = defs[0]
+				defs[ProxyPort] = defs[2]
+			case "socks4a", "4a":
+				defs[ProxyDNS] = "2"
+				fallthrough
+			case "socks4", "4":
+				v = metodV[1]
+				userHostPort("1", "1080")
+			case "socks", "socks5", "5":
+				v = metodV[1]
+				userHostPort("2", "1080")
+			case "http", "https", "connect":
+				v = metodV[1]
+				userHostPort("3", "3128")
+			default:
+				if strings.Contains(v, " ") {
+					// ProxyTelnetCommand
+					defs[ProxyMethod] = "5"
+					v = strings.Replace(v, "%h", "%host", 1)
+					v = strings.Replace(v, "%p", "%port", 1)
+					v = strings.Replace(v, "%u", "%user", 1)
+					defs[ProxyTelnetCommand] = v
+				} else {
+					userHostPort("6", "22")
+				}
 			}
 		}
 		kv[k] = v
@@ -336,6 +386,13 @@ func SshToPutty() (err error) {
 			if s != "*" && !strings.Contains(s, ".") {
 				session := strings.ReplaceAll(s, "?", "7")
 				session = strings.ReplaceAll(session, "*", "8")
+				proxy := ssh_config.Get(s, "ProxyJump")
+				if proxyC := ssh_config.Get(s, "ProxyCommand"); proxyC != "" {
+					proxy = proxyC
+				}
+				if proxyP := ssh_config.Get(s, "ProxyPutty"); proxyP != "" {
+					proxy = proxyP
+				}
 				Conf(filepath.Join(Sessions, session), EQ, newMap(Keys, Defs,
 					ssh_config.Get(s, "User"),
 					ssh_config.Get(s, "HostName"),
@@ -344,7 +401,7 @@ func SshToPutty() (err error) {
 					ssh_config.Get(s, "RemoteForward"),
 					ssh_config.Get(s, "LocalForward"),
 					ssh_config.Get(s, "DynamicForward"),
-					ssh_config.Get(s, "ProxyJump"),
+					proxy,
 				))
 			}
 		}

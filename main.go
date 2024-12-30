@@ -100,20 +100,8 @@ const (
 )
 
 var (
-	_    = encryptedfs.ENC
-	_    = version.Ver
-	Keys = []string{
-		"UserName", "HostName", "PortNumber", "AgentFwd",
-		"RemoteForward", "LocalForward", "DynamicForward",
-		"ProxyHost", "ProxyMethod", "ProxyUsername", "ProxyPort", "ProxyLocalhost",
-		"Protocol", "WarnOnClose", "FullScreenOnAltEnter", "TerminalType",
-	}
-	Defs = []string{
-		winssh.UserName(), LH, PORT, "0",
-		"", "", "",
-		"", "0", "", PORT, "1",
-		"ssh", "0", "1", TERM,
-	}
+	_          = encryptedfs.ENC
+	_          = version.Ver
 	SshUserDir = winssh.UserHomeDirs(".ssh")
 	Cfg        = filepath.Join(SshUserDir, "config")
 	KnownHosts = filepath.Join(SshUserDir, "known_hosts")

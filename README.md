@@ -88,10 +88,10 @@ dssh:=(tssh from trzsz)+(CA key with embed-encrypt)+(sshd from gliderlabs)+(acce
 7. Перенос агента авторизации - getForwardAgentAddr, getAgentClient в sshAgentForward из login.go.
 8. Чтение ExitOnForwardFailure - dynamicForward, localForward, remoteForward, sshForward из forward.go .
 9. Запуск в Windows7 без Cygwin и MSYS2 через `-T` - setupVirtualTerminal, sttyExecutable из term_windows.go.
-10. Чтение IdentitiesOnly в getPublicKeysAuthMethod из login.go.
+10. Чтение IdentitiesOnly в getPublicKeysAuthMethod из login.go.<div id=7.11>
 11. Уникальный SecretEncodeKey и подсказка `encPassword bar` при указании `-o Password=foo` в getPasswordAuthMethod из login.go.
 12. Возможность прервать dynamicForward, localForward, remoteForward по Ctr-C используя restoreStdFuncs.Cleanup перед ss.client.Wait в sshStart из main.go.
-13. Возможность прервать сессию по `<Enter><EscapeChar>.` newTildaReader в wrapStdIO из trzsz.go и newServerWriteCloser в sshLogin из login.go.
+13. Возможность прервать сессию по `<Enter><EscapeChar>.` newTildaReader в wrapStdIO из trzsz.go и newServerWriteCloser в sshLogin из login.go.<div id=7.14>
 14. Для системного прокси Windows нужен socks4 поэтому github.com/smeinecke/go-socks5 вместо github.com/armon/go-socks5 в forward.go.
 15. goScanHostKeys ищет все ключи хоста для добавки в known_hosts. Есть мнение, что это не безопасно.
 16. Чтение KexAlgorithms - setupKexAlgorithmsConfig из login.go, kex.go. Смотри `ssh -Q KexAlgorithms`.
@@ -100,12 +100,13 @@ dssh:=(tssh from trzsz)+(CA key with embed-encrypt)+(sshd from gliderlabs)+(acce
 
 # 8. Как ещё можно использовать dssh:
 1.  Если запустить на хосте `dssh` и проверив доступ `dssh :` потом к хосту можно подключится для удалённой разработки через `Remote - SSH extension` выбрав алиас `ssh-j` в `Connect to Host`.
-2.  Благодаря tssh можно прописать в алиасе `proxy` encPassword и DynamicForward 127.0.0.1:1080 чтоб не вводить пароль при запуске `dssh -5 proxy` для использования Socks5 прокси. (смотри 7.11)
-3.  Для системного прокси на Windows нужен Socks4 прокси поэтому `dssh proxy` (смотри 7.14).
-4.  В 4.11 можно вместо интерпретатора команд указывать команду. Например `dssh -Htop :` это почти то же что и `dssh -t : top`. Вот только строка параметра -H не должна заканчиваться на цифру - иначе это будет принято за порт последовательной консоли. Например вместо `dssh -Htest2 :` надо `dssh -H"test2 ". Если в команде есть пробелы то пробел в конец можно не добавлять. Например `dssh -H"ping 8.8.8.8"`
-5.  Команды с -Hcmd или -Hbash можно использовать для отладки когда на хосте нет последовательно порта.
-6.  Можно использовать dssh как посредника: Если у клиента `AX` есть RFC2217 доступ к консоли по адресу host:port и доступ к sshd-серверу `X` то отдаём эту консоль `dssh -Hhost:port -22 X` если у клиента `BXBY` есть доступ к sshd-серверам `X` и `Y` то используем её `dssh -22 X` или передаём её `dssh -H:2322 -22 Y` если у клиента `СY` есть доступ к sshd-серверу `Y` то используем её `dssh -22 Y`. Все команды управления режимом последовательной консоли передаются по цепочке посредников. Вместо последовательной консоли может быть консоль интерпретатора команд. Вместо sshd-серверов могут быть dssh-сервера для них добавляем параметр `-s` если отдаём локальную консоль.
-7.  Можно использоавть `dssh` в качестве посредника ssh config `ProxyCommand dssh -W %h:%p :`
+2.  Благодаря tssh можно прописать в алиасе `proxy` encPassword и D`ynamicForward 127.0.0.1:1080` чтоб не вводить пароль при запуске `dssh -5 proxy` для использования Socks5 прокси [7.11](#7.11). Чтоб ssh не ругался на неизвестный параметр encPassword в начале `~/.ssh/config` вставьте `IgnoreUnknown *`
+3.  Для системного прокси на Windows нужен Socks4 прокси поэтому `dssh proxy` [7.14](#7.14).
+4.  В [4.11](#4.11) можно вместо интерпретатора команд указывать команду. Например `dssh -Htop :` это почти то же что и `dssh -t : top`. Вот только значение ключа `-H` не должно заканчиваться на цифру - иначе это будет принято за порт последовательной консоли. Например вместо `dssh -Htest2 :` надо `dssh -H"test2 ". Если в команде есть пробелы то пробел в конец можно не добавлять. Например `dssh -H"ping 8.8.8.8"`
+5.  Команды с `-Hcmd` или `-Hbash` можно использовать для отладки когда на хосте нет последовательно порта.
+6.  Можно использовать `dssh` как посредника: Если у клиента `AX` есть RFC2217 доступ к консоли по адресу host:port и доступ к sshd-серверу `X` то отдаём эту консоль  через `X` `dssh -Hhost:port -22 X` если у клиента `BXBY` есть доступ к sshd-серверам `X` и `Y` то используем её `dssh -22 X` или передаём её `dssh -H:2322 -22 Y` если у клиента `СY` есть доступ к sshd-серверу `Y` то используем её `dssh -22 Y`. Все команды управления режимом последовательной консоли передаются по цепочке посредников. Вместо последовательной консоли может быть консоль интерпретатора команд. Вместо sshd-серверов могут быть dssh-сервера для них добавляем параметр `-s` если отдаём локальную консоль.
+7.  Можно использовать `dssh` в качестве посредника в `~/.ssh/config` `ProxyCommand dssh -W %h:%p :`
+8.  Если для `Host D1080` указать `ProxyCommand plink -load %n -raw %h -P %p` и `ProxyPutty socks5://127.0.0.1:1080` то в `PuTTY\Sessions\D1080` будет записано, `ProxyMethod=2` `ProxyHost=127.0.0.1` `ProxyPort=1080` и `plink` сделает то же что и `ProxyCommand nc -x 127.0.0.1:1080 %h %p` или `ProxyCommand connect -S 127.0.0.1:1080 %h %p` [ssh-connect](https://github.com/gotoh/ssh-connect). Можно задать и `ProxyPutty socks4://host[:port]` как `ProxyCommand nc -X 4 -x host[:port] %h %p` и `ProxyPutty http://host[:port]` как `ProxyCommand nc -X connect -x host[:port] %h %p`.
 
 # 9. Удалённый доступ к последовательной консоли на устройстве под управлением RouterOS с портом USB:
 1.  Подключаем USB2serial переходник в USB порт устройства под управлением RouterOS.
