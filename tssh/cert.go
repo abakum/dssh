@@ -198,7 +198,7 @@ func addCertSigner(args *SshArgs, param *sshParam, signer ssh.Signer, fingerprin
 		paths = append(paths, path+".pub")
 	} else {
 		for _, path := range certificateFiles {
-			path = expandEnv(path)
+			path = ExpandEnv(path)
 			expanded, err := expandTokens(path, args, param, "%CdhijkLlnpru")
 			if err != nil {
 				warning("expand CertificateFile [%s] failed: %v", path, err)
@@ -255,7 +255,7 @@ func addCertSigner(args *SshArgs, param *sshParam, signer ssh.Signer, fingerprin
 }
 
 // Если переменные окружения найдены тогда заменяем
-func expandEnv(s string) string {
+func ExpandEnv(s string) string {
 	if !strings.Contains(s, "$") || strings.Count(s, "${") != strings.Count(s, "}") {
 		return s
 	}

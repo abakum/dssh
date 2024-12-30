@@ -132,7 +132,7 @@ func getIdentityAgentAddr(args *SshArgs, param *sshParam) (string, error) {
 		if addr == SOCK {
 			addr = "$" + SOCK
 		}
-		addr = expandEnv(addr)
+		addr = ExpandEnv(addr)
 		expandedAddr, err := expandTokens(addr, args, param, "%CdhijkLlnpru")
 		if err != nil {
 			return "", fmt.Errorf("expand IdentityAgent [%s] failed: %v", addr, err)
@@ -183,7 +183,7 @@ func getForwardAgentAddr(args *SshArgs, param *sshParam) (string, error) {
 		case "yes":
 			return getIdentityAgentAddr(args, param)
 		}
-		return isResolvedExist(expandEnv(addr))
+		return isResolvedExist(ExpandEnv(addr))
 	}
 	return "", err
 }

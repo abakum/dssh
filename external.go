@@ -282,10 +282,9 @@ func look(bins ...string) (path, bin string, err error) {
 	return
 }
 
-// Разбивает ProxyHost на части для putty
+// Разбивает ProxyHost на части для putty и ssh
 func newMap(keys, defs []string, values ...string) (kv map[string]string) {
 	kv = make(map[string]string)
-	ProxyLocalhost := false
 	for i, k := range keys {
 		v := defs[i]
 		if len(values) > i {
@@ -293,56 +292,50 @@ func newMap(keys, defs []string, values ...string) (kv map[string]string) {
 		}
 		switch k {
 		case "HostName":
-			ProxyLocalhost = strings.HasPrefix(v, "127.0.0.")
 		case "RemoteForward":
-			if v == "" {
-				continue
-			}
 			k = "PortForwardings"
-			v = "R" + strings.Replace(v, " ", "=", 1)
+			if v != "" {
+				v = "R" + strings.Replace(v, " ", "=", 1)
+			}
 		case "LocalForward":
-			if v == "" {
-				continue
-			}
 			k = "PortForwardings"
-			v = "L" + strings.Replace(v, " ", "=", 1)
+			if v != "" {
+				v = "L" + strings.Replace(v, " ", "=", 1)
+			}
 		case "DynamicForward":
-			if v == "" {
-				continue
-			}
 			k = "PortForwardings"
-			v = "D" + v
+			if v != "" {
+				v = "D" + v
+			}
+		case "ProxyMethod", "ProxyUsername", "ProxyPort", "ProxyLocalhost", "ProxyDNS", "ProxyTelnetCommand":
+			continue
 		case "ProxyHost":
-			ProxyMethod := i + 1
-			ProxyUsername := i + 2
-			ProxyPort := i + 3
-			ProxyLocalHost := i + 4
-			ProxyDNS := i + 5
-			ProxyTelnetCommand := i + 6
+			kv["ProxyMethod"] = "0"
+			kv["ProxyUsername"] = ""
+			kv["ProxyPort"] = defs[2]
+			kv["ProxyLocalhost"] = bool2string(localHost(kv["HostName"]))
+			kv["ProxyDNS"] = "1"
+			kv["ProxyTelnetCommand"] = ""
 			userHostPort := func(metod, port string) {
-				defs[ProxyMethod] = metod
+				kv["ProxyMethod"] = metod
 				userV := strings.Split(v, "@")
 				if len(userV) > 1 {
-					defs[ProxyUsername] = userV[0]
+					kv["ProxyUsername"] = userV[0]
 					v = userV[1]
 				}
 				hostV := strings.Split(v, ":")
+				kv["ProxyPort"] = port
 				if len(hostV) > 1 {
 					v = hostV[0]
-					defs[ProxyPort] = hostV[1]
-				} else {
-					defs[ProxyPort] = port
+					kv["ProxyPort"] = hostV[1]
 				}
-				defs[ProxyLocalHost] = bool2string(ProxyLocalhost)
+				// kv["ProxyLocalhost"] = bool2string(ProxyLocalhost)
 			}
 			metodV := strings.Split(v, "://")
 			switch strings.ToLower(metodV[0]) {
 			case "":
-				defs[ProxyMethod] = "0"
-				defs[ProxyUsername] = defs[0]
-				defs[ProxyPort] = defs[2]
 			case "socks4a", "4a":
-				defs[ProxyDNS] = "2"
+				kv["ProxyDNS"] = "2"
 				fallthrough
 			case "socks4", "4":
 				v = metodV[1]
@@ -353,14 +346,16 @@ func newMap(keys, defs []string, values ...string) (kv map[string]string) {
 			case "http", "https", "connect":
 				v = metodV[1]
 				userHostPort("3", "3128")
+
 			default:
-				if strings.Contains(v, " ") {
+				if strings.Contains(strings.TrimSpace(v), " ") {
 					// ProxyTelnetCommand
-					defs[ProxyMethod] = "5"
+					kv["ProxyMethod"] = "5"
 					v = strings.Replace(v, "%h", "%host", 1)
 					v = strings.Replace(v, "%p", "%port", 1)
 					v = strings.Replace(v, "%u", "%user", 1)
-					defs[ProxyTelnetCommand] = v
+					kv["ProxyTelnetCommand"] = v
+					v = ""
 				} else {
 					userHostPort("6", "22")
 				}
@@ -391,7 +386,7 @@ func SshToPutty() (err error) {
 					proxy = proxyC
 				}
 				if proxyP := ssh_config.Get(s, "ProxyPutty"); proxyP != "" {
-					proxy = proxyP
+					proxy = ExpandEnv(proxyP)
 				}
 				Conf(filepath.Join(Sessions, session), EQ, newMap(Keys, Defs,
 					ssh_config.Get(s, "User"),
@@ -490,7 +485,7 @@ func client(signer ssh.Signer, signers []ssh.Signer, config string, hosts ...str
 	if err != nil {
 		Println(err)
 	}
-	if args.Putty || (Win7 && !Cygwin) {
+	if args.Putty || (Win7 && !Cygwin) || args.Telnet {
 		Println("SshToPutty", SshToPutty())
 	}
 }

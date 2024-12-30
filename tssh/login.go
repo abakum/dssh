@@ -572,7 +572,7 @@ func getHostKeyCallback(args *SshArgs, param *sshParam) (ssh.HostKeyCallback, *k
 		for _, path := range knownHostsFiles {
 			var resolvedPath string
 			if user {
-				path = expandEnv(path)
+				path = ExpandEnv(path)
 				expandedPath, err := expandTokens(path, args, param, "%CdhijkLlnpru")
 				if err != nil {
 					return fmt.Errorf("expand UserKnownHostsFile [%s] failed: %v", path, err)
