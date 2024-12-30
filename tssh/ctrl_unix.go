@@ -326,7 +326,7 @@ func connectViaControl(args *SshArgs, param *sshParam) *ssh.Client {
 	case "", "none":
 		return nil
 	}
-	ctrlPath = expandEnv(ctrlPath)
+	ctrlPath = ExpandEnv(ctrlPath)
 
 	sshPath, majorVersion, minorVersion, err := getOpenSSH()
 	if err != nil {
