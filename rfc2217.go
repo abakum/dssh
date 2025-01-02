@@ -90,7 +90,8 @@ func s2n(ctx context.Context, r io.Reader, chanB chan byte, chanW chan *ser2net.
 	w, _ := ser2net.NewSerialWorker(ctx, Serial, ser2net.BaudRate(strconv.Atoi(Baud)))
 	defer w.Stop()
 	go w.Worker()
-	t := time.AfterFunc(time.Millisecond*time.Duration(ser2net.TOopen), func() {
+	// t := time.AfterFunc(time.Millisecond*time.Duration(ser2net.TOopen), func() {
+	t := time.AfterFunc(time.Second, func() {
 		defer w.Stop()
 		print := func(a ...any) {
 			for _, p := range println {
