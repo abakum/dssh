@@ -174,9 +174,23 @@ func main() {
 	parser, err := NewParser(arg.Config{}, &args)
 	Fatal(err)
 
-	a2s := []string{} // Без встроенных параметров -h -v
-	// cli := false
+	a2s := []string{} // Без встроенных параметров -h -v и без Command и Argument
+	Command := ""
+	Argument := []string{}
+	comArg := 0
 	for _, arg := range os.Args[1:] {
+		if comArg > 0 {
+			if comArg == 1 {
+				comArg++
+				Command = arg
+			} else {
+				Argument = append(Argument, arg)
+			}
+			continue
+		}
+		if !strings.HasPrefix(arg, "-") {
+			comArg++
+		}
 		switch arg {
 		case "-H":
 			arg = "--path"
@@ -206,6 +220,17 @@ func main() {
 		Println(args.Version())
 		return
 	}
+
+	// args.Command = Command
+	// args.Argument = Argument
+	// Так в Linux подставляются переменные среды
+	args.Command = strings.Join(append([]string{Command}, Argument...), " ")
+	args.Argument = []string{}
+	// if args.Command != "" {
+	// 	if args.ForceTTY {
+	// 		setRaw(&once)
+	// 	}
+	// }
 
 	// log.SetFlags(lf.Flags() | log.Lmicroseconds)
 	log.SetFlags(lf.Flags())
@@ -447,7 +472,8 @@ func main() {
 	}
 
 	// Println(fmt.Sprintf("args %+v", args))
-	Println(repo, strings.Join(a2s, " "))
+	Println(os.Args[0], a2s, `"`+args.Command+`"`, args.Argument)
+
 	defer closer.Close()
 	closer.Bind(cleanup)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -531,7 +557,7 @@ Host ` + SSHJ + `
  ProxyJump ` + u + `@` + JumpHost + `
  EnableTrzsz ` + enableTrzsz
 
-	if args.Restart || BSnw {
+	if args.Command == "" && (args.Restart || BSnw) {
 		// Println("-r || -UU || -HH || -22 || -88")
 		// CGI
 		cli = true

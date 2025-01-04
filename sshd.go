@@ -30,6 +30,7 @@ type cgiArgs struct {
 	Exit    string `arg:"--exit" help:"exit shortcut"`
 	Restart bool   `arg:"-r,--restart" help:"restart daemon"`
 	Debug   bool   `arg:"-v,--debug" help:"verbose mode for debugging, similar to ssh's -v"`
+	Unix    bool   `arg:"-z,--unix" help:"zero new window"`
 }
 
 // Сервер sshd.
@@ -144,6 +145,15 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 		err = parser.Parse(s.Command()[1:])
 		if err != nil {
 			return
+		}
+		if args.Baud == "" {
+			if args.Serial == "H" { // -HH
+				args.Serial = ""
+				args.Baud = "9"
+			}
+			if args.Unix { // -z
+				args.Baud = "9"
+			}
 		}
 		nNear := args.Ser2net
 		wNear := args.Ser2web
