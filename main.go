@@ -171,10 +171,27 @@ func main() {
 	Fatal(err)
 
 	// Like `parser := arg.MustParse(&args)` but override built in option `-v, --version` of package `arg`
+	// parser, err := NewParser(arg.Config{Out: io.Discard, Exit: func(int) {}}, &args)
 	parser, err := NewParser(arg.Config{}, &args)
 	Fatal(err)
 
-	a2s := []string{} // Без встроенных параметров -h -v и без Command и Argument
+	a2s := []string{} // Без встроенных параметров -h -v
+	for _, arg := range os.Args[1:] {
+		switch arg {
+		case "-H":
+			arg = "--path"
+		case "-v":
+			arg = "--debug"
+		}
+		switch strings.ToLower(arg) {
+		case "-help", "--help", "-h", "-v", "-version", "--version":
+			continue
+		default:
+			a2s = append(a2s, arg)
+		}
+	}
+	parser.Parse(a2s) // Для определения args.Destination
+	a2s = []string{}  // Без встроенных параметров -h -v и без Command и Argument
 	Command := ""
 	Argument := []string{}
 	comArg := 0
@@ -188,7 +205,7 @@ func main() {
 			}
 			continue
 		}
-		if !strings.HasPrefix(arg, "-") {
+		if arg == args.Destination {
 			comArg++
 		}
 		switch arg {
