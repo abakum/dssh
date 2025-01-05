@@ -191,22 +191,16 @@ func main() {
 		}
 	}
 	parser.Parse(a2s) // Для определения args.Destination
-	a2s = []string{}  // Без встроенных параметров -h -v и без Command и Argument
-	Command := ""
-	Argument := []string{}
-	comArg := 0
+	a2s = []string{}  // Без встроенных параметров -h -v и без Command и as
+	as := []string{}  // После args.Destination
+	command := false
 	for _, arg := range os.Args[1:] {
-		if comArg > 0 {
-			if comArg == 1 {
-				comArg++
-				Command = arg
-			} else {
-				Argument = append(Argument, arg)
-			}
+		if command {
+			as = append(as, arg)
 			continue
 		}
 		if arg == args.Destination {
-			comArg++
+			command = true
 		}
 		switch arg {
 		case "-H":
@@ -238,16 +232,18 @@ func main() {
 		return
 	}
 
-	// args.Command = Command
-	// args.Argument = Argument
-	// Так в Linux подставляются переменные среды
-	args.Command = strings.Join(append([]string{Command}, Argument...), " ")
+	args.Command = ""
 	args.Argument = []string{}
-	// if args.Command != "" {
-	// 	if args.ForceTTY {
-	// 		setRaw(&once)
-	// 	}
-	// }
+	if len(as) > 0 {
+		// args.Command = as[0]
+		// args.Argument = as[1:]
+
+		// Так в Linux подставляются переменные среды
+		args.Command = strings.Join(as, " ")
+		// if args.ForceTTY {
+		// 	setRaw(&once)
+		// }
+	}
 
 	// log.SetFlags(lf.Flags() | log.Lmicroseconds)
 	log.SetFlags(lf.Flags())
@@ -295,7 +291,7 @@ func main() {
 		s := "ssh"
 		_, err := exec.LookPath(s)
 		args.Telnet = err == nil
-		if !args.Unix {
+		if !args.Unix || args.ForceTTY {
 			_, err := exec.LookPath(PUTTY)
 			if err == nil {
 				s = PUTTY
@@ -306,6 +302,10 @@ func main() {
 		if args.Telnet || args.Putty {
 			Println(fmt.Errorf("trying to use - в Windows 7 пробую использовать " + s))
 		}
+	}
+	if args.Command != "" && args.Putty && !args.Unix {
+		Println(fmt.Errorf("for run will use - для запуска %q будем использовать plink", args.Command))
+		args.Unix = true
 	}
 
 	nNear, nFar := near2far(portOB(args.Ser2net, RFC2217), &args, s2, loc)
@@ -489,7 +489,7 @@ func main() {
 	}
 
 	// Println(fmt.Sprintf("args %+v", args))
-	Println(os.Args[0], a2s, `"`+args.Command+`"`, args.Argument)
+	Println(os.Args[0], a2s, args.Command)
 
 	defer closer.Close()
 	closer.Bind(cleanup)
@@ -602,7 +602,11 @@ Host ` + SSHJ + `
 						execPath = BUSYBOX
 					}
 
-					cmd := exec.CommandContext(ctx, execPath, strings.Fields(opt)...)
+					opts := strings.Fields(opt)
+					if args.Command != "" {
+						opts = append(opts, args.Command)
+					}
+					cmd := exec.CommandContext(ctx, execPath, opts...)
 					run := func() {
 						err = cmd.Start()
 						PrintLn(3, cmd, err)
@@ -872,7 +876,11 @@ Host ` + SSHJ + `
 		// dssh -zu : plink to remote
 		// dssh -Z : ssh to remote
 		// dssh -zZ : ssh to remote
-		cmd := exec.CommandContext(ctx, execPath, strings.Fields(opt)...)
+		opts := strings.Fields(opt)
+		if args.Command != "" {
+			opts = append(opts, args.Command)
+		}
+		cmd := exec.CommandContext(ctx, execPath, opts...)
 		run := func() {
 			err = cmd.Start()
 			PrintLn(3, cmd, err)
@@ -911,6 +919,9 @@ Host ` + SSHJ + `
 			cmd.Stdin = os.Stdin
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
+			if args.ForceTTY {
+				setRaw(&once)
+			}
 			run()
 			return
 		}
