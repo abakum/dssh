@@ -853,9 +853,9 @@ Host ` + SSHJ + `
 			exit := server(s2, p, repo, s2, signer, Println, Print)
 			KidsDone(os.Getpid())
 			if exit == "" {
-				Println("the daemon will restart after - сервер перезапускается через", TOR)
+				Println("the daemon will restart after - сервер перезапустится через", TOR, "секунд")
 			} else {
-				Println("the daemon is stopped by - сервер остановлен", exit)
+				Println("the daemon is stopped by - сервер остановлен клиентом", exit)
 				return
 			}
 			time.Sleep(TOR)
