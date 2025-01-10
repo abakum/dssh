@@ -175,32 +175,14 @@ func main() {
 	parser, err := NewParser(arg.Config{}, &args)
 	Fatal(err)
 
-	a2s := []string{} // Без встроенных параметров -h -v
-	for _, arg := range os.Args[1:] {
-		switch arg {
-		case "-H":
-			arg = "--path"
-		case "-v":
-			arg = "--debug"
-		}
-		switch strings.ToLower(arg) {
-		case "-help", "--help", "-h", "-v", "-version", "--version":
-			continue
-		default:
-			a2s = append(a2s, arg)
-		}
-	}
-	parser.Parse(a2s) // Для определения args.Destination
-	a2s = []string{}  // Без встроенных параметров -h -v и без Command и as
-	as := []string{}  // После args.Destination
+	a2s := []string{}   // Без встроенных параметров -h -v и без аргументов после args.Destination
+	lasts := []string{} // После args.Destination
 	command := false
+	errError := ""
 	for _, arg := range os.Args[1:] {
 		if command {
-			as = append(as, arg)
+			lasts = append(lasts, arg)
 			continue
-		}
-		if arg == args.Destination {
-			command = true
 		}
 		switch arg {
 		case "-H":
@@ -209,20 +191,47 @@ func main() {
 			arg = "--debug"
 		}
 		switch strings.ToLower(arg) {
-		case "-help", "--help":
+		case "--help":
 			parser.WriteHelp(Std)
 			return
 		case "-h":
 			parser.WriteUsage(Std)
 			return
-		case "-v", "-version", "--version":
+		case "-v", "--version":
 			Println(args.Version())
 			return
 		default:
 			a2s = append(a2s, arg)
 		}
+		err = parser.Parse(a2s) // Для определения args.Destination
+		if err != nil {
+			if errError == err.Error() {
+				break
+			}
+			ua := "unknown argument -"
+			if strings.HasPrefix(err.Error(), ua) {
+				ua = strings.TrimPrefix(err.Error(), ua)
+				if strings.Contains(strings.ToLower(ua), "h") {
+					// -ath
+					parser.WriteUsage(Std)
+					return
+				}
+				if strings.Contains(ua, "V") {
+					// -ATV
+					Println(args.Version())
+					return
+				}
+			}
+			// Println(arg, err)
+			errError = err.Error()
+			continue
+		}
+		if args.Destination != "" {
+			command = true
+		}
 	}
 
+	// Println(os.Args[0], a2s, lasts)
 	if err := parser.Parse(a2s); err != nil {
 		parser.WriteUsage(Std)
 		Fatal(err)
@@ -234,12 +243,12 @@ func main() {
 
 	args.Command = ""
 	args.Argument = []string{}
-	if len(as) > 0 {
+	if len(lasts) > 0 {
 		// args.Command = as[0]
 		// args.Argument = as[1:]
 
 		// Так в Linux подставляются переменные среды
-		args.Command = strings.Join(as, " ")
+		args.Command = strings.Join(lasts, " ")
 		// if args.ForceTTY {
 		// 	setRaw(&once)
 		// }
@@ -574,19 +583,29 @@ Host ` + SSHJ + `
  ProxyJump ` + u + `@` + JumpHost + `
  EnableTrzsz ` + enableTrzsz
 
-	if args.Command == "" && (args.Restart || BSnw) {
-		// Println("-r || -UU || -HH || -22 || -88")
-		// CGI
+	if args.Command == "" && (args.Restart || args.Exit || BSnw) {
+		// Println("CGI")
 		cli = true
 		// args.ForceTTY = true
 		args.Argument = []string{}
-		if args.Restart {
+		if args.Restart || args.Exit {
 			// dssh --restart
 			if args.Destination == "" {
 				args.Destination = ":" // Рестарт сервера за NAT
 			}
 			args.Command = repo
-			args.Argument = append(args.Argument, "--restart")
+			if args.Restart {
+				args.Argument = append(args.Argument, RESTART)
+			}
+			if args.Exit {
+				s := winssh.UserName()
+				hostname, err := os.Hostname()
+				if err == nil {
+					s += "@" + hostname
+				}
+				s += " " + winssh.Banner()
+				args.Argument = append(args.Argument, "--exit", s)
+			}
 		} else {
 			// Println("-UU || -HH || -22 || -88")
 			if loc {
@@ -831,9 +850,14 @@ Host ` + SSHJ + `
 		for {
 			Println(fmt.Sprintf("%s daemon waiting on - сервер ожидает на %s:%s", repo, h, p))
 			psPrintln(filepath.Base(exe), "", 0)
-			server(s2, p, repo, s2, signer, Println, Print)
+			exit := server(s2, p, repo, s2, signer, Println, Print)
 			KidsDone(os.Getpid())
-			Println("server has been stopped - сервер остановлен")
+			if exit == "" {
+				Println("the daemon will restart after - сервер перезапускается через", TOR)
+			} else {
+				Println("the daemon is stopped by - сервер остановлен", exit)
+				return
+			}
 			time.Sleep(TOR)
 		}
 	} // Сервис
@@ -1035,7 +1059,7 @@ func cleanup() {
 	// winssh.KidsDone(os.Getpid())
 	time.Sleep(time.Millisecond * 111)
 	KidsDone(os.Getpid())
-	Println("cleanup done" + DECTCEM) // Показать курсор
+	Println("cleanup done" + DECTCEM + EL) // показать курсор, очистить строку
 }
 
 func FingerprintSHA256(pubKey ssh.PublicKey) string {

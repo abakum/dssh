@@ -33,13 +33,15 @@ type cgiArgs struct {
 	Unix    bool   `arg:"-z,--unix" help:"zero new window"`
 }
 
+var Exit string
+
 // Сервер sshd.
 // h, p хост, порт,
 // repo имя в сертификате,
 // signer ключ ЦС,
 // authorizedKeys замки разрешённых пользователей,
 // CertCheck имя разрешённого пользователя в сертификате.
-func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Print func(v ...any)) { //, authorizedKeys []gl.PublicKey
+func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Print func(v ...any)) string { //, authorizedKeys []gl.PublicKey
 	Println(ToExitPress, "<^C>")
 
 	authorizedKeys := FileToAuthorized(filepath.Join(SshUserDir, "authorized_keys"), signer.PublicKey())
@@ -227,6 +229,9 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 			}
 			// dssh -UU :
 			print(cons(s.Context(), s, serial, args.Baud, args.Exit, ps...))
+		case args.Exit != "":
+			caRW()
+			Exit = args.Exit
 		}
 	})
 
@@ -242,6 +247,7 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 		noidle()
 	}
 	Println("ListenAndServe", server.ListenAndServe())
+	return Exit
 }
 
 // Не спать! Товарищи депутаты.

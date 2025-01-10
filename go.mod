@@ -18,7 +18,6 @@ require (
 	github.com/abakum/go-ser2net v0.0.2-0.20241221102609-08b43d06560f
 	github.com/abakum/menu v0.0.2-lw
 	github.com/abakum/pageant v0.0.1
-	github.com/abakum/putty_hosts v0.0.1
 	github.com/abakum/version v0.1.4-lw
 	github.com/abakum/winssh v0.0.1
 	github.com/alessio/shellescape v1.4.2
@@ -28,6 +27,7 @@ require (
 	github.com/chzyer/readline v1.5.1
 	github.com/containerd/console v1.0.4
 	github.com/creack/pty v1.1.21
+	github.com/docopt/docopt.go v0.0.0-20180111231733-ee0de3bc6815
 	github.com/gliderlabs/ssh v0.3.7
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/mattn/go-isatty v0.0.20

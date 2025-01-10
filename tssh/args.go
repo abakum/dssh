@@ -94,6 +94,7 @@ type SshArgs struct {
 	Ser2net        int     `arg:"-2,--2217" placeholder:"port" help:"RFC2217 telnet port for serial port console over telnet" default:"-1"`
 	Ser2web        int     `arg:"-8,--web" placeholder:"port" help:"web port for serial console over web" default:"-1"`
 	Daemon         bool    `arg:"-d,--daemon" help:"run as ssh daemon, destination as [bind_addr][:port]\nif bind_addr is omitted then 127.0.0.1\nif bind_addr is * then 0.0.0.0\nif bind_addr is _ then ip of first interface like 192.168.0.2\nif port is omitted then 2222\nor just 'dssh'"`
+	Exit           bool    `arg:"--exit" help:"stop daemon"`
 	Restart        bool    `arg:"-r,--restart" help:"restart daemon"`
 	Unix           bool    `arg:"-z,--unix" help:"zero new window"`
 	Telnet         bool    `arg:"-Z,--telnet" help:"telnet for serial console or ssh for shell - the sign of Zorro"`
