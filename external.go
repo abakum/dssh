@@ -57,71 +57,76 @@ func notPuttyNewConsole(bin string, cmd *exec.Cmd) {
 	}
 }
 
-func externalClient(external *bool, exe string) (signers []ssh.Signer, err error) {
+func isDssh() bool {
 	switch args.Destination {
-	case ".", ":", repo, SSHJ:
-		if *external {
-			s := "-u"
-			if args.Telnet {
-				s = "-Z"
+	case ".", repo, ":", SSHJ:
+		return true
+	}
+	return false
+}
+
+func externalClient(external *bool, exe string) (signers []ssh.Signer, err error) {
+	if isDssh() && *external {
+		s := "-u"
+		if args.Telnet {
+			s = "-Z"
+		}
+		s = fmt.Sprintf(" `%s %s %s`", repo, s, args.Destination)
+		var conn net.Conn
+		conn, err = pageant.NewConn()
+		if err != nil {
+			err = fmt.Errorf("requires a ssh-agent - для запуска %s нужен агент ключей %v", s, err)
+			args.Putty = false
+			args.Telnet = false
+			*external = false
+			return
+		}
+		defer conn.Close()
+		signers, err = agent.NewClient(conn).Signers()
+		if err != nil || len(signers) < 1 {
+			err = fmt.Errorf("requires at least one key from the ssh-agent - для запуска %s нужен хотя бы один ключ от агента ключей", s)
+			args.Putty = false
+			args.Telnet = false
+			*external = false
+			return
+		}
+		run := func(s, cert string) (err error) {
+			if isFileExist(cert) {
+				return
 			}
-			s = fmt.Sprintf(" `%s %s %s`", repo, s, args.Destination)
-			var conn net.Conn
-			conn, err = pageant.NewConn()
+			opts := []string{}
+			if args.LoginName != "" {
+				opts = append(opts, "-l", args.LoginName)
+			}
+			cmd := exec.Command(exe, append(opts, args.Destination, "exit")...)
+			Println(fmt.Errorf("must be run at least once before - до запуска %s нужно хотя бы раз запустить `%s`", s, cmd))
+			cmd.Stdin = os.Stdin
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			cmd.Run()
+			if isFileExist(cert) {
+				return
+			}
+			return fmt.Errorf("couldn't create certificate - не удалось создать сертификат %s", cert)
+		}
+		err = run(s, filepath.Join(SshUserDir, repo))
+		if err != nil {
+			args.Putty = false
+			args.Telnet = false
+			*external = false
+			return
+		}
+		for _, sig := range signers {
+			pref, ok := KeyAlgo2id[sig.PublicKey().Type()]
+			if !ok {
+				continue
+			}
+			err = run(s, filepath.Join(SshUserDir, pref+"-cert.pub"))
 			if err != nil {
-				err = fmt.Errorf("requires a ssh-agent - для запуска %s нужен агент ключей %v", s, err)
 				args.Putty = false
 				args.Telnet = false
 				*external = false
 				return
-			}
-			defer conn.Close()
-			signers, err = agent.NewClient(conn).Signers()
-			if err != nil || len(signers) < 1 {
-				err = fmt.Errorf("requires at least one key from the ssh-agent - для запуска %s нужен хотя бы один ключ от агента ключей", s)
-				args.Putty = false
-				args.Telnet = false
-				*external = false
-				return
-			}
-			run := func(s, cert string) (err error) {
-				if isFileExist(cert) {
-					return
-				}
-				opts := []string{}
-				if args.LoginName != "" {
-					opts = append(opts, "-l", args.LoginName)
-				}
-				cmd := exec.Command(exe, append(opts, args.Destination, "exit")...)
-				Println(fmt.Errorf("must be run at least once before - до запуска %s нужно хотя бы раз запустить `%s`", s, cmd))
-				cmd.Stdin = os.Stdin
-				cmd.Stdout = os.Stdout
-				cmd.Stderr = os.Stderr
-				cmd.Run()
-				if isFileExist(cert) {
-					return
-				}
-				return fmt.Errorf("couldn't create certificate - не удалось создать сертификат %s", cert)
-			}
-			err = run(s, filepath.Join(SshUserDir, repo))
-			if err != nil {
-				args.Putty = false
-				args.Telnet = false
-				*external = false
-				return
-			}
-			for _, sig := range signers {
-				pref, ok := KeyAlgo2id[sig.PublicKey().Type()]
-				if !ok {
-					continue
-				}
-				err = run(s, filepath.Join(SshUserDir, pref+"-cert.pub"))
-				if err != nil {
-					args.Putty = false
-					args.Telnet = false
-					*external = false
-					return
-				}
 			}
 		}
 	}
@@ -378,7 +383,7 @@ func SshToPutty() (err error) {
 	for _, host := range cfg.Hosts {
 		for _, pattern := range host.Patterns {
 			s := pattern.String()
-			if s != "*" && !strings.Contains(s, ".") {
+			if s != "*" && !strings.Contains(s, ".") && s != ":" {
 				session := strings.ReplaceAll(s, "?", "7")
 				session = strings.ReplaceAll(session, "*", "8")
 				proxy := ssh_config.Get(s, "ProxyJump")
@@ -528,7 +533,7 @@ Host ` + host + `
 // Алиас для локального доступа. Попробовать sshd.
 func local(h, p, repo string) string {
 	alias := `
-Host ` + repo + `
+Host ` + repo + ` .
  User _
  HostName ` + h + `
  Port ` + p + `

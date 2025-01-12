@@ -296,11 +296,29 @@ func main() {
 	s2, dial := host2LD(h)
 
 	loc := localHost(args.Destination)
-	if !loc && Win7 && !(args.DisableTTY || args.NoCommand || Cygwin || args.Putty || args.Telnet) {
+
+	nNear, nFar := near2far(portOB(args.Ser2net, RFC2217), &args, s2, loc)
+	wNear, wFar := near2far(portOB(args.Ser2web, WEB2217), &args, s2, loc)
+
+	external := args.Putty || args.Telnet
+	if args.Baud == "" {
+		if args.Serial == "H" { // -HH
+			args.Serial = ""
+			args.Baud = "9"
+		}
+		if args.Destination == "" && external || // -u || -Z
+			args.Unix && !external { // -z
+			args.Baud = "9"
+		}
+	}
+
+	BSnw := args.Serial != "" || args.Baud != "" || nNear > 0 || wNear > 0
+
+	if !loc && Win7 && !(args.DisableTTY || args.NoCommand || Cygwin || external || BSnw) {
 		s := "ssh"
 		_, err := exec.LookPath(s)
 		args.Telnet = err == nil
-		if !args.Unix || args.ForceTTY {
+		if !args.Telnet || args.ForceTTY {
 			_, err := exec.LookPath(PUTTY)
 			if err == nil {
 				s = PUTTY
@@ -316,9 +334,6 @@ func main() {
 		Println(fmt.Errorf("for run will use - для запуска %q будем использовать plink", args.Command))
 		args.Unix = true
 	}
-
-	nNear, nFar := near2far(portOB(args.Ser2net, RFC2217), &args, s2, loc)
-	wNear, wFar := near2far(portOB(args.Ser2web, WEB2217), &args, s2, loc)
 
 	djh := ""
 	djp := ""
@@ -366,17 +381,7 @@ func main() {
 		}
 	}
 
-	external := args.Putty || args.Telnet
-	if args.Baud == "" {
-		if args.Serial == "H" { // -HH
-			args.Serial = ""
-			args.Baud = "9"
-		}
-		if args.Destination == "" && external || // -u или -Z
-			args.Unix && !external { // -z
-			args.Baud = "9"
-		}
-	}
+	external = args.Putty || args.Telnet
 	signers, err := externalClient(&external, exe)
 	if err != nil {
 		Println(err)
@@ -483,7 +488,7 @@ func main() {
 			}
 		}
 	}
-	BSnw := serial != "" || args.Baud != "" || nNear > 0 || wNear > 0
+	BSnw = serial != "" || args.Baud != "" || nNear > 0 || wNear > 0
 	if BSnw {
 		enableTrzsz = "no"
 		if loc || args.Destination == "." {
@@ -574,7 +579,7 @@ func main() {
 		}
 	}
 	sshj := `
-Host ` + SSHJ + `
+Host ` + SSHJ + ` :
  User _
  HostName ` + SSHJ2 + `
  UserKnownHostsFile ~/.ssh/` + repo + `
@@ -951,15 +956,22 @@ Host ` + SSHJ + `
 		}
 	}
 	// dssh -HH :
+	// dssh -UU :
 	// dssh -22 :
 	// dssh -88 :
 	if BSnw {
 		setRaw(&once)
 		share := func() {
-			if nNear > 0 || wNear > 0 {
+			if serial == "" {
+				serial = getFirstUsbSerial(serial, args.Baud, PrintNil)
 				if serial == "" {
-					serial = getFirstUsbSerial(serial, args.Baud, Print)
+					Println(ErrNotFoundFreeSerial)
+				} else if nNear < 0 && wNear < 0 {
+					nNear = RFC2217
 				}
+			}
+			// Println("share", "serial", serial, "args.Baud", args.Baud, "nNear", nNear, "wNear", wNear)
+			if nNear > 0 || wNear > 0 {
 				Println("Share console - Отдаю консоль", serial, "через", args.Destination)
 				// Обратный перенос портов
 				args.NoCommand = true
@@ -985,8 +997,8 @@ Host ` + SSHJ + `
 				})
 			}
 		}
-		switch args.Destination {
-		case ":", SSHJ, ".", repo:
+		// Println(args.Destination, isDssh(), args.Share)
+		if isDssh() {
 			if args.Share {
 				share()
 			} else {
@@ -1020,7 +1032,7 @@ Host ` + SSHJ + `
 					})
 				}
 			}
-		default:
+		} else {
 			share()
 		}
 	} else if (enableTrzsz == "no" || args.Destination == repo) && args.StdioForward == "" {

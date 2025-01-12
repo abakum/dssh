@@ -33,12 +33,12 @@ var (
 	ErrNotSerial          = fmt.Errorf("this is not a serial port - это не последовательный порт")
 )
 
-func getFirstSerial(isUSB bool, Baud string) (name, list string) {
+func getFirstSerial(isUSB bool, Baud string, print func(v ...any)) (name, list string) {
 	ports, err := serial.GetPortsList()
-	Println(ports)
 	if err != nil || len(ports) == 0 {
 		return
 	}
+	print(ports)
 	detailedPorts, err := enumerator.GetDetailedPortsList()
 	if err != nil || len(detailedPorts) == 0 {
 		return
@@ -97,7 +97,7 @@ func getFirstUsbSerial(serialPort, Baud string, print func(v ...any)) (serial st
 	if serialPort != "" {
 		return serialPort
 	}
-	serial, list := getFirstSerial(true, Baud)
+	serial, list := getFirstSerial(true, Baud, print)
 	print(list)
 	return
 }
