@@ -418,7 +418,7 @@ func main() {
 		if !Windows {
 			_, err := exec.LookPath(BUSYBOX)
 			if err == nil {
-				if SP {
+				if SP && !args.Telnet {
 					// putty plink busybox
 					extSer = exec.Command(BUSYBOX, MICROCOM, "--help").Run() == nil
 				} else {
