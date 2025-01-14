@@ -318,11 +318,18 @@ func main() {
 	wNear, wFar := near2far(portOB(args.Ser2web, WEB2217), &args, s2, loc)
 
 	external := args.Putty || args.Telnet
+
+	switch args.Serial {
+	case "H":
+		args.Serial = ":"
+	case "_", "+":
+		args.Serial += ":"
+	}
+	if strings.HasSuffix(args.Serial, ":") {
+		args.Serial += strconv.Itoa(RFC2217)
+	}
+
 	if args.Baud == "" {
-		if args.Serial == "H" { // -HH
-			args.Serial = ""
-			args.Baud = "9"
-		}
 		if args.Destination == "" && external || // -u || -Z
 			args.Unix && !external { // -z
 			args.Baud = "9"
