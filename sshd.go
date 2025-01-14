@@ -55,6 +55,13 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 		Addr: net.JoinHostPort(h, p),
 		// next for ssh -R host:port:x:x
 		ReversePortForwardingCallback: gl.ReversePortForwardingCallback(func(ctx gl.Context, host string, port uint32) bool {
+			if host == LH {
+				// Когда dssh-сервер и dssh-клиент на одном хосте
+				if hp := newHostPort(host, int(port), ""); hp.read() == nil {
+					Println("Attempt to bind - Начать слушать", host, port, "denied - отказанно")
+					return false
+				}
+			}
 			Println("Attempt to bind - Начать слушать", host, port, "granted - позволено")
 			return true
 		}),
@@ -66,6 +73,13 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 
 		// next for ssh -L x:dhost:dport
 		LocalPortForwardingCallback: gl.LocalPortForwardingCallback(func(ctx gl.Context, dhost string, dport uint32) bool {
+			if dhost == LH {
+				// Когда dssh-сервер и dssh-клиент на одном хосте
+				if hp := newHostPort(dhost, int(dport), ""); hp.read() == nil {
+					Println("Port forwarding is disabled - Запрешён перенос", dhost, dport)
+					return false
+				}
+			}
 			Println("Accepted forward - Разрешен перенос", dhost, dport)
 			return true
 		}),

@@ -295,6 +295,23 @@ func main() {
 	u, h, p := ParseDestination(args.Destination) //tssh
 	s2, dial := host2LD(h)
 
+	if args.Share {
+		// -s
+		if args.Ser2net < 0 {
+			args.Ser2net = RFC2217
+		}
+		switch args.Destination {
+		case "":
+			// -s Используем консоль dssh-сервера
+			// -s20 :
+			args.Destination = ":"
+		case ".", repo:
+			// -s .  Отдаём свою консоль через dssh-сервер
+			// -20
+			args.Destination = ""
+			args.Share = false
+		}
+	}
 	loc := localHost(args.Destination)
 
 	nNear, nFar := near2far(portOB(args.Ser2net, RFC2217), &args, s2, loc)
@@ -976,10 +993,22 @@ Host ` + SSHJ + ` :
 				// Обратный перенос портов
 				args.NoCommand = true
 				if nNear > 0 {
-					args.RemoteForward.UnmarshalText([]byte(fmt.Sprintf("%s:%d:%s:%d", LH, nNear, LH, nNear)))
+					s4 := fmt.Sprintf("%s:%d:%s:%d", LH, nNear, LH, nNear)
+					Println("-R", s4)
+					args.RemoteForward.UnmarshalText([]byte(s4))
+					hp := newHostPort(LH, nNear, "R")
+					if hp.write() == nil {
+						closer.Bind(func() { hp.remove() })
+					}
 				}
 				if wNear > 0 {
-					args.RemoteForward.UnmarshalText([]byte(fmt.Sprintf("%s:%d:%s:%d", LH, wFar, LH, wFar)))
+					s4 := fmt.Sprintf("%s:%d:%s:%d", LH, wFar, LH, wFar)
+					Println("-R", s4)
+					args.RemoteForward.UnmarshalText([]byte(s4))
+					hp := newHostPort(LH, wFar, "R")
+					if hp.write() == nil {
+						closer.Bind(func() { hp.remove() })
+					}
 				}
 				time.AfterFunc(time.Second, func() {
 					nw(LH, LH)
@@ -987,7 +1016,16 @@ Host ` + SSHJ + ` :
 				})
 			} else if h, p, err := net.SplitHostPort(serial); err == nil {
 				Println("Remote console - Консоль", serial, "через", args.Destination)
-				args.LocalForward.UnmarshalText([]byte(fmt.Sprintf("%s:%s:%s:%s", LH, p, h, p)))
+				s4 := fmt.Sprintf("%s:%s:%s:%s", LH, p, h, p)
+				Println("-L", s4)
+				args.LocalForward.UnmarshalText([]byte(s4))
+				if h == LH {
+					i, _ := strconv.Atoi(p)
+					hp := newHostPort(h, i, "L")
+					if hp.write() == nil {
+						closer.Bind(func() { hp.remove() })
+					}
+				}
 				args.NoCommand = true
 				LHp := net.JoinHostPort(LH, p)
 				time.AfterFunc(time.Second, func() {
@@ -1315,10 +1353,20 @@ func near2far(iNear int, args *SshArgs, s2 string, loc bool) (oNear, oFar int) {
 	if iNear > -1 && !loc && !args.Share {
 		switch args.Destination {
 		case ".", repo:
-			oNear += 10
-			fallthrough
+			// -22 . Отдаём свою консоль через dssh-сервер
+			// -22
+			// 	oNear += 10
+			// 	fallthrough
+			args.Destination = ""
 		case ":", SSHJ:
-			args.LocalForward.UnmarshalText([]byte(fmt.Sprintf("%s:%d:%s:%d", LH, oNear, s2, oFar)))
+			// -22 : Используем консоль dssh-сервера
+			s4 := fmt.Sprintf("%s:%d:%s:%d", LH, oNear, s2, oFar)
+			Println("-L", s4)
+			args.LocalForward.UnmarshalText([]byte(s4))
+			hp := newHostPort(LH, oNear, "L")
+			if hp.write() == nil {
+				closer.Bind(func() { hp.remove() })
+			}
 		}
 	}
 	return
