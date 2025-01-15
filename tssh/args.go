@@ -102,6 +102,7 @@ type SshArgs struct {
 	Socks5         bool    `arg:"-5,--socks5" help:"for dynamic port forwarding forces ssh to use version 5 of socks"`
 	DirectJump     string  `arg:"-j,--" placeholder:"destination" help:"jump to daemon by destination"`
 	Share          bool    `arg:"-s,--share" help:"share local console"`
+	Use            bool    `arg:"-0,--use" help:"use remote console"`
 }
 
 func (SshArgs) Description() string {

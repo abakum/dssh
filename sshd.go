@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	"github.com/abakum/winssh"
 	gl "github.com/gliderlabs/ssh"
 	"github.com/trzsz/go-arg"
+	"github.com/xlab/closer"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -42,6 +44,18 @@ var Exit string
 // authorizedKeys замки разрешённых пользователей,
 // CertCheck имя разрешённого пользователя в сертификате.
 func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Print func(v ...any)) string { //, authorizedKeys []gl.PublicKey
+	i, err := strconv.ParseUint(p, 10, 16)
+	if err != nil {
+		return err.Error()
+	}
+	hp := newHostPort(h, int(i), time.Now().Local().Format("20060102T150405"))
+	err = hp.read()
+	if err == nil {
+		return fmt.Sprintf("Already used - Уже используется %+v", hp)
+	}
+	if hp.write() == nil {
+		closer.Bind(func() { hp.remove() })
+	}
 	Println(ToExitPress, "<^C>")
 
 	authorizedKeys := FileToAuthorized(filepath.Join(SshUserDir, "authorized_keys"), signer.PublicKey())
@@ -57,7 +71,7 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 		ReversePortForwardingCallback: gl.ReversePortForwardingCallback(func(ctx gl.Context, host string, port uint32) bool {
 			if host == LH {
 				// Когда dssh-сервер и dssh-клиент на одном хосте
-				if hp := newHostPort(host, int(port), ""); hp.read() == nil {
+				if hp := newHostPort(host, int(port), ""); hp.read() == nil && hp.Path == "" {
 					Println("Attempt to bind - Начать слушать", host, port, "denied - отказанно")
 					return false
 				}
@@ -75,7 +89,7 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 		LocalPortForwardingCallback: gl.LocalPortForwardingCallback(func(ctx gl.Context, dhost string, dport uint32) bool {
 			if dhost == LH {
 				// Когда dssh-сервер и dssh-клиент на одном хосте
-				if hp := newHostPort(dhost, int(dport), ""); hp.read() == nil {
+				if hp := newHostPort(dhost, int(dport), ""); hp.read() == nil && hp.Path == "" {
 					Println("Port forwarding is disabled - Запрешён перенос", dhost, dport)
 					return false
 				}

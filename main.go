@@ -296,22 +296,33 @@ func main() {
 	s2, dial := host2LD(h)
 
 	if args.Share {
-		// -s
+		// -s Отдаём свою консоль через dssh-сервер
 		if args.Ser2net < 0 {
 			args.Ser2net = RFC2217
 		}
 		switch args.Destination {
 		case "":
-			// -s Используем консоль dssh-сервера
+			// -s
 			// -s20 :
 			args.Destination = ":"
 		case ".", repo:
-			// -s .  Отдаём свою консоль через dssh-сервер
+			// -s .
 			// -20
 			args.Destination = ""
 			args.Share = false
 		}
 	}
+	if args.Use {
+		// -0 Используем консоль dssh-сервера
+		if args.Ser2net < 0 {
+			args.Ser2net = RFC2217
+		}
+		if args.Destination == "" {
+			args.Destination = ":"
+		}
+		// -20 :
+	}
+
 	loc := localHost(args.Destination)
 
 	nNear, nFar := near2far(portOB(args.Ser2net, RFC2217), &args, s2, loc)
@@ -322,6 +333,9 @@ func main() {
 	switch args.Serial {
 	case "H":
 		args.Serial = ":"
+		if args.Destination == "" {
+			args.Destination = ":"
+		}
 	case "_", "+":
 		args.Serial += ":"
 	}
@@ -1003,7 +1017,7 @@ Host ` + SSHJ + ` :
 					s4 := fmt.Sprintf("%s:%d:%s:%d", LH, nNear, LH, nNear)
 					Println("-R", s4)
 					args.RemoteForward.UnmarshalText([]byte(s4))
-					hp := newHostPort(LH, nNear, "R")
+					hp := newHostPort(LH, nNear, "")
 					if hp.write() == nil {
 						closer.Bind(func() { hp.remove() })
 					}
@@ -1012,7 +1026,7 @@ Host ` + SSHJ + ` :
 					s4 := fmt.Sprintf("%s:%d:%s:%d", LH, wFar, LH, wFar)
 					Println("-R", s4)
 					args.RemoteForward.UnmarshalText([]byte(s4))
-					hp := newHostPort(LH, wFar, "R")
+					hp := newHostPort(LH, wFar, "")
 					if hp.write() == nil {
 						closer.Bind(func() { hp.remove() })
 					}
@@ -1028,7 +1042,7 @@ Host ` + SSHJ + ` :
 				args.LocalForward.UnmarshalText([]byte(s4))
 				if h == LH {
 					i, _ := strconv.Atoi(p)
-					hp := newHostPort(h, i, "L")
+					hp := newHostPort(h, i, "")
 					if hp.write() == nil {
 						closer.Bind(func() { hp.remove() })
 					}
@@ -1370,7 +1384,7 @@ func near2far(iNear int, args *SshArgs, s2 string, loc bool) (oNear, oFar int) {
 			s4 := fmt.Sprintf("%s:%d:%s:%d", LH, oNear, s2, oFar)
 			Println("-L", s4)
 			args.LocalForward.UnmarshalText([]byte(s4))
-			hp := newHostPort(LH, oNear, "L")
+			hp := newHostPort(LH, oNear, "")
 			if hp.write() == nil {
 				closer.Bind(func() { hp.remove() })
 			}
