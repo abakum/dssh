@@ -294,7 +294,20 @@ func main() {
 
 	u, h, p := ParseDestination(args.Destination) //tssh
 	s2, dial := host2LD(h)
+	// `dssh` как `dssh -d`
+	// `foo` как `dssh foo@` как `dssh -dl foo`
 
+	if args.LoginName != "" {
+		u = args.LoginName // dssh -l foo
+	}
+	if u == "" {
+		u = rev // Имя для посредника ssh-j.com
+		if imag != repo {
+			u = imag // Если бинарный файл переименован то вместо ревизии имя переименованного бинарного файла и будет именем для посредника ssh-j.com
+		}
+	}
+	tmpU := filepath.Join(tmp, u)
+	dot := isFileExist(tmpU)
 	if args.Share {
 		// -s Отдаём свою консоль через dssh-сервер
 		if args.Ser2net < 0 {
@@ -305,6 +318,10 @@ func main() {
 			// -s
 			// -s20 :
 			args.Destination = ":"
+			if dot {
+				args.Destination = ""
+				args.Share = false
+			}
 		case ".", repo:
 			// -s .
 			// -20
@@ -318,9 +335,12 @@ func main() {
 			args.Ser2net = RFC2217
 		}
 		if args.Destination == "" {
-			args.Destination = ":"
+			// -20
+			if !dot {
+				args.Destination = ":"
+				// -20 :
+			}
 		}
-		// -20 :
 	}
 
 	loc := localHost(args.Destination)
@@ -604,18 +624,6 @@ func main() {
 		}
 	}
 
-	// `dssh` как `dssh -d`
-	// `foo` как `dssh foo@` как `dssh -dl foo`
-
-	if args.LoginName != "" {
-		u = args.LoginName // dssh -l foo
-	}
-	if u == "" {
-		u = rev // Имя для посредника ssh-j.com
-		if imag != repo {
-			u = imag // Если бинарный файл переименован то вместо ревизии имя переименованного бинарного файла и будет именем для посредника ssh-j.com
-		}
-	}
 	sshj := `
 Host ` + SSHJ + ` :
  User _
@@ -890,6 +898,9 @@ Host ` + SSHJ + ` :
 				time.Sleep(TOR)
 			}
 		}()
+		if os.WriteFile(tmpU, []byte{}, FILEMODE) == nil {
+			closer.Bind(func() { os.Remove(tmpU) })
+		}
 		for {
 			Println(fmt.Sprintf("%s daemon waiting on - сервер ожидает на %s:%s", repo, h, p))
 			psPrintln(filepath.Base(exe), "", 0)
