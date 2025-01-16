@@ -306,8 +306,15 @@ func main() {
 			u = imag // Если бинарный файл переименован то вместо ревизии имя переименованного бинарного файла и будет именем для посредника ssh-j.com
 		}
 	}
+	// Заменяем `dssh .` на `dssh :` если на хосте не запущен dssh-сервер
 	tmpU := filepath.Join(tmp, u)
-	dot := isFileExist(tmpU)
+	dot := psPrint(filepath.Base(exe), "", 0, PrintNil) > 1 && isFileExist(tmpU)
+	switch args.Destination {
+	case ".", repo:
+		if !dot {
+			args.Destination = ":"
+		}
+	}
 	if args.Share {
 		// -s Отдаём свою консоль через dssh-сервер
 		if args.Ser2net < 0 {
@@ -594,8 +601,7 @@ func main() {
 				}
 			}
 			Println(repo, "-H", serial, "-8", wNear)
-			hp := newHostPort(dial, wFar, serial)
-			if isHP(hp.dest()) {
+			if hp := newHostPort(dial, wFar, serial); isHP(hp.dest()) {
 				// Подключаемся к существующему сеансу
 				hp.read()
 				Println(hp.String())
@@ -903,13 +909,16 @@ Host ` + SSHJ + ` :
 		}
 		for {
 			Println(fmt.Sprintf("%s daemon waiting on - сервер ожидает на %s:%s", repo, h, p))
-			psPrintln(filepath.Base(exe), "", 0)
+			psPrint(filepath.Base(exe), "", 0, Println)
 			exit := server(s2, p, repo, s2, signer, Println, Print)
 			KidsDone(os.Getpid())
 			if exit == "" {
 				Println("the daemon will restart after - сервер перезапустится через", TOR, "секунд")
-			} else {
+			} else if strings.Contains(exit, "@") {
 				Println("the daemon is stopped by - сервер остановлен клиентом", exit)
+				return
+			} else {
+				Println(exit)
 				return
 			}
 			time.Sleep(TOR)
@@ -1028,19 +1037,17 @@ Host ` + SSHJ + ` :
 					s4 := fmt.Sprintf("%s:%d:%s:%d", LH, nNear, LH, nNear)
 					Println("-R", s4)
 					args.RemoteForward.UnmarshalText([]byte(s4))
-					hp := newHostPort(LH, nNear, "")
-					if hp.write() == nil {
-						closer.Bind(func() { hp.remove() })
-					}
+					// if hp := newHostPort(LH, nNear, ""); hp.write() == nil {
+					// 	closer.Bind(func() { hp.remove() })
+					// }
 				}
 				if wNear > 0 {
 					s4 := fmt.Sprintf("%s:%d:%s:%d", LH, wFar, LH, wFar)
 					Println("-R", s4)
 					args.RemoteForward.UnmarshalText([]byte(s4))
-					hp := newHostPort(LH, wFar, "")
-					if hp.write() == nil {
-						closer.Bind(func() { hp.remove() })
-					}
+					// if hp := newHostPort(LH, wFar, ""); hp.write() == nil {
+					// 	closer.Bind(func() { hp.remove() })
+					// }
 				}
 				time.AfterFunc(time.Second, func() {
 					nw(LH, LH)
@@ -1051,13 +1058,12 @@ Host ` + SSHJ + ` :
 				s4 := fmt.Sprintf("%s:%s:%s:%s", LH, p, h, p)
 				Println("-L", s4)
 				args.LocalForward.UnmarshalText([]byte(s4))
-				if h == LH {
-					i, _ := strconv.Atoi(p)
-					hp := newHostPort(h, i, "")
-					if hp.write() == nil {
-						closer.Bind(func() { hp.remove() })
-					}
-				}
+				// if h == LH {
+				// 	i, _ := strconv.Atoi(p)
+				// 	if hp := newHostPort(h, i, ""); hp.write() == nil {
+				// 		closer.Bind(func() { hp.remove() })
+				// 	}
+				// }
 				args.NoCommand = true
 				LHp := net.JoinHostPort(LH, p)
 				time.AfterFunc(time.Second, func() {
@@ -1395,10 +1401,9 @@ func near2far(iNear int, args *SshArgs, s2 string, loc bool) (oNear, oFar int) {
 			s4 := fmt.Sprintf("%s:%d:%s:%d", LH, oNear, s2, oFar)
 			Println("-L", s4)
 			args.LocalForward.UnmarshalText([]byte(s4))
-			hp := newHostPort(LH, oNear, "")
-			if hp.write() == nil {
-				closer.Bind(func() { hp.remove() })
-			}
+			// if hp := newHostPort(LH, oNear, ""); hp.write() == nil {
+			// 	closer.Bind(func() { hp.remove() })
+			// }
 		}
 	}
 	return
@@ -1533,7 +1538,7 @@ func cancelByFile(ctx context.Context, cancel func(), name string, delay time.Du
 	}
 }
 
-func psPrintln(name, parent string, ppid int) {
+func psPrint(name, parent string, ppid int, print func(v ...any)) (i int) {
 	var ss []string
 	pes, err := ps.Processes()
 	if err != nil {
@@ -1558,9 +1563,11 @@ func psPrintln(name, parent string, ppid int) {
 			ss = append(ss, p.CreationTime().Local().Format("20060102T150405"))
 		}
 	}
-	if len(ss) > 1 {
-		Println(fmt.Errorf("%v", ss))
+	i = len(ss)
+	if i > 1 {
+		print(fmt.Errorf("%v", ss))
 	}
+	return
 }
 
 // Типа stfioForward
@@ -1627,7 +1634,8 @@ func swSerial(s string) (serial, sw, h string, p int) {
 	if h, p, err := net.SplitHostPort(serial); err == nil {
 		// Клиент telnet
 		if p, err := strconv.ParseUint(p, 10, 16); err == nil {
-			return ser2net.LocalPort(serial), "t", h, int(p)
+			p := portOB(int(p), RFC2217)
+			return ser2net.LocalPort(JoinHostPort(h, p)), "t", h, p
 		}
 	}
 	if ser2net.SerialPath(serial) {

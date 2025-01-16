@@ -51,7 +51,7 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 	hp := newHostPort(h, int(i), time.Now().Local().Format("20060102T150405"))
 	err = hp.read()
 	if err == nil {
-		return fmt.Sprintf("Already used - Уже используется %+v", hp)
+		return fmt.Sprintf("Already used - Уже используется %v", hp)
 	}
 	if hp.write() == nil {
 		closer.Bind(func() { hp.remove() })
@@ -69,13 +69,13 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 		Addr: net.JoinHostPort(h, p),
 		// next for ssh -R host:port:x:x
 		ReversePortForwardingCallback: gl.ReversePortForwardingCallback(func(ctx gl.Context, host string, port uint32) bool {
-			if host == LH {
-				// Когда dssh-сервер и dssh-клиент на одном хосте
-				if hp := newHostPort(host, int(port), ""); hp.read() == nil && hp.Path == "" {
-					Println("Attempt to bind - Начать слушать", host, port, "denied - отказанно")
-					return false
-				}
-			}
+			// if host == LH {
+			// 	// Когда dssh-сервер и dssh-клиент на одном хосте
+			// 	if hp := newHostPort(host, int(port), ""); hp.read() == nil && hp.Path == "" {
+			// 		Println("Attempt to bind - Начать слушать", host, port, "denied - отказанно")
+			// 		return false
+			// 	}
+			// }
 			Println("Attempt to bind - Начать слушать", host, port, "granted - позволено")
 			return true
 		}),
@@ -87,13 +87,13 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 
 		// next for ssh -L x:dhost:dport
 		LocalPortForwardingCallback: gl.LocalPortForwardingCallback(func(ctx gl.Context, dhost string, dport uint32) bool {
-			if dhost == LH {
-				// Когда dssh-сервер и dssh-клиент на одном хосте
-				if hp := newHostPort(dhost, int(dport), ""); hp.read() == nil && hp.Path == "" {
-					Println("Port forwarding is disabled - Запрешён перенос", dhost, dport)
-					return false
-				}
-			}
+			// if dhost == LH {
+			// 	// Когда dssh-сервер и dssh-клиент на одном хосте
+			// 	if hp := newHostPort(dhost, int(dport), ""); hp.read() == nil && hp.Path == "" {
+			// 		Println("Port forwarding is disabled - Запрешён перенос", dhost, dport)
+			// 		return false
+			// 	}
+			// }
 			Println("Accepted forward - Разрешен перенос", dhost, dport)
 			return true
 		}),
@@ -238,8 +238,7 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 				}
 				print(repo, "-H", serial, "-8", wNear)
 				p2 := portOB(wNear, WEB2217)
-				hp := newHostPort(s2, p2, serial)
-				if isHP(hp.dest()) {
+				if hp := newHostPort(s2, p2, serial); isHP(hp.dest()) {
 					// Подключаемся к существующему сеансу
 					hp.read()
 					print(hp.String())
