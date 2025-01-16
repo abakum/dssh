@@ -75,7 +75,7 @@ func Conf(name, separator string, kv map[string]string) {
 }
 
 func GlobalSshPath() string {
-	return path.Join("/etc", "ssh")
+	return path.Join("/etc", SSH)
 }
 
 func createNewConsole(*exec.Cmd) {

@@ -47,7 +47,7 @@ var (
 		winssh.UserName(), LH, PORT, "0",
 		"", "", "",
 		"", "0", "", PORT, "1", "1", "",
-		"ssh", "0", "1", TERM,
+		SSH, "0", "1", TERM,
 	}
 )
 

@@ -43,7 +43,7 @@ func Conf(name, _ string, kv map[string]string) {
 }
 
 func GlobalSshPath() string {
-	return filepath.Join(os.Getenv("ProgramData"), "ssh")
+	return filepath.Join(os.Getenv("ProgramData"), SSH)
 }
 
 // cmd = exec.Command("cmd.exe", "/C", fmt.Sprintf(`start %s %s`, bin, opt))

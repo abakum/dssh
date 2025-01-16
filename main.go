@@ -97,6 +97,7 @@ const (
 	RFC2217  = 2320
 	WEB2217  = 8080
 	LockFile = "lockfile"
+	SSH      = "ssh"
 )
 
 var (
@@ -385,16 +386,13 @@ func main() {
 	BSnw := args.Serial != "" || args.Baud != "" || nNear > 0 || wNear > 0
 
 	if !loc && Win7 && !(args.DisableTTY || args.NoCommand || Cygwin || external || BSnw) {
-		s := "ssh"
+		s := PUTTY
 		_, err := exec.LookPath(s)
-		args.Telnet = err == nil
-		if !args.Telnet || args.ForceTTY {
-			_, err := exec.LookPath(PUTTY)
-			if err == nil {
-				s = PUTTY
-				args.Putty = true
-				args.Telnet = false
-			}
+		args.Putty = err == nil
+		if !args.Putty { //
+			s = SSH
+			_, err := exec.LookPath(s)
+			args.Telnet = err == nil
 		}
 		if args.Telnet || args.Putty {
 			Println(fmt.Errorf("trying to use - в Windows 7 пробую использовать " + s))
@@ -954,7 +952,7 @@ Host ` + SSHJ + ` :
 				case TELNET, BUSYBOX:
 					// dssh -Z :
 					// За неимением...
-					execPath = "ssh"
+					execPath = SSH
 					opt = args.Destination
 					// if Win7 {
 					// 	ZerroNewWindow = true
