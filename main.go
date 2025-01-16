@@ -306,15 +306,9 @@ func main() {
 			u = imag // Если бинарный файл переименован то вместо ревизии имя переименованного бинарного файла и будет именем для посредника ssh-j.com
 		}
 	}
-	// Заменяем `dssh .` на `dssh :` если на хосте не запущен dssh-сервер
 	tmpU := filepath.Join(tmp, u)
 	dot := psPrint(filepath.Base(exe), "", 0, PrintNil) > 1 && isFileExist(tmpU)
-	switch args.Destination {
-	case ".", repo:
-		if !dot {
-			args.Destination = ":"
-		}
-	}
+
 	if args.Share {
 		// -s Отдаём свою консоль через dssh-сервер
 		if args.Ser2net < 0 {
@@ -323,11 +317,12 @@ func main() {
 		switch args.Destination {
 		case "":
 			// -s
-			// -s20 :
-			args.Destination = ":"
 			if dot {
-				args.Destination = ""
+				// -20
 				args.Share = false
+			} else {
+				// -s20 :
+				args.Destination = ":"
 			}
 		case ".", repo:
 			// -s .
@@ -344,9 +339,16 @@ func main() {
 		if args.Destination == "" {
 			// -20
 			if !dot {
-				args.Destination = ":"
 				// -20 :
+				args.Destination = ":"
 			}
+		}
+	}
+	// Заменяем `dssh .` на `dssh :` если на хосте не запущен dssh-сервер
+	switch args.Destination {
+	case ".", repo:
+		if !dot {
+			args.Destination = ":"
 		}
 	}
 
@@ -362,6 +364,9 @@ func main() {
 		args.Serial = ":"
 		if args.Destination == "" {
 			args.Destination = ":"
+			if dot {
+				args.Destination = "."
+			}
 		}
 	case "_", "+":
 		args.Serial += ":"
@@ -913,7 +918,7 @@ Host ` + SSHJ + ` :
 			exit := server(s2, p, repo, s2, signer, Println, Print)
 			KidsDone(os.Getpid())
 			if exit == "" {
-				Println("the daemon will restart after - сервер перезапустится через", TOR, "секунд")
+				Println("the daemon will restart after - сервер перезапустится через", TOR)
 			} else if strings.Contains(exit, "@") {
 				Println("the daemon is stopped by - сервер остановлен клиентом", exit)
 				return

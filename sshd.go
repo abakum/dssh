@@ -11,7 +11,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 	"time"
 
@@ -20,7 +19,6 @@ import (
 	"github.com/abakum/winssh"
 	gl "github.com/gliderlabs/ssh"
 	"github.com/trzsz/go-arg"
-	"github.com/xlab/closer"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -44,17 +42,8 @@ var Exit string
 // authorizedKeys замки разрешённых пользователей,
 // CertCheck имя разрешённого пользователя в сертификате.
 func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Print func(v ...any)) string { //, authorizedKeys []gl.PublicKey
-	i, err := strconv.ParseUint(p, 10, 16)
-	if err != nil {
-		return err.Error()
-	}
-	hp := newHostPort(h, int(i), time.Now().Local().Format("20060102T150405"))
-	err = hp.read()
-	if err == nil {
-		return fmt.Sprintf("Already used - Уже используется %v", hp)
-	}
-	if hp.write() == nil {
-		closer.Bind(func() { hp.remove() })
+	if isHP(net.JoinHostPort(s2, p)) {
+		return fmt.Sprintf("Already used - Уже используется %s:%s", s2, p)
 	}
 	Println(ToExitPress, "<^C>")
 
