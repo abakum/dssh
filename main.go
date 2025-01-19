@@ -81,7 +81,6 @@ func NewParser(config arg.Config, dests ...interface{}) (*Parser, error) {
 }
 
 const (
-	PORT     = "22"
 	ALL      = "0.0.0.0"
 	LH       = "127.0.0.1"
 	FILEMODE = 0644
@@ -94,8 +93,9 @@ const (
 	SSHJ     = "ssh-j"
 	SSHJ2    = LH
 	JumpHost = SSHJ + ".com"
-	RFC2217  = 2320
-	WEB2217  = 8080
+	RFC2217  = 5000
+	WEB2217  = 8000
+	SSHH     = 2200
 	LockFile = "lockfile"
 	SSH      = "ssh"
 )
@@ -122,6 +122,7 @@ var (
 	EED            = "<Enter>~."
 	EEDE           = EED
 	ioc            = ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: os.Stdout, Cygwin: Cygwin}
+	LISTEN         = strconv.Itoa(SSHH)
 )
 
 //go:generate go run github.com/abakum/version
@@ -294,6 +295,7 @@ func main() {
 	EEDE = EED + exit
 
 	u, h, p := ParseDestination(args.Destination) //tssh
+	p = portPB(p, SSHH)
 	s2, dial := host2LD(h)
 	// `dssh` как `dssh -d`
 	// `foo` как `dssh foo@` как `dssh -dl foo`
@@ -837,15 +839,14 @@ Host ` + SSHJ + ` :
 		// 	daemon = h+p == ""
 		// }
 		if !daemon {
-			daemon = h+p == ""
+			daemon = h+p == LISTEN
 		}
 	}
 	if args.Daemon || !cli && daemon {
 		args.Daemon = true
 		hh := dial
 		h = s2
-		if p == "" {
-			p = LISTEN
+		if p == LISTEN {
 			if args.Port != 0 {
 				p = strconv.Itoa(args.Port)
 			}
@@ -1386,6 +1387,13 @@ func portOB(opt, base int) int {
 		return base + opt
 	}
 	return opt
+}
+
+func portPB(p string, base int) string {
+	if ui, err := strconv.ParseUint(p, 10, 16); err == nil {
+		base = portOB(int(ui), base)
+	}
+	return strconv.Itoa(base)
 }
 
 func near2far(iNear int, args *SshArgs, s2 string, loc bool) (oNear, oFar int) {

@@ -29,11 +29,11 @@ const (
 	EQ       = "="
 	TERM     = "xterm-256color"
 	PUTTY    = "putty" // signed https://www.chiark.greenend.org.uk/~sgtatham/putty/latest.html
-	LISTEN   = PORT + PORT
 	TELNET   = "telnet"
 	PLINK    = "plink"
 	BUSYBOX  = "busybox"
 	MICROCOM = "microcom"
+	PORT     = "22"
 )
 
 var (
