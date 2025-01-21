@@ -313,7 +313,7 @@ func main() {
 	dot := psPrint(filepath.Base(exe), "", 0, PrintNil) > 1 && isFileExist(tmpU)
 
 	if args.Share {
-		// -s Отдаём свою консоль через dssh-сервер
+		// Отдаём свою консоль через dssh-сервер
 		if args.Ser2net < 0 {
 			args.Ser2net = RFC2217
 		}
@@ -321,30 +321,37 @@ func main() {
 		case "":
 			// -s
 			if dot {
-				// -20
 				args.Share = false
+				// -20
 			} else {
-				// -s20 :
 				args.Destination = ":"
+				// -s20 :
 			}
 		case ".", repo:
 			// -s .
-			// -20
 			args.Destination = ""
 			args.Share = false
+			// -20
 		}
 	}
 	if args.Use {
-		// -0 Используем консоль dssh-сервера
-		if args.Ser2net < 0 {
-			args.Ser2net = RFC2217
-		}
-		if args.Destination == "" {
-			// -20
-			if !dot {
-				// -20 :
-				args.Destination = ":"
+		if args.Destination == "" || isDssh() {
+			// Используем консоль dssh-сервера
+			// -0
+			// -0 .
+			// -0 :
+			if args.Ser2net < 0 {
+				args.Ser2net = RFC2217
 			}
+			if !dot {
+				args.Destination = ":"
+				// -20 :
+			}
+		} else if args.Serial == "" {
+			// Используем консоль sshd-сервера X
+			// -0 X
+			args.Serial = ":0"
+			// -H:0 X
 		}
 	}
 	// Заменяем `dssh .` на `dssh :` если на хосте не запущен dssh-сервер
@@ -1119,6 +1126,7 @@ Host ` + SSHJ + ` :
 		Println(ToExitPress, EED)
 	}
 
+	toLate := time.Now().Add(time.Second)
 	code := Tssh(&args)
 	if args.Background {
 		Println("tssh started in background with code:", code)
@@ -1126,6 +1134,10 @@ Host ` + SSHJ + ` :
 	} else {
 		if code != 0 {
 			Println("tssh exit with code:", code)
+			if args.Share && !dot && args.Destination == SSHJ && time.Now().Before(toLate) {
+				Println("Local console - Локальная консоль", serial)
+				closer.Hold()
+			}
 		}
 	}
 }
