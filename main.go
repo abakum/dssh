@@ -402,18 +402,18 @@ func main() {
 			_, err := exec.LookPath(s)
 			args.Telnet = err == nil
 		}
-		if !args.Telnet && !args.Putty {
-			s = CHROME
-			if args.Ser2web < 0 {
-				args.Ser2web = PORT80
-			}
+		external = args.Putty || args.Telnet
+		if external {
+			Println(fmt.Errorf("trying to use - в Windows 7 пробую использовать " + s))
 		}
-		Println(fmt.Errorf("trying to use - в Windows 7 пробую использовать " + s))
 
 	}
 	if args.Command != "" && args.Putty && !args.Unix {
 		Println(fmt.Errorf("for run will use - для запуска %q будем использовать plink", args.Command))
 		args.Unix = true
+	}
+	if Win7 && !(Cygwin || external) {
+		Println(fmt.Errorf("try to use - в Windows 7 попробуй использовать `-88`"))
 	}
 
 	djh := ""
