@@ -207,14 +207,14 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 				// dssh -22 :
 				// dssh -22 .
 				print(repo, "-H", serial, "-2", nNear)
-				print(rfc2217(s.Context(), s, serial, s2, portOB(nNear, RFC2217), args.Baud, args.Exit, ps...))
+				print(rfc2217(s.Context(), s, serial, s2, portOB(nNear, PORT50), args.Baud, args.Exit, ps...))
 				return
 			}
 			if wNear > 0 {
 				if nNear > 0 {
 					print(repo, "-H", serial, "-2", nNear)
 					go func() {
-						print(rfc2217(s.Context(), s, serial, s2, portOB(nNear, RFC2217), args.Baud, args.Exit, ps...))
+						print(rfc2217(s.Context(), s, serial, s2, portOB(nNear, PORT50), args.Baud, args.Exit, ps...))
 						s.Close()
 					}()
 					if _, _, err := net.SplitHostPort(serial); err == nil {
@@ -226,7 +226,7 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 					}
 				}
 				print(repo, "-H", serial, "-8", wNear)
-				p2 := portOB(wNear, WEB2217)
+				p2 := portOB(wNear, PORT80)
 				if hp := newHostPort(s2, p2, serial); isHP(hp.dest()) {
 					// Подключаемся к существующему сеансу
 					hp.read()

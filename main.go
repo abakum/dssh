@@ -93,11 +93,10 @@ const (
 	SSHJ     = "ssh-j"
 	SSHJ2    = LH
 	JumpHost = SSHJ + ".com"
-	RFC2217  = 5000
-	WEB2217  = 8000
-	SSHH     = 2200
+	PORT50   = 5000
+	PORT80   = 8000
+	PORT22   = 2200
 	LockFile = "lockfile"
-	SSH      = "ssh"
 )
 
 var (
@@ -122,7 +121,7 @@ var (
 	EED            = "<Enter>~."
 	EEDE           = EED
 	ioc            = ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: os.Stdout, Cygwin: Cygwin}
-	LISTEN         = strconv.Itoa(SSHH)
+	LISTEN         = strconv.Itoa(PORT22)
 )
 
 //go:generate go run github.com/abakum/version
@@ -295,7 +294,7 @@ func main() {
 	EEDE = EED + exit
 
 	u, h, p := ParseDestination(args.Destination) //tssh
-	p = portPB(p, SSHH)
+	p = portPB(p, PORT22)
 	s2, dial := host2LD(h)
 	// `dssh` как `dssh -d`
 	// `foo` как `dssh foo@` как `dssh -dl foo`
@@ -315,7 +314,7 @@ func main() {
 	if args.Share {
 		// Отдаём свою консоль через dssh-сервер
 		if args.Ser2net < 0 {
-			args.Ser2net = RFC2217
+			args.Ser2net = PORT50
 		}
 		switch args.Destination {
 		case "":
@@ -341,7 +340,7 @@ func main() {
 			// -0 .
 			// -0 :
 			if args.Ser2net < 0 {
-				args.Ser2net = RFC2217
+				args.Ser2net = PORT50
 			}
 			if !dot {
 				args.Destination = ":"
@@ -364,8 +363,8 @@ func main() {
 
 	loc := localHost(args.Destination)
 
-	nNear, nFar := near2far(portOB(args.Ser2net, RFC2217), &args, s2, loc)
-	wNear, wFar := near2far(portOB(args.Ser2web, WEB2217), &args, s2, loc)
+	nNear, nFar := near2far(portOB(args.Ser2net, PORT50), &args, s2, loc)
+	wNear, wFar := near2far(portOB(args.Ser2web, PORT80), &args, s2, loc)
 
 	external := args.Putty || args.Telnet
 
@@ -382,7 +381,7 @@ func main() {
 		args.Serial += ":"
 	}
 	if strings.HasSuffix(args.Serial, ":") {
-		args.Serial += strconv.Itoa(RFC2217)
+		args.Serial += strconv.Itoa(PORT50)
 	}
 
 	if args.Baud == "" {
@@ -403,9 +402,14 @@ func main() {
 			_, err := exec.LookPath(s)
 			args.Telnet = err == nil
 		}
-		if args.Telnet || args.Putty {
-			Println(fmt.Errorf("trying to use - в Windows 7 пробую использовать " + s))
+		if !args.Telnet && !args.Putty {
+			s = CHROME
+			if args.Ser2web < 0 {
+				args.Ser2web = PORT80
+			}
 		}
+		Println(fmt.Errorf("trying to use - в Windows 7 пробую использовать " + s))
+
 	}
 	if args.Command != "" && args.Putty && !args.Unix {
 		Println(fmt.Errorf("for run will use - для запуска %q будем использовать plink", args.Command))
@@ -557,11 +561,11 @@ func main() {
 			}
 		case "", "s":
 			if nNear < 0 && !extSer {
-				nNear = RFC2217
+				nNear = PORT50
 			}
 		case "c":
 			if nNear < 0 {
-				nNear = RFC2217
+				nNear = PORT50
 			}
 		}
 	}
@@ -1036,7 +1040,7 @@ Host ` + SSHJ + ` :
 				if serial == "" {
 					Println(ErrNotFoundFreeSerial)
 				} else if nNear < 0 && wNear < 0 {
-					nNear = RFC2217
+					nNear = PORT50
 				}
 			}
 			// Println("share", "serial", serial, "args.Baud", args.Baud, "nNear", nNear, "wNear", wNear)
@@ -1490,7 +1494,7 @@ func browse(ctx context.Context, dial string, port int, cancel context.CancelFun
 	if err != nil {
 		return
 	}
-	Println("chrome", dest)
+	Println(CHROME, dest)
 	go func() {
 		<-ctx.Done()
 		chromeCmd.Close()
@@ -1533,8 +1537,8 @@ func comm(serial, s2 string, nNear, wNear int) int {
 		} else if nNear < 0 {
 			// dssh --baud 9
 			// dssh --path com3
-			nNear = RFC2217
-			xNear = RFC2217
+			nNear = PORT50
+			xNear = PORT50
 		}
 		if serial != "" {
 			Println(fmt.Sprintf("we will try to use %q over - будем пробовать использовать %s через %s://%s:%d", serial, serial, url, s2, xNear))
@@ -1657,7 +1661,7 @@ func swSerial(s string) (serial, sw, h string, p int) {
 	if h, p, err := net.SplitHostPort(serial); err == nil {
 		// Клиент telnet
 		if p, err := strconv.ParseUint(p, 10, 16); err == nil {
-			p := portOB(int(p), RFC2217)
+			p := portOB(int(p), PORT50)
 			return ser2net.LocalPort(JoinHostPort(h, p)), "t", h, p
 		}
 	}

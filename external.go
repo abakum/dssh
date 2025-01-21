@@ -34,6 +34,8 @@ const (
 	BUSYBOX  = "busybox"
 	MICROCOM = "microcom"
 	PORT     = "22"
+	SSH      = "ssh"
+	CHROME   = "chrome"
 )
 
 var (

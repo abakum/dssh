@@ -105,7 +105,7 @@ dssh:=(tssh from trzsz)+(CA key with embed-encrypt)+(sshd from gliderlabs)+(acce
 6. Чтение HostKeyAlgorithms - setupHostKeyAlgorithmsConfig из login.go, algo.go. Смотри `ssh -Q HostKeyAlgorithms`.
 7. Перенос агента авторизации - getForwardAgentAddr, getAgentClient в sshAgentForward из login.go.
 8. Чтение ExitOnForwardFailure - dynamicForward, localForward, remoteForward, sshForward из forward.go .
-9. Запуск в Windows7 без Cygwin и MSYS2 через `-T` - setupVirtualTerminal, sttyExecutable из term_windows.go.
+9. Запуск в Windows 7 без Cygwin и MSYS2 через `-T` - setupVirtualTerminal, sttyExecutable из term_windows.go.
 10. Чтение IdentitiesOnly в getPublicKeysAuthMethod из login.go.<div id=7.11>
 11. Уникальный SecretEncodeKey и подсказка `encPassword bar` при указании `-o Password=foo` в getPasswordAuthMethod из login.go.
 12. Возможность прервать dynamicForward, localForward, remoteForward по Ctr-C используя restoreStdFuncs.Cleanup перед ss.client.Wait в sshStart из main.go.
@@ -150,16 +150,16 @@ dssh:=(tssh from trzsz)+(CA key with embed-encrypt)+(sshd from gliderlabs)+(acce
 - x. отсутствует или локальный IP или локальный алиас: `+` как в [1.9](#1.9) или `_` как в [1.10](#1.10).
 - y. локальная последовательная консоль на первом свободном порту USB.
 - host. любой IP или адрес хоста или x.
-- port50. отсутствует или суффикс от 0 до 9 или TCP порт. Если port50 отсутствует то он 5000. Если суффикс от 0 до 9 то порт от 5000 до 5009.<div id=10.1>
+- port50. отсутствует значит 5000 или суффикс порта от 0 до 9 значит порт от 5000 до 5009 или TCP порт..<div id=10.1>
 1. `-z` то же что и `-U 9600` как в [1.1](#1.1).<div id=10.2>
 2. `-20 x` то же что `-U 9600` + стартует RFC2217 телнет-сервер на `x:5000` как в [1.11](#1.11) + стартует RFC2217 телнет-клиент в том же окне.<div id=10.3>
-3. `-ZH host:port50` то же что и `telnet -e^Q host port50` для Windows в новом окне как в [1.6](#1.6). Для Cygwin на Windows7 или Linux в том же окне.<div id=10.4>
-4. `-Z20 x` то же что и `-20 x` + `telnet -e^Q x 5000` для Windows в новом окне. Для Cygwin на Windows7 или Linux в том же окне.<div id=10.5>
+3. `-ZH host:port50` то же что и `telnet -e^Q host port50` для Windows в новом окне как в [1.6](#1.6). Для Cygwin на Windows 7 или Linux в том же окне.<div id=10.4>
+4. `-Z20 x` то же что и `-20 x` + `telnet -e^Q x 5000` для Windows в новом окне. Для Cygwin на Windows 7 или Linux в том же окне.<div id=10.5>
 5. `-Z x` как в [10.4](#10.4).<div id=10.6>
 6. `-zZ x` то же что и `-20 x` + `telnet -e^Q x 5000` в том же окне и без управлением режимом консоли.<div id=10.7>
 7. `-u20 x` то же что и `-20 x` + `putty -telnet x -P 5000` как в [1.4](#1.4).<div id=10.8>
 8. `-u` то же что и `putty -serial y -sercfg 9600,8,1,N,N` и без управлением режимом консоли.<div id=10.9>
-9. `-zu` то же что и `plink -serial y -sercfg 9600,8,1,N,N` и без управлением режимом консоли. Для Cygwin на Windows7 `putty -serial y -sercfg 9600,8,1,N,N`.<div id=10.10>
+9. `-zu` то же что и `plink -serial y -sercfg 9600,8,1,N,N` и без управлением режимом консоли. Для Cygwin на Windows 7 `putty -serial y -sercfg 9600,8,1,N,N`.<div id=10.10>
 10. `-uH host:port50` то же что и `putty -telnet host -P port50` как в [1.4](#1.4).<div id=10.11>
 11. `-88 x` то же что `-U 9600` + стартует веб-сервер на `x:8008` + `chrome http://x:8008`.<div id=10.12>
 12. `-22 -88 x` то же что `-U 9600` + стартует RFC2217 телнет-сервер на `x:5002` + стартует веб-сервер на `x:8008` + `chrome http://x:8008`
@@ -168,7 +168,7 @@ dssh:=(tssh from trzsz)+(CA key with embed-encrypt)+(sshd from gliderlabs)+(acce
 - X. внешний IP или dns адрес или ssh алиас.
 - Y. удалённая последовательная консоль на первом свободном порту USB.
 - host. любой IP или dns адрес хоста или x.
-- port50. отсутствует или суффикс от 0 до 9 или TCP порт. Если port50 отсутствует то он 5000. Если суффикс от 0 до 9 то порт от 5000 до 5009.<div id=11.1>
+- port50. отсутствует значит 5000 или суффикс порта от 0 до 9 значит порт от 5000 до 5009 или TCP порт..<div id=11.1>
 1. `-z .` как в [10.1](#10.1) только на хосте с `dssh`. Как `ssh : dssh -z`.<div id=11.2>
 2. `-20 .` или короче `-0` как в [10.2](#10.2) только на хосте с `dssh` + 127.0.0.1:5000 переносится локально как `-L` на 127.0.0.1:5000 сервера.<div id=11.3>
 3. `-H host:port50 .` то же что и `dssh -W host:port50 .` только с управлением по RFC2217 или RFC1073 как в [3.5](#3.5).<div id=11.4>
