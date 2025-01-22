@@ -151,7 +151,7 @@ func cmdRun(cmd *exec.Cmd, ctx context.Context, r io.Reader, zu bool, Serial, ho
 		if r != nil {
 			// -Z22 && serial==""
 			// -u22 && serial==""
-			// -uH:2322 && serial!=""
+			// -uH:2 && serial!=""
 			go func() {
 				run()
 				closer.Close()

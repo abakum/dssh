@@ -174,12 +174,12 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 				args.Baud = "9"
 			}
 		}
-		nNear := args.Ser2net
-		wNear := args.Ser2web
+		portT := args.Ser2net
+		portW := args.Ser2web
 		switch {
 		case args.Restart:
 			caRW()
-		case args.Baud != "" || args.Serial != "" || nNear > 0 || wNear > 0:
+		case args.Baud != "" || args.Serial != "" || portT > 0 || portW > 0:
 			// Покажу клиенту протокол на стороне сервера
 			lss := log.New(s.Stderr(), "\r:>", lf.Flags())
 			// Покажу клиенту и на сервере протокол на стороне сервера
@@ -200,33 +200,28 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 				}
 			}
 
-			nNear = comm(serial, s2, nNear, wNear)
-			if nNear > 0 && wNear < 0 {
+			portT = comm(serial, s2, portT, portW)
+			if portT > 0 && portW < 0 {
 				// dssh -22 :
-				// p2 := portOB(nNear, RFC2217)
+				// p2 := portOB(portT, RFC2217)
 				// dssh -22 :
 				// dssh -22 .
-				print(repo, "-H", serial, "-2", nNear)
-				print(rfc2217(s.Context(), s, serial, s2, portOB(nNear, PORT50), args.Baud, args.Exit, ps...))
+				print(repo, "-H", serial, "-2", portT)
+				print(rfc2217(s.Context(), s, serial, s2, portOB(portT, PORTT), args.Baud, args.Exit, ps...))
 				return
 			}
-			if wNear > 0 {
-				if nNear > 0 {
-					print(repo, "-H", serial, "-2", nNear)
+			if portW > 0 {
+				if portT > 0 {
+					print(repo, "-H", serial, "-2", portT)
 					go func() {
-						print(rfc2217(s.Context(), s, serial, s2, portOB(nNear, PORT50), args.Baud, args.Exit, ps...))
+						print(rfc2217(s.Context(), s, serial, s2, portOB(portT, PORTT), args.Baud, args.Exit, ps...))
 						s.Close()
 					}()
-					if _, _, err := net.SplitHostPort(serial); err == nil {
-						// -H:2322
-					} else {
-						// -Hcmd -HH
-						time.Sleep(time.Second)
-						serial = JoinHostPort(s2, nNear)
-					}
+					time.Sleep(time.Second)
+					serial = JoinHostPort(s2, portT)
 				}
-				print(repo, "-H", serial, "-8", wNear)
-				p2 := portOB(wNear, PORT80)
+				print(repo, "-H", serial, "-8", portW)
+				p2 := portOB(portW, PORTW)
 				if hp := newHostPort(s2, p2, serial); isHP(hp.dest()) {
 					// Подключаемся к существующему сеансу
 					hp.read()
@@ -236,7 +231,7 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 					return
 				}
 
-				if nNear > 0 {
+				if portT > 0 {
 					print(s2w(s.Context(), nil, nil, serial, s2, p2, args.Baud, "", PrintNil))
 				} else {
 					print(s2w(s.Context(), s, nil, serial, s2, p2, args.Baud, ". или <^C>", ps...))
