@@ -310,11 +310,13 @@ func main() {
 	}
 	tmpU := filepath.Join(tmp, u)
 	dot := psPrint(filepath.Base(exe), "", 0, PrintNil) > 1 && isFileExist(tmpU)
+	portT := portOB(args.Ser2net, PORTT)
+	portW := portOB(args.Ser2web, PORTW)
 
 	if args.Share {
 		// Отдаём свою консоль через dssh-сервер
-		if args.Ser2net < 0 {
-			args.Ser2net = PORTT
+		if portT < 0 && portW < 0 {
+			portT = PORTT
 		}
 		switch args.Destination {
 		case "":
@@ -339,8 +341,14 @@ func main() {
 			// -0
 			// -0 .
 			// -0 :
-			if args.Ser2net < 0 {
-				args.Ser2net = PORTT
+			if portT < 0 && portW < 0 {
+				if Win7 && !Cygwin {
+					portW = PORTW
+					// -80
+				} else {
+					portT = PORTT
+					// -20
+				}
 			}
 			if !dot {
 				args.Destination = ":"
@@ -363,10 +371,8 @@ func main() {
 
 	loc := localHost(args.Destination)
 
-	portT := portOB(args.Ser2net, PORTT)
-	optL(portT, &args, s2, loc)
-	portW := portOB(args.Ser2web, PORTW)
-	optL(portW, &args, s2, loc)
+	optL(portT, &args, s2, loc, dot)
+	optL(portW, &args, s2, loc, dot)
 
 	external := args.Putty || args.Telnet
 
@@ -1398,19 +1404,24 @@ func portPB(p string, base int) string {
 	return strconv.Itoa(base)
 }
 
-func optL(port int, args *SshArgs, s2 string, loc bool) {
-	if port > -1 && !loc && !args.Share {
-		switch args.Destination {
-		case ".", repo:
-			// -22 . Отдаём свою консоль через dssh-сервер
-			// -22
+func optL(port int, args *SshArgs, s2 string, loc, dot bool) {
+	if port < 0 || loc || args.Share {
+		return
+	}
+	switch args.Destination {
+	case ".", repo:
+		// -22 . Отдаём свою консоль через dssh-сервер
+		// -22
+		args.Destination = ""
+	case ":", SSHJ:
+		if dot {
 			args.Destination = ""
-		case ":", SSHJ:
-			// -22 : Используем консоль dssh-сервера
-			s4 := fmt.Sprintf("%s:%d:%s:%d", LH, port, s2, port)
-			Println("-L", s4)
-			args.LocalForward.UnmarshalText([]byte(s4))
+			return
 		}
+		// -22 : Используем консоль dssh-сервера
+		s4 := fmt.Sprintf("%s:%d:%s:%d", LH, port, s2, port)
+		Println("-L", s4)
+		args.LocalForward.UnmarshalText([]byte(s4))
 	}
 }
 

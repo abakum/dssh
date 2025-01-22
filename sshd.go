@@ -174,8 +174,8 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 				args.Baud = "9"
 			}
 		}
-		portT := args.Ser2net
-		portW := args.Ser2web
+		portT := portOB(args.Ser2net, PORTT)
+		portW := portOB(args.Ser2web, PORTW)
 		switch {
 		case args.Restart:
 			caRW()
@@ -207,22 +207,21 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 				// dssh -22 :
 				// dssh -22 .
 				print(repo, "-H", serial, "-2", portT)
-				print(rfc2217(s.Context(), s, serial, s2, portOB(portT, PORTT), args.Baud, args.Exit, ps...))
+				print(rfc2217(s.Context(), s, serial, s2, portT, args.Baud, args.Exit, ps...))
 				return
 			}
 			if portW > 0 {
 				if portT > 0 {
 					print(repo, "-H", serial, "-2", portT)
 					go func() {
-						print(rfc2217(s.Context(), s, serial, s2, portOB(portT, PORTT), args.Baud, args.Exit, ps...))
+						print(rfc2217(s.Context(), s, serial, s2, portT, args.Baud, args.Exit, ps...))
 						s.Close()
 					}()
 					time.Sleep(time.Second)
 					serial = JoinHostPort(s2, portT)
 				}
 				print(repo, "-H", serial, "-8", portW)
-				p2 := portOB(portW, PORTW)
-				if hp := newHostPort(s2, p2, serial); isHP(hp.dest()) {
+				if hp := newHostPort(s2, portW, serial); isHP(hp.dest()) {
 					// Подключаемся к существующему сеансу
 					hp.read()
 					print(hp.String())
@@ -232,9 +231,9 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 				}
 
 				if portT > 0 {
-					print(s2w(s.Context(), nil, nil, serial, s2, p2, args.Baud, "", PrintNil))
+					print(s2w(s.Context(), nil, nil, serial, s2, portW, args.Baud, "", PrintNil))
 				} else {
-					print(s2w(s.Context(), s, nil, serial, s2, p2, args.Baud, ". или <^C>", ps...))
+					print(s2w(s.Context(), s, nil, serial, s2, portW, args.Baud, ". или <^C>", ps...))
 				}
 				return
 			}
