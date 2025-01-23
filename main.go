@@ -122,6 +122,7 @@ var (
 	EEDE           = EED
 	ioc            = ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: os.Stdout, Cygwin: Cygwin}
 	listen         = strconv.Itoa(PORTS)
+	tt             *time.Timer
 )
 
 //go:generate go run github.com/abakum/version
@@ -313,26 +314,27 @@ func main() {
 	portT := portOB(args.Ser2net, PORTT)
 	portW := portOB(args.Ser2web, PORTW)
 
+	argsShare := args.Share
 	if args.Share {
 		// Отдаём свою консоль через dssh-сервер
 		if portT < 0 && portW < 0 {
-			portT = PORTT
-		}
-		switch args.Destination {
-		case "":
-			// -s
-			if dot {
-				args.Share = false
-				// -20
+			if Win7 && !Cygwin {
+				portW = PORTW
+				// -80
 			} else {
-				args.Destination = ":"
-				// -s20 :
+				portT = PORTT
+				// -20
 			}
-		case ".", repo:
+		}
+		if args.Destination == "" || isDssh() {
+			// -s
 			// -s .
-			args.Destination = ""
-			args.Share = false
-			// -20
+			// -s :
+			args.Share = !(dot || args.Destination == "")
+			args.Destination = ":"
+			if !args.Share {
+				args.Destination = ""
+			}
 		}
 	}
 	if args.Use {
@@ -380,9 +382,10 @@ func main() {
 	case "H":
 		args.Serial = ":"
 		if args.Destination == "" {
-			args.Destination = ":"
 			if dot {
 				args.Destination = "."
+			} else if !isHP(JoinHostPort(LH, PORTT)) {
+				args.Destination = ":"
 			}
 		}
 	case "_", "+":
@@ -793,7 +796,7 @@ Host ` + SSHJ + ` :
 					nw(s2, dial)
 					return
 				}
-				// Println("-HH || -Hcmd | -H:5002")
+				// Println("-HH || -Hcmd | -H:")
 				setRaw(&once)
 				Println(cons(ctx, ioc, serial, args.Baud, exit, Println))
 				return
@@ -1062,7 +1065,7 @@ Host ` + SSHJ + ` :
 					Println("-R", s4)
 					args.RemoteForward.UnmarshalText([]byte(s4))
 				}
-				time.AfterFunc(time.Second, func() {
+				tt = time.AfterFunc(time.Second, func() {
 					nw(LH, LH)
 					closer.Close()
 				})
@@ -1122,7 +1125,6 @@ Host ` + SSHJ + ` :
 		Println(ToExitPress, EED)
 	}
 
-	toLate := time.Now().Add(time.Second)
 	code := Tssh(&args)
 	if args.Background {
 		Println("tssh started in background with code:", code)
@@ -1130,7 +1132,7 @@ Host ` + SSHJ + ` :
 	} else {
 		if code != 0 {
 			Println("tssh exit with code:", code)
-			if args.Share && !dot && args.Destination == SSHJ && time.Now().Before(toLate) {
+			if argsShare && tt != nil {
 				Println("Local console - Локальная консоль", serial)
 				closer.Hold()
 			}

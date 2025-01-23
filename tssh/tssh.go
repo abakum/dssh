@@ -248,7 +248,7 @@ func Tssh(args *SshArgs) int {
 
 	// start ssh program
 	if err = sshStart(args); err != nil {
-		warning("sshStart failed: %v", err)
+		// warning("sshStart failed: %v", err)
 		return 6
 	}
 	return 0
