@@ -381,11 +381,10 @@ func main() {
 	switch args.Serial {
 	case "H":
 		args.Serial = ":"
-		if args.Destination == "" {
+		if args.Destination == "" && !isHP(JoinHostPort(LH, PORTT)) {
+			args.Destination = ":"
 			if dot {
 				args.Destination = "."
-			} else if !isHP(JoinHostPort(LH, PORTT)) {
-				args.Destination = ":"
 			}
 		}
 	case "_", "+":
