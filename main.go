@@ -317,15 +317,7 @@ func main() {
 	argsShare := args.Share
 	if args.Share {
 		// Отдаём свою консоль через dssh-сервер
-		if portT < 0 && portW < 0 {
-			if Win7 && !Cygwin {
-				portW = PORTW
-				// -80
-			} else {
-				portT = PORTT
-				// -20
-			}
-		}
+		portT, portW = optS(portT, portW)
 		if args.Destination == "" || isDssh() {
 			// -s
 			// -s .
@@ -343,24 +335,18 @@ func main() {
 			// -0
 			// -0 .
 			// -0 :
-			if portT < 0 && portW < 0 {
-				if Win7 && !Cygwin {
-					portW = PORTW
-					// -80
-				} else {
-					portT = PORTT
-					// -20
-				}
-			}
+			portT, portW = optS(portT, portW)
 			if !dot {
 				args.Destination = ":"
 				// -20 :
 			}
-		} else if args.Serial == "" {
-			// Используем консоль sshd-сервера X
+		} else {
 			// -0 X
-			args.Serial = ":0"
-			// -H:0 X
+			// Используем консоль sshd-сервера X
+			args.ForceTTY = true
+			args.DisableTTY = !args.ForceTTY
+			args.Command = repo + " -s"
+			// -t X dssh -s
 		}
 	}
 	// Заменяем `dssh .` на `dssh :` если на хосте не запущен dssh-сервер
@@ -1045,8 +1031,8 @@ Host ` + SSHJ + ` :
 				serial = getFirstUsbSerial(serial, args.Baud, PrintNil)
 				if serial == "" {
 					Println(ErrNotFoundFreeSerial)
-				} else if portT < 0 && portW < 0 {
-					portT = PORTT
+				} else {
+					portT, portW = optS(portT, portW)
 				}
 			}
 			// Println("share", "serial", serial, "args.Baud", args.Baud, "portT", portT, "portW", portW)
@@ -1661,4 +1647,17 @@ func swSerial(s string) (serial, sw, h string, p int) {
 		sw = "s"
 	}
 	return
+}
+
+func optS(portT, portW int) (t, w int) {
+	if portT < 0 && portW < 0 {
+		if Win7 && !Cygwin {
+			return portT, PORTW
+			// -80
+		} else {
+			// -20
+			return PORTT, portW
+		}
+	}
+	return portT, portW
 }
