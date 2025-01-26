@@ -29,12 +29,6 @@ func cons(ctx context.Context, s io.ReadWriteCloser, Serial, Baud, exit string, 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	// _, local := s.(ser2net.ReadWriteCloser)
-	// if local && !ser2net.SerialPath(Serial) {
-	// 	exit = ""
-	// }
-	// quit := EED + exit
-
 	w, _ := ser2net.NewSerialWorker(ctx, Serial, ser2net.BaudRate(strconv.Atoi(Baud)))
 	defer w.Stop()
 	go w.Worker()

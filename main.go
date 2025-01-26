@@ -329,24 +329,30 @@ func main() {
 			}
 		}
 	}
+	emptyCommand := args.Command == "" && !args.NoCommand
 	if args.Use {
 		if args.Destination == "" || isDssh() {
+			portT, portW = optS(portT, portW)
 			// Используем консоль dssh-сервера
 			// -0
 			// -0 .
 			// -0 :
-			portT, portW = optS(portT, portW)
 			if !dot {
 				args.Destination = ":"
 				// -20 :
 			}
 		} else {
-			// -0 X
-			// Используем консоль sshd-сервера X
-			args.ForceTTY = true
-			args.DisableTTY = !args.ForceTTY
-			args.Command = repo + " -s"
-			// -t X dssh -s
+			if emptyCommand {
+				// -0 X
+				// Используем консоль sshd-сервера X
+				portT, portW = optS(portT, portW)
+				// X dssh -HH -UU -22 -88
+
+			} else {
+				// -0 X command
+				args.Use = false
+				Println(fmt.Errorf("option -0 only used without command - ключ -0 используется только если нет команды"))
+			}
 		}
 	}
 	// Заменяем `dssh .` на `dssh :` если на хосте не запущен dssh-сервер
@@ -648,12 +654,12 @@ Host ` + SSHJ + ` :
  ProxyJump ` + u + `@` + JumpHost + `
  EnableTrzsz ` + enableTrzsz
 
-	if args.Command == "" && (args.Restart || args.Exit || BSnw) {
+	if args.Command == "" && (args.Restart || args.Stop || BSnw) {
 		// Println("CGI")
 		cli = true
 		// args.ForceTTY = true
 		args.Argument = []string{}
-		if args.Restart || args.Exit {
+		if args.Restart || args.Stop {
 			// dssh --restart
 			if args.Destination == "" {
 				args.Destination = ":" // Рестарт сервера за NAT
@@ -662,7 +668,7 @@ Host ` + SSHJ + ` :
 			if args.Restart {
 				args.Argument = append(args.Argument, RESTART)
 			}
-			if args.Exit {
+			if args.Stop {
 				s := winssh.UserName()
 				hostname, err := os.Hostname()
 				if err == nil {
@@ -1073,38 +1079,14 @@ Host ` + SSHJ + ` :
 			if args.Share {
 				share()
 			} else {
-				Println("Remote console - Консоль", serial, "на", repo)
-				if args.Debug {
-					args.Argument = append(args.Argument, "--debug")
-				}
-				if args.Baud != "" {
-					args.Argument = append(args.Argument, "--baud", args.Baud)
-				}
-				if serial != "" {
-					args.Argument = append(args.Argument, "--path", serial)
-				}
-				if portT > 0 {
-					args.Argument = append(args.Argument, "--2217", strconv.Itoa(portT))
-				}
-				if portW > 0 {
-					args.Argument = append(args.Argument, "--web", strconv.Itoa(portW))
-				}
-				if exit != "" {
-					args.Argument = append(args.Argument, "--exit", exit)
-				}
-				if len(args.Argument) > 0 {
-					args.Command = repo
-				}
-				if portW > 0 {
-					// dssh -88 :
-					// dssh -88 .
-					time.AfterFunc(time.Second, func() {
-						Println(browse(ctx, dial, portW, nil))
-					})
-				}
+				cgi(ctx, portT, portW, &args, serial, dial, exit)
 			}
 		} else {
-			share()
+			if args.Destination != "" && args.Use && emptyCommand {
+				cgi(ctx, portT, portW, &args, serial, LH, "")
+			} else {
+				share()
+			}
 		}
 	} else if (enableTrzsz == "no" || args.Destination == repo) && args.StdioForward == "" {
 		Println(ToExitPress, EED)
@@ -1391,6 +1373,43 @@ func portPB(p string, base int) string {
 	return strconv.Itoa(base)
 }
 
+func cgi(ctx context.Context, portT, portW int, args *SshArgs, serial, host, exit string) {
+	Println("Remote console - Консоль", serial, "на", repo)
+	if args.Debug {
+		args.Argument = append(args.Argument, "--debug")
+	}
+	if args.Baud != "" {
+		args.Argument = append(args.Argument, "--baud", args.Baud)
+	}
+	if serial != "" {
+		args.Argument = append(args.Argument, "--path", serial)
+	}
+	if portT > 0 {
+		args.Argument = append(args.Argument, "--2217", strconv.Itoa(portT))
+		if exit == "" {
+			s4 := fmt.Sprintf("%s:%d:%s:%d", LH, portT, LH, portT)
+			Println("-L", s4)
+			args.LocalForward.UnmarshalText([]byte(s4))
+		}
+	}
+	if portW > 0 {
+		args.Argument = append(args.Argument, "--web", strconv.Itoa(portW))
+		if exit == "" {
+			s4 := fmt.Sprintf("%s:%d:%s:%d", LH, portW, LH, portW)
+			Println("-L", s4)
+			args.LocalForward.UnmarshalText([]byte(s4))
+		}
+		time.AfterFunc(time.Second, func() {
+			Println(browse(ctx, host, portW, nil))
+		})
+	}
+	if exit != "" {
+		args.Argument = append(args.Argument, "--exit", exit)
+	}
+	if len(args.Argument) > 0 {
+		args.Command = repo
+	}
+}
 func optL(port int, args *SshArgs, s2 string, loc, dot bool) {
 	if port < 0 || loc || args.Share {
 		return
