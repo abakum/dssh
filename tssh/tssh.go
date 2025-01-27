@@ -332,12 +332,13 @@ func sshStart(args *SshArgs) error {
 	// make stdin raw
 	if isTerminal && ss.tty {
 		state, err := makeStdinRaw()
-		if err != nil {
-			return err
+		if err == nil {
+			restoreStdFuncs.Add(func() {
+				resetStdin(state)
+			})
+		} else {
+			warning("%v", err)
 		}
-		restoreStdFuncs.Add(func() {
-			resetStdin(state)
-		})
 	}
 
 	// enable trzsz

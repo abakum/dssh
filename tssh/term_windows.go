@@ -161,9 +161,8 @@ func setupVirtualTerminal(args *SshArgs) error {
 		if !sttyExecutable() {
 			// return fmt.Errorf("enable virtual terminal failed: %v", err)
 			warning("enable virtual terminal failed: %v.\r\n"+
-				"Now tssh started as `tssh -T`, next try run it in MSYS2 or Cygwin\r\n",
+				"Try run with `-T` or with MSYS2 or Cygwin\r\n",
 				err)
-			args.DisableTTY = true
 		}
 		if userConfig.promptCursorIcon == "" {
 			promptCursorIcon = ">>"

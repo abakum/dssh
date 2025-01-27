@@ -1408,6 +1408,9 @@ func cgi(ctx context.Context, portT, portW int, args *SshArgs, serial, host, exi
 	}
 	if len(args.Argument) > 0 {
 		args.Command = repo
+		if exit == "" && !args.DisableTTY {
+			args.ForceTTY = true
+		}
 	}
 }
 func optL(port int, args *SshArgs, s2 string, loc, dot bool) {
