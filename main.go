@@ -450,17 +450,17 @@ func main() {
 	loc = localHost(args.Destination)
 
 	if Win7 && args.Telnet {
+		pe := func(s string) {
+			if args.Unix {
+				return
+			}
+			Println(fmt.Errorf("can't run in a separate window - не могу запускать " + s + " в отдельном окне на Windows 7"))
+		}
 		if loc {
-			if !args.Putty {
-				args.Unix = true
-			}
-			if Cygwin {
-				args.Telnet = false
-				Println(fmt.Errorf("can't run - не могу запускать telnet в Cygwin на Windows 7"))
-			}
+			pe(TELNET)
 		} else {
+			pe(SSH)
 			args.Unix = true
-			Println(fmt.Errorf("can't run in a separate window - не могу запускать ssh в отдельном окне на Windows 7"))
 		}
 	}
 
@@ -708,13 +708,8 @@ Host ` + SSHJ + ` :
 					if portT > 0 {
 						if extTel && args.Telnet {
 							if !ZerroNewWindow && Windows {
-								if Win7 && !Cygwin {
-									Println(fmt.Errorf("can't run in a separate window - не могу запустить telnet в отдельном окне на Windows 7"))
-									time.Sleep(time.Second * 3)
-								} else {
-									// Println("-Z || -u && !existsPuTTY")
+								if !Win7 {
 									createNewConsole(cmd)
-
 									Println(cmdRun(cmd, ctx, os.Stdin, false, serial, s2, portT, args.Baud, exit, Println))
 									return
 								}
