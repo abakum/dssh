@@ -532,7 +532,7 @@ Host ` + host + `
 	return alias
 }
 
-// Алиас для локального доступа. Попробовать sshd.
+// Алиас для локального доступа. Попробовать dssh.
 func local(h, p, repo string) string {
 	alias := `
 Host ` + repo + ` .
@@ -542,6 +542,7 @@ Host ` + repo + ` .
  UserKnownHostsFile ~/.ssh/` + repo + `
  KbdInteractiveAuthentication no
  PasswordAuthentication no
+ RequestTTY yes
  ` // EnableTrzsz ` + enableTrzsz
 	return alias
 }

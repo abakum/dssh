@@ -349,9 +349,9 @@ func main() {
 				// X dssh -HH -UU -22 -88
 
 			} else {
-				// -0 X command
 				args.Use = false
 				Println(fmt.Errorf("option -0 only used without command - ключ -0 используется только если нет команды"))
+				// X command
 			}
 		}
 	}
@@ -651,6 +651,7 @@ Host ` + SSHJ + ` :
  UserKnownHostsFile ~/.ssh/` + repo + `
  KbdInteractiveAuthentication no
  PasswordAuthentication no
+ RequestTTY yes
  ProxyJump ` + u + `@` + JumpHost + `
  EnableTrzsz ` + enableTrzsz
 
