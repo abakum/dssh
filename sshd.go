@@ -168,10 +168,10 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 		if args.Baud == "" {
 			if args.Serial == "H" { // -HH
 				args.Serial = ""
-				args.Baud = "9"
+				args.Baud = "U"
 			}
 			if args.Unix { // -z
-				args.Baud = "9"
+				args.Baud = "U"
 			}
 		}
 		portT := portOB(args.Ser2net, PORTT)

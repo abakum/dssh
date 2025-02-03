@@ -389,7 +389,7 @@ func main() {
 	if args.Baud == "" {
 		if args.Destination == "" && external || // -u || -Z
 			args.Unix && !external { // -z
-			args.Baud = "9"
+			args.Baud = "U"
 		}
 	}
 
@@ -683,14 +683,21 @@ Host ` + SSHJ + ` :
 			if loc {
 				Println("Local console - Локальная консоль", serial)
 				if external {
-					BaudRate := ser2net.BaudRate(strconv.Atoi(args.Baud))
-					opt := fmt.Sprintln("-serial", serial, "-sercfg", fmt.Sprintf("%d,8,1,N,N", BaudRate))
-
+					opt := ""
 					if portT > 0 {
 						opt = optTelnet(bin, dial, portT)
-					} else if !existsPuTTY && extSer {
-						opt = fmt.Sprintln(MICROCOM, "-s", BaudRate, serial)
-						execPath = BUSYBOX
+					} else {
+						mode, p, sb, err := getMode(serial, args.Baud)
+						if err != nil {
+							Println(err)
+							mode = ser2net.DefaultMode
+						}
+						if !existsPuTTY && extSer {
+							opt = fmt.Sprintln(MICROCOM, "-s", mode.BaudRate, serial)
+							execPath = BUSYBOX
+						} else {
+							opt = fmt.Sprintln("-serial", serial, "-sercfg", fmt.Sprintf("%d,%d,%s,%s,n", mode.BaudRate, mode.DataBits, p, sb))
+						}
 					}
 
 					opts := strings.Fields(opt)

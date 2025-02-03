@@ -3,6 +3,7 @@ module github.com/abakum/dssh
 go 1.21
 
 // replace github.com/abakum/go-ser2net => ../go-ser2net
+// replace github.com/abakum/go-serial => ../go-serial
 
 // replace github.com/abakum/embed-encrypt => ../embed-encrypt
 // replace github.com/skeema/knownhosts => ../knownhosts
@@ -15,7 +16,8 @@ require (
 	github.com/abakum/embed-encrypt v0.0.1
 	github.com/abakum/go-ansiterm v0.0.1
 	github.com/abakum/go-netstat v0.0.1
-	github.com/abakum/go-ser2net v0.0.2-0.20241221102609-08b43d06560f
+	github.com/abakum/go-ser2net v0.0.2-0.20250203140251-701344cde685
+	github.com/abakum/go-serial v1.6.2
 	github.com/abakum/menu v0.0.2-lw
 	github.com/abakum/pageant v0.0.1
 	github.com/abakum/version v0.1.4-lw
@@ -27,7 +29,6 @@ require (
 	github.com/chzyer/readline v1.5.1
 	github.com/containerd/console v1.0.4
 	github.com/creack/pty v1.1.21
-	github.com/docopt/docopt.go v0.0.0-20180111231733-ee0de3bc6815
 	github.com/gliderlabs/ssh v0.3.7
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/mattn/go-isatty v0.0.20
@@ -38,7 +39,7 @@ require (
 	github.com/pquerna/otp v1.4.0
 	github.com/skeema/knownhosts v1.3.0
 	github.com/smeinecke/go-socks5 v0.0.0-20180316091040-4880db608f18
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	github.com/trzsz/go-arg v1.5.3
 	github.com/trzsz/iterm2 v0.1.2
 	github.com/trzsz/promptui v0.10.7
@@ -46,9 +47,8 @@ require (
 	github.com/trzsz/trzsz-go v1.1.7
 	github.com/unixist/go-ps v0.0.0-20160415204547-177148200605
 	github.com/xlab/closer v1.1.0
-	go.bug.st/serial v1.6.2
 	golang.org/x/crypto v0.24.0
-	golang.org/x/sys v0.27.0
+	golang.org/x/sys v0.29.0
 	golang.org/x/term v0.21.0
 )
 

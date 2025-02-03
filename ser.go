@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/abakum/go-ser2net/pkg/ser2net"
+	"github.com/abakum/go-serial"
+	"github.com/abakum/go-serial/enumerator"
 	"github.com/abakum/winssh"
-	"go.bug.st/serial"
-	"go.bug.st/serial/enumerator"
 )
 
 const (
@@ -90,6 +90,44 @@ func getFirstSerial(isUSB bool, Baud string, print func(v ...any)) (name, list s
 		}
 	}
 	list += "\r\n"
+	return
+}
+
+func getMode(name, baud string) (mode serial.Mode, parity, stopBits string, err error) {
+	mode.BaudRate = ser2net.OLDBAUD
+	var sp serial.Port
+	sp, err = serial.Open(name, &mode)
+	if err != nil {
+		return
+	}
+	stopBits = "1"
+	switch mode.StopBits {
+	case serial.TwoStopBits:
+		stopBits = "2"
+	case serial.OnePointFiveStopBits:
+		stopBits = "1.5"
+	}
+	parity = "n"
+	switch mode.Parity {
+	case serial.OddParity:
+		parity = "o"
+	case serial.EvenParity:
+		parity = "e"
+	case serial.MarkParity:
+		parity = "m"
+	case serial.SpaceParity:
+		parity = "s"
+	}
+	ser2net.SerialClose(sp)
+	b := ser2net.BaudRate(strconv.Atoi(baud))
+	if b != ser2net.OLDBAUD {
+		mode.BaudRate = b
+		sp, err = serial.Open(name, &mode)
+		if err != nil {
+			return
+		}
+		ser2net.SerialClose(sp)
+	}
 	return
 }
 
