@@ -93,40 +93,22 @@ func getFirstSerial(isUSB bool, Baud string, print func(v ...any)) (name, list s
 	return
 }
 
-func getMode(name, baud string) (mode serial.Mode, parity, stopBits string, err error) {
+func getMode(name, baud string) (mode serial.Mode) {
 	mode.BaudRate = ser2net.OLDBAUD
-	var sp serial.Port
-	sp, err = serial.Open(name, &mode)
+	sp, err := serial.Open(name, &mode)
 	if err != nil {
+		mode = ser2net.DefaultMode
 		return
 	}
-	stopBits = "1"
-	switch mode.StopBits {
-	case serial.TwoStopBits:
-		stopBits = "2"
-	case serial.OnePointFiveStopBits:
-		stopBits = "1.5"
-	}
-	parity = "n"
-	switch mode.Parity {
-	case serial.OddParity:
-		parity = "o"
-	case serial.EvenParity:
-		parity = "e"
-	case serial.MarkParity:
-		parity = "m"
-	case serial.SpaceParity:
-		parity = "s"
-	}
-	ser2net.SerialClose(sp)
-	b := ser2net.BaudRate(strconv.Atoi(baud))
-	if b != ser2net.OLDBAUD {
+	sp.Close()
+	if b := ser2net.BaudRate(strconv.Atoi(baud)); b != ser2net.OLDBAUD {
 		mode.BaudRate = b
 		sp, err = serial.Open(name, &mode)
-		if err != nil {
+		if err == nil {
+			sp.Close()
 			return
 		}
-		ser2net.SerialClose(sp)
+		mode = ser2net.DefaultMode
 	}
 	return
 }

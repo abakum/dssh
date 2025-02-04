@@ -687,16 +687,12 @@ Host ` + SSHJ + ` :
 					if portT > 0 {
 						opt = optTelnet(bin, dial, portT)
 					} else {
-						mode, p, sb, err := getMode(serial, args.Baud)
-						if err != nil {
-							Println(err)
-							mode = ser2net.DefaultMode
-						}
+						mode := getMode(serial, args.Baud)
 						if !existsPuTTY && extSer {
 							opt = fmt.Sprintln(MICROCOM, "-s", mode.BaudRate, serial)
 							execPath = BUSYBOX
 						} else {
-							opt = fmt.Sprintln("-serial", serial, "-sercfg", fmt.Sprintf("%d,%d,%s,%s,n", mode.BaudRate, mode.DataBits, p, sb))
+							opt = fmt.Sprintln("-serial", serial, "-sercfg", fmt.Sprintf("%s,N", ser2net.Mode{Mode: mode}))
 						}
 					}
 
