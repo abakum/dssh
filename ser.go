@@ -33,7 +33,7 @@ var (
 	ErrNotSerial          = fmt.Errorf("this is not a serial port - это не последовательный порт")
 )
 
-func getFirstSerial(isUSB bool, Baud string, print func(v ...any)) (name, list string) {
+func getFirstSerial(isUSB bool, Baud string, print func(v ...any)) (name, list string, mode serial.Mode) {
 	ports, err := serial.GetPortsList()
 	if err != nil || len(ports) == 0 {
 		return
@@ -69,8 +69,11 @@ func getFirstSerial(isUSB bool, Baud string, print func(v ...any)) (name, list s
 				continue
 			}
 			// Занят?
-			mode := ser2net.DefaultMode
-			mode.BaudRate = ser2net.BaudRate(strconv.Atoi(Baud))
+			mode = getMode(port.Name)
+			oldMode := ser2net.Mode{Mode: mode}.String()
+			if b := ser2net.BaudRate(strconv.Atoi(Baud)); b != ser2net.OLDBAUD {
+				mode.BaudRate = b
+			}
 			sp, err := serial.Open(port.Name, &mode)
 			if err != nil {
 				list += fmt.Sprintf(" %s", err)
@@ -79,45 +82,61 @@ func getFirstSerial(isUSB bool, Baud string, print func(v ...any)) (name, list s
 				}
 				continue
 			}
-			_, err = sp.GetModemStatusBits()
-			ser2net.SerialClose(sp)
+			mStatus, err := sp.GetModemStatusBits()
+			// ser2net.SerialClose(sp)
+			sp.Close()
 			if err != nil {
 				list += fmt.Sprintf(" %s", err)
 				continue
 			}
 			ok = true
 			name = port.Name
+			ms := ""
+			if mStatus.CTS {
+				ms += " CTS"
+			} else {
+				ms += " cts"
+			}
+			if mStatus.DCD {
+				ms += " DCD"
+			} else {
+				ms += " dcd"
+			}
+			if mStatus.DSR {
+				ms += " DSR"
+			} else {
+				ms += " dsr"
+			}
+			if mStatus.RI {
+				ms += " RI"
+			} else {
+				ms += " ri"
+			}
+			list += oldMode + ms
 		}
 	}
 	list += "\r\n"
 	return
 }
 
-func getMode(name, baud string) (mode serial.Mode) {
+func getMode(name string) (mode serial.Mode) {
 	mode.BaudRate = ser2net.OLDBAUD
 	sp, err := serial.Open(name, &mode)
 	if err != nil {
 		mode = ser2net.DefaultMode
 		return
 	}
-	sp.Close()
-	if b := ser2net.BaudRate(strconv.Atoi(baud)); b != ser2net.OLDBAUD {
-		mode.BaudRate = b
-		sp, err = serial.Open(name, &mode)
-		if err == nil {
-			sp.Close()
-			return
-		}
-		mode = ser2net.DefaultMode
-	}
+	defer sp.Close()
 	return
 }
 
-func getFirstUsbSerial(serialPort, Baud string, print func(v ...any)) (serial string) {
+func getFirstUsbSerial(serialPort, Baud string, print func(v ...any)) (ser string, mode serial.Mode) {
+	ser = serialPort
+	mode = ser2net.DefaultMode
 	if serialPort != "" {
-		return serialPort
+		return
 	}
-	serial, list := getFirstSerial(true, Baud, print)
+	ser, list, mode := getFirstSerial(true, Baud, print)
 	print(list)
 	return
 }

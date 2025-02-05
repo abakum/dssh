@@ -184,7 +184,7 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 			lss := log.New(s.Stderr(), "\r:>", lf.Flags())
 			// Покажу клиенту и на сервере протокол на стороне сервера
 			ps := []func(v ...any){lss.Println, Println}
-			serial := getFirstUsbSerial(args.Serial, args.Baud, lss.Print)
+			ser, _ := getFirstUsbSerial(args.Serial, args.Baud, lss.Print)
 
 			// Покажу клиенту протокол IAC
 			log.SetFlags(lf.Flags())
@@ -200,28 +200,28 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 				}
 			}
 
-			portT = comm(serial, s2, portT, portW)
+			portT = comm(ser, s2, portT, portW)
 			if portT > 0 && portW < 0 {
 				// dssh -22 :
 				// p2 := portOB(portT, RFC2217)
 				// dssh -22 :
 				// dssh -22 .
-				print(repo, "-H", serial, "-2", portT)
-				print(rfc2217(s.Context(), s, serial, s2, portT, args.Baud, args.Exit, ps...))
+				print(repo, "-H", ser, "-2", portT)
+				print(rfc2217(s.Context(), s, ser, s2, portT, args.Baud, args.Exit, ps...))
 				return
 			}
 			if portW > 0 {
 				if portT > 0 {
-					print(repo, "-H", serial, "-2", portT)
+					print(repo, "-H", ser, "-2", portT)
 					go func() {
-						print(rfc2217(s.Context(), s, serial, s2, portT, args.Baud, args.Exit, ps...))
+						print(rfc2217(s.Context(), s, ser, s2, portT, args.Baud, args.Exit, ps...))
 						s.Close()
 					}()
 					time.Sleep(time.Second)
-					serial = JoinHostPort(s2, portT)
+					ser = JoinHostPort(s2, portT)
 				}
-				print(repo, "-H", serial, "-8", portW)
-				if hp := newHostPort(s2, portW, serial); isHP(hp.dest()) {
+				print(repo, "-H", ser, "-8", portW)
+				if hp := newHostPort(s2, portW, ser); isHP(hp.dest()) {
 					// Подключаемся к существующему сеансу
 					hp.read()
 					print(hp.String())
@@ -231,14 +231,14 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 				}
 
 				if portT > 0 {
-					print(s2w(s.Context(), nil, nil, serial, s2, portW, args.Baud, "", PrintNil))
+					print(s2w(s.Context(), nil, nil, ser, s2, portW, args.Baud, "", PrintNil))
 				} else {
-					print(s2w(s.Context(), s, nil, serial, s2, portW, args.Baud, ". или <^C>", ps...))
+					print(s2w(s.Context(), s, nil, ser, s2, portW, args.Baud, ". или <^C>", ps...))
 				}
 				return
 			}
 			// dssh -UU :
-			print(cons(s.Context(), s, serial, args.Baud, args.Exit, ps...))
+			print(cons(s.Context(), s, ser, args.Baud, args.Exit, ps...))
 		case args.Exit != "":
 			caRW()
 			Exit = args.Exit

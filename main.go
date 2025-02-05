@@ -47,6 +47,7 @@ import (
 
 	"github.com/abakum/embed-encrypt/encryptedfs"
 	"github.com/abakum/go-ser2net/pkg/ser2net"
+	"github.com/abakum/go-serial"
 	"github.com/abakum/menu"
 	"github.com/abakum/winssh"
 	"github.com/containerd/console"
@@ -470,8 +471,8 @@ func main() {
 		Println(err)
 	}
 
-	serial, sw, sh, sp := swSerial(args.Serial)
-	SP = serial == "" || sw == "s"
+	ser, sw, sh, sp := swSerial(args.Serial)
+	SP = ser == "" || sw == "s"
 	if loc && Win7 && Cygwin && SP {
 		if args.Unix && args.Putty {
 			Println(fmt.Errorf("can't interrupt - не могу прервать plink в Cygwin на Windows 7"))
@@ -553,12 +554,12 @@ func main() {
 	if external && loc {
 		switch sw {
 		case "t":
-			if isHP(serial) {
+			if isHP(ser) {
 				if portT < 0 || localHost(sh) {
 					portT = sp
 				}
 			} else {
-				Println(fmt.Errorf("not connected to - не удалось подключиться к %q", serial))
+				Println(fmt.Errorf("not connected to - не удалось подключиться к %q", ser))
 				return
 			}
 		case "", "s":
@@ -571,16 +572,18 @@ func main() {
 			}
 		}
 	}
-	BSnw = serial != "" || args.Baud != "" || portT > 0 || portW > 0
+	BSnw = ser != "" || args.Baud != "" || portT > 0 || portW > 0
+	var mode serial.Mode
 	if BSnw {
 		enableTrzsz = "no"
 		if loc || args.Destination == "." {
 			// Локальный последовательный порт
-			// serial = getFirstUsbSerial(serial, args.Baud, Print)
-			serial, sw, sh, sp = swSerial(getFirstUsbSerial(serial, args.Baud, Print))
-			SP = serial == "" || sw == "s"
-			BSnw = BSnw || serial != ""
-			portT = comm(serial, s2, portT, portW)
+			usbSerial := ""
+			usbSerial, mode = getFirstUsbSerial(ser, args.Baud, Print)
+			ser, sw, _, _ = swSerial(usbSerial)
+			SP = ser == "" || sw == "s"
+			BSnw = BSnw || ser != ""
+			portT = comm(ser, s2, portT, portW)
 			BSnw = BSnw || portT > 0 || portW > 0
 		}
 	}
@@ -604,18 +607,18 @@ func main() {
 	nw := func(s2, dial string) {
 		if portW > 0 {
 			if portT > 0 {
-				Println(repo, "-H", serial, "-2", portT)
+				Println(repo, "-H", ser, "-2", portT)
 				go func() {
 					setRaw(&once)
-					Println(rfc2217(ctx, ioc, serial, s2, portT, args.Baud, exit, Println))
+					Println(rfc2217(ctx, ioc, ser, s2, portT, args.Baud, exit, Println))
 					closer.Close()
 				}()
 				// Даже если -H: это может быть set2net или hub4com или RouterOS позволяющие только одного клиента
 				time.Sleep(time.Second)
-				serial = JoinHostPort(s2, portT)
+				ser = JoinHostPort(s2, portT)
 			}
-			Println(repo, "-H", serial, "-8", portW)
-			if hp := newHostPort(dial, portW, serial); isHP(hp.dest()) {
+			Println(repo, "-H", ser, "-8", portW)
+			if hp := newHostPort(dial, portW, ser); isHP(hp.dest()) {
 				// Подключаемся к существующему сеансу
 				hp.read()
 				Println(hp.String())
@@ -633,14 +636,14 @@ func main() {
 
 			setRaw(&once)
 			if portT > 0 {
-				Println(s2w(ctx, nil, nil, serial, s2, portW, args.Baud, "", PrintNil))
+				Println(s2w(ctx, nil, nil, ser, s2, portW, args.Baud, "", PrintNil))
 			} else {
-				Println(s2w(ctx, ioc, nil, serial, s2, portW, args.Baud, ". или ^C", Println))
+				Println(s2w(ctx, ioc, nil, ser, s2, portW, args.Baud, ". или ^C", Println))
 			}
 		} else {
-			Println(repo, "-H", serial, "-2", portT)
+			Println(repo, "-H", ser, "-2", portT)
 			setRaw(&once)
-			Println(rfc2217(ctx, ioc, serial, s2, portT, args.Baud, exit, Println))
+			Println(rfc2217(ctx, ioc, ser, s2, portT, args.Baud, exit, Println))
 		}
 	}
 
@@ -681,18 +684,18 @@ Host ` + SSHJ + ` :
 		} else {
 			// Println("-UU || -HH || -22 || -88")
 			if loc {
-				Println("Local console - Локальная консоль", serial)
+				Println("Local console - Локальная консоль", ser)
 				if external {
 					opt := ""
 					if portT > 0 {
 						opt = optTelnet(bin, dial, portT)
 					} else {
-						mode := getMode(serial, args.Baud)
+						// mode := getMode(serial, args.Baud)
 						if !existsPuTTY && extSer {
-							opt = fmt.Sprintln(MICROCOM, "-s", mode.BaudRate, serial)
+							opt = fmt.Sprintln(MICROCOM, "-s", mode.BaudRate, ser)
 							execPath = BUSYBOX
 						} else {
-							opt = fmt.Sprintln("-serial", serial, "-sercfg", fmt.Sprintf("%s,N", ser2net.Mode{Mode: mode}))
+							opt = fmt.Sprintln("-serial", ser, "-sercfg", fmt.Sprintf("%s,N", ser2net.Mode{Mode: mode}))
 						}
 					}
 
@@ -713,7 +716,7 @@ Host ` + SSHJ + ` :
 							if !ZerroNewWindow && Windows {
 								if !Win7 {
 									createNewConsole(cmd)
-									Println(cmdRun(cmd, ctx, os.Stdin, false, serial, s2, portT, args.Baud, exit, Println))
+									Println(cmdRun(cmd, ctx, os.Stdin, false, ser, s2, portT, args.Baud, exit, Println))
 									return
 								}
 							}
@@ -728,7 +731,7 @@ Host ` + SSHJ + ` :
 							if Cygwin && !Win7 {
 								exit = "<^C>"
 							}
-							Println(cmdRun(cmd, ctx, nil, false, serial, s2, portT, args.Baud, exit, PrintNil))
+							Println(cmdRun(cmd, ctx, nil, false, ser, s2, portT, args.Baud, exit, PrintNil))
 							return
 						}
 						// !extTel || !args.Telnet
@@ -740,7 +743,7 @@ Host ` + SSHJ + ` :
 								return
 							}
 							// Println("-zu22")
-							Println(cmdRun(cmd, ctx, nil, true, serial, s2, portT, args.Baud, exit, Println))
+							Println(cmdRun(cmd, ctx, nil, true, ser, s2, portT, args.Baud, exit, Println))
 							return
 						}
 						if bin != PUTTY {
@@ -756,7 +759,7 @@ Host ` + SSHJ + ` :
 						if Win7 && Cygwin {
 							exit = "<^Z><^Z>"
 						}
-						Println(cmdRun(cmd, ctx, os.Stdin, false, serial, s2, portT, args.Baud, exit, Println))
+						Println(cmdRun(cmd, ctx, os.Stdin, false, ser, s2, portT, args.Baud, exit, Println))
 						return
 					}
 					cmd.Stdout = os.Stdout
@@ -788,7 +791,7 @@ Host ` + SSHJ + ` :
 				}
 				// Println("-HH || -Hcmd | -H:")
 				setRaw(&once)
-				Println(cons(ctx, ioc, serial, args.Baud, exit, Println))
+				Println(cons(ctx, ioc, ser, args.Baud, exit, Println))
 				return
 			}
 		}
@@ -1032,9 +1035,9 @@ Host ` + SSHJ + ` :
 	if BSnw {
 		setRaw(&once)
 		share := func() {
-			if serial == "" {
-				serial = getFirstUsbSerial(serial, args.Baud, PrintNil)
-				if serial == "" {
+			if ser == "" {
+				ser, mode = getFirstUsbSerial(ser, args.Baud, PrintNil)
+				if ser == "" {
 					Println(ErrNotFoundFreeSerial)
 				} else {
 					portT, portW = optS(portT, portW)
@@ -1042,7 +1045,7 @@ Host ` + SSHJ + ` :
 			}
 			// Println("share", "serial", serial, "args.Baud", args.Baud, "portT", portT, "portW", portW)
 			if portT > 0 || portW > 0 {
-				Println("Share console - Отдаю консоль", serial, "через", args.Destination)
+				Println("Share console - Отдаю консоль", ser, "через", args.Destination)
 				// Обратный перенос портов
 				args.NoCommand = true
 				if portT > 0 {
@@ -1059,8 +1062,8 @@ Host ` + SSHJ + ` :
 					nw(LH, LH)
 					closer.Close()
 				})
-			} else if h, p, err := net.SplitHostPort(serial); err == nil {
-				Println("Remote console - Консоль", serial, "через", args.Destination)
+			} else if h, p, err := net.SplitHostPort(ser); err == nil {
+				Println("Remote console - Консоль", ser, "через", args.Destination)
 				s4 := fmt.Sprintf("%s:%s:%s:%s", LH, p, h, p)
 				Println("-L", s4)
 				args.LocalForward.UnmarshalText([]byte(s4))
@@ -1078,11 +1081,11 @@ Host ` + SSHJ + ` :
 			if args.Share {
 				share()
 			} else {
-				cgi(ctx, portT, portW, &args, serial, dial, exit)
+				cgi(ctx, portT, portW, &args, ser, dial, exit)
 			}
 		} else {
 			if args.Destination != "" && args.Use && emptyCommand {
-				cgi(ctx, portT, portW, &args, serial, LH, "")
+				cgi(ctx, portT, portW, &args, ser, LH, "")
 			} else {
 				share()
 			}
@@ -1099,7 +1102,7 @@ Host ` + SSHJ + ` :
 		if code != 0 {
 			Println("tssh exit with code:", code)
 			if argsShare && tt != nil {
-				Println("Local console - Локальная консоль", serial)
+				Println("Local console - Локальная консоль", ser)
 				closer.Hold()
 			}
 		}
