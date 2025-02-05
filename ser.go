@@ -38,32 +38,38 @@ func getFirstSerial(isUSB bool, Baud string, print func(v ...any)) (name, list s
 	if err != nil || len(ports) == 0 {
 		return
 	}
+	// if len(ports) > 1 {
+	// 	sort.Sort(sortorder.Natural(ports))
+	// }
 	print(ports)
 	detailedPorts, err := enumerator.GetDetailedPortsList()
 	if err != nil || len(detailedPorts) == 0 {
 		return
 	}
-	ordPorts := []*enumerator.PortDetails{}
-	for _, port := range ports {
-	inner:
-		for _, detailedPort := range detailedPorts {
-			if port == detailedPort.Name {
-				ordPorts = append(ordPorts, detailedPort)
-				break inner
-			}
-		}
-	}
+	// ordPorts := []*enumerator.PortDetails{}
+	// for _, port := range ports {
+	// inner:
+	// 	for _, detailedPort := range detailedPorts {
+	// 		if port == detailedPort.Name {
+	// 			ordPorts = append(ordPorts, detailedPort)
+	// 			break inner
+	// 		}
+	// 	}
+	// }
 	ok := false
-	for _, port := range ordPorts {
-		usb := ""
+	for _, port := range detailedPorts {
+		list += "\r\n" + port.Name
 		if port.IsUSB {
-			SerialNumber := ""
-			if port.SerialNumber != "" {
-				SerialNumber = fmt.Sprintf(" #_%s", port.SerialNumber)
+			list += fmt.Sprintf(" USB Vid_%s&Pid_%s", port.VID, port.PID)
+			SerialNumber := strings.TrimSpace(port.SerialNumber)
+			if SerialNumber != "" {
+				list += " #_" + SerialNumber
 			}
-			usb = fmt.Sprintf(" USB Vid_%s&Pid_%s%s", port.VID, port.PID, SerialNumber)
 		}
-		list += fmt.Sprintf("\r\n%s%s %s ", port.Name, usb, port.Product)
+		Product := strings.TrimSpace(port.Product)
+		if Product != "" {
+			list += " " + Product
+		}
 		if !ok {
 			if isUSB && !port.IsUSB {
 				continue
@@ -91,28 +97,19 @@ func getFirstSerial(isUSB bool, Baud string, print func(v ...any)) (name, list s
 			}
 			ok = true
 			name = port.Name
-			ms := ""
+			list += " " + oldMode
 			if mStatus.CTS {
-				ms += " CTS"
-			} else {
-				ms += " cts"
+				list += " CTS"
 			}
 			if mStatus.DCD {
-				ms += " DCD"
-			} else {
-				ms += " dcd"
+				list += " DCD"
 			}
 			if mStatus.DSR {
-				ms += " DSR"
-			} else {
-				ms += " dsr"
+				list += " DSR"
 			}
 			if mStatus.RI {
-				ms += " RI"
-			} else {
-				ms += " ri"
+				list += " RI"
 			}
-			list += oldMode + ms
 		}
 	}
 	list += "\r\n"
