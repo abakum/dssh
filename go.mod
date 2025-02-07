@@ -17,7 +17,7 @@ require (
 	github.com/abakum/go-ansiterm v0.0.1
 	github.com/abakum/go-netstat v0.0.1
 	github.com/abakum/go-ser2net v0.0.2-0.20250207115720-37600d27a5ed
-	github.com/abakum/go-serial v1.6.3-0.20250207114954-a79b4ab30905
+	github.com/abakum/go-serial v1.6.3-0.20250207145143-0d03e4572b68
 	github.com/abakum/menu v0.0.2-lw
 	github.com/abakum/pageant v0.0.1
 	github.com/abakum/version v0.1.4-lw
