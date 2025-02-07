@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -34,32 +33,14 @@ var (
 )
 
 // Ищем первый USB порт
-func getFirstSerial(isUSB bool, Baud string, print func(v ...any)) (name, list string, mode serial.Mode) {
-	// ports, err := serial.GetPortsList()
-	// if err != nil || len(ports) == 0 {
-	// 	return
-	// }
-	// if len(ports) > 1 {
-	// 	sort.Sort(sortorder.Natural(ports))
-	// }
-	// print(ports)
+func getFirstSerial(isUSB bool, Baud string) (name, list string, mode serial.Mode) {
 	detailedPorts, err := enumerator.GetDetailedPortsList()
 	if err != nil || len(detailedPorts) == 0 {
 		return
 	}
-	// ordPorts := []*enumerator.PortDetails{}
-	// for _, port := range ports {
-	// inner:
-	// 	for _, detailedPort := range detailedPorts {
-	// 		if port == detailedPort.Name {
-	// 			ordPorts = append(ordPorts, detailedPort)
-	// 			break inner
-	// 		}
-	// 	}
-	// }
 	ok := false
 	for _, port := range detailedPorts {
-		list += "\r\n" + port.Name
+		list += "\r\n" + serial.PortName(port.Name)
 		if port.IsUSB {
 			list += fmt.Sprintf(" USB Vid_%s&Pid_%s", port.VID, port.PID)
 			SerialNumber := strings.TrimSpace(port.SerialNumber)
@@ -89,28 +70,10 @@ func getFirstSerial(isUSB bool, Baud string, print func(v ...any)) (name, list s
 				}
 				continue
 			}
-			// mStatus, err := sp.GetModemStatusBits()
-			// ser2net.SerialClose(sp)
 			sp.Close()
-			// if err != nil {
-			// 	list += fmt.Sprintf(" %s", err)
-			// 	continue
-			// }
 			ok = true
 			name = port.Name
 			list += " " + oldMode
-			// if mStatus.CTS {
-			// 	list += " CTS"
-			// }
-			// if mStatus.DCD {
-			// 	list += " DCD"
-			// }
-			// if mStatus.DSR {
-			// 	list += " DSR"
-			// }
-			// if mStatus.RI {
-			// 	list += " RI"
-			// }
 		}
 	}
 	list += "\r\n"
@@ -134,7 +97,7 @@ func getFirstUsbSerial(serialPort, Baud string, print func(v ...any)) (ser strin
 	if serialPort != "" {
 		return
 	}
-	ser, list, mode := getFirstSerial(true, Baud, print)
+	ser, list, mode := getFirstSerial(true, Baud)
 	print(list)
 	return
 }
@@ -442,33 +405,4 @@ func SetMode(w *ser2net.SerialWorker, ctx context.Context, r io.Reader, chanByte
 			w.SetMode(&mode)
 		}
 	}
-}
-
-// Чтоб  использовать третий порт для windows используй -H3 или -Hcom3 или -H\\.\com3.
-// Можно указать -H1410 или -Hcu.usbserial-1410 или -H/dev/cu.usbserial-1410 для darwin.
-// Можно указать -H0 или -HttyUSB0 или -H/dev/ttyUSB0.
-func usbSerial(s string) (path string) {
-	if !ser2net.SerialPath(s) {
-		// Поиск первого USB порта getFirstUsbSerial
-		return s
-	}
-	s = strings.TrimSpace(s)
-	dir := "/dev/"
-	base := "ttyUSB"
-	switch runtime.GOOS {
-	case "darwin":
-		base = "cu.usbserial-"
-	case "windows":
-		dir = `\\.\`
-		base = "COM"
-		s = strings.TrimPrefix(s, dir)
-		if len(s) < 5 && strings.HasPrefix(strings.ToUpper(s), base) {
-			dir = ""
-		}
-	}
-	_, err := strconv.Atoi(s)
-	if err == nil {
-		return dir + base + s
-	}
-	return s
 }
