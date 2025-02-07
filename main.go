@@ -1647,28 +1647,28 @@ func localHost(host string) (ok bool) {
 	return
 }
 
-func swSerial(s string) (serial, sw, h string, p int) {
-	serial = s
-	if serial == "" {
+func swSerial(s string) (ser, sw, h string, p int) {
+	ser = s
+	if ser == "" {
 		return
 	}
-	_, ok := ser2net.IsCommand(serial)
+	_, ok := ser2net.IsCommand(ser)
 	if ok {
 		sw = "c"
 		// Команда или интерпретатор команд
 		return
 	}
-	if h, p, err := net.SplitHostPort(serial); err == nil {
+	if ser2net.SerialPath(ser) {
+		// Последовательный порт
+		ser = serial.PortName(ser)
+		sw = "s"
+	}
+	if h, p, err := net.SplitHostPort(ser); err == nil {
 		// Клиент telnet
 		if p, err := strconv.ParseUint(p, 10, 16); err == nil {
 			p := portOB(int(p), PORTT)
 			return ser2net.LocalPort(JoinHostPort(h, p)), "t", h, p
 		}
-	}
-	if ser2net.SerialPath(serial) {
-		// Последовательный порт
-		serial = usbSerial(serial)
-		sw = "s"
 	}
 	return
 }

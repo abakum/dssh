@@ -33,15 +33,16 @@ var (
 	ErrNotSerial          = fmt.Errorf("this is not a serial port - это не последовательный порт")
 )
 
+// Ищем первый USB порт
 func getFirstSerial(isUSB bool, Baud string, print func(v ...any)) (name, list string, mode serial.Mode) {
-	ports, err := serial.GetPortsList()
-	if err != nil || len(ports) == 0 {
-		return
-	}
+	// ports, err := serial.GetPortsList()
+	// if err != nil || len(ports) == 0 {
+	// 	return
+	// }
 	// if len(ports) > 1 {
 	// 	sort.Sort(sortorder.Natural(ports))
 	// }
-	print(ports)
+	// print(ports)
 	detailedPorts, err := enumerator.GetDetailedPortsList()
 	if err != nil || len(detailedPorts) == 0 {
 		return
@@ -88,28 +89,28 @@ func getFirstSerial(isUSB bool, Baud string, print func(v ...any)) (name, list s
 				}
 				continue
 			}
-			mStatus, err := sp.GetModemStatusBits()
+			// mStatus, err := sp.GetModemStatusBits()
 			// ser2net.SerialClose(sp)
 			sp.Close()
-			if err != nil {
-				list += fmt.Sprintf(" %s", err)
-				continue
-			}
+			// if err != nil {
+			// 	list += fmt.Sprintf(" %s", err)
+			// 	continue
+			// }
 			ok = true
 			name = port.Name
 			list += " " + oldMode
-			if mStatus.CTS {
-				list += " CTS"
-			}
-			if mStatus.DCD {
-				list += " DCD"
-			}
-			if mStatus.DSR {
-				list += " DSR"
-			}
-			if mStatus.RI {
-				list += " RI"
-			}
+			// if mStatus.CTS {
+			// 	list += " CTS"
+			// }
+			// if mStatus.DCD {
+			// 	list += " DCD"
+			// }
+			// if mStatus.DSR {
+			// 	list += " DSR"
+			// }
+			// if mStatus.RI {
+			// 	list += " RI"
+			// }
 		}
 	}
 	list += "\r\n"
@@ -451,11 +452,8 @@ func usbSerial(s string) (path string) {
 		// Поиск первого USB порта getFirstUsbSerial
 		return s
 	}
-	trim := func(r string) string {
-		return r
-	}
+	s = strings.TrimSpace(s)
 	dir := "/dev/"
-	s2l := strings.ToLower(s)
 	base := "ttyUSB"
 	switch runtime.GOOS {
 	case "darwin":
@@ -463,19 +461,14 @@ func usbSerial(s string) (path string) {
 	case "windows":
 		dir = `\\.\`
 		base = "COM"
-		trim = func(r string) string {
-			if strings.HasPrefix(strings.ToUpper(r), dir+base) {
-				return strings.TrimPrefix(r, dir)
-			}
-			return r
+		s = strings.TrimPrefix(s, dir)
+		if len(s) < 5 && strings.HasPrefix(strings.ToUpper(s), base) {
+			dir = ""
 		}
 	}
 	_, err := strconv.Atoi(s)
-	if err != nil {
-		if strings.HasPrefix(s2l, dir) {
-			return trim(s)
-		}
-		return trim(dir + s)
+	if err == nil {
+		return dir + base + s
 	}
-	return trim(dir + base + s)
+	return s
 }
