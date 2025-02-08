@@ -379,6 +379,11 @@ func main() {
 			if dot {
 				args.Destination = "."
 			}
+		} else if isDssh() {
+			args.Serial = ""
+			if portT < 0 {
+				portT = PORTT
+			}
 		}
 	case "_", "+":
 		args.Serial += ":"
