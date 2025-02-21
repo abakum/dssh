@@ -43,11 +43,13 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/abakum/embed-encrypt/encryptedfs"
 	"github.com/abakum/go-ser2net/pkg/ser2net"
 	"github.com/abakum/go-serial"
+	"github.com/abakum/go-stun/stun"
 	"github.com/abakum/menu"
 	"github.com/abakum/winssh"
 	"github.com/containerd/console"
@@ -206,7 +208,9 @@ func main() {
 		default:
 			a2s = append(a2s, arg)
 		}
+		args = SshArgs{}
 		err = parser.Parse(a2s) // Для определения args.Destination
+
 		if err != nil {
 			if errError == err.Error() {
 				break
@@ -235,6 +239,7 @@ func main() {
 	}
 
 	// Println(os.Args[0], a2s, lasts)
+	args = SshArgs{}
 	if err := parser.Parse(a2s); err != nil {
 		parser.WriteUsage(Std)
 		Fatal(err)
@@ -869,7 +874,8 @@ Host ` + SSHJ + ` :
 		}
 		client(signer, signers, local(hh, p, repo)+sshj+sshJ(JumpHost, u, hh, p))
 		args.Destination = JumpHost
-		go func() {
+		time.AfterFunc(time.Second, func() {
+			time.Sleep(time.Second)
 			s := fmt.Sprintf("`tssh %s`", JumpHost)
 			i := 0
 			hp := hh + ":" + p
@@ -887,25 +893,37 @@ Host ` + SSHJ + ` :
 			for {
 				Println(s, "has been started - запущен")
 				Println("to connect use - чтоб подключится используй:")
-				ss := ""
+				var ss, eip, m string
+				j := "`" + imag + " -j%s`"
 				if len(ips) != 0 {
-					ss = fmt.Sprintf("over jump host - через посредника `%s :`", imag)
+					eip, m, err = GetExternalIP(time.Second, "stun.sipnet.ru:3478", "stun.l.google.com:19302", "stun.fitauto.ru:3478")
+					if err == nil {
+						Println(m)
+						ehp := eip + ":" + p
+						if p != listen {
+							eip = ehp
+						}
+						if isHP(ehp) {
+							ss = fmt.Sprintf("или WAN "+j, eip)
+						}
+					}
 				}
-				Println(fmt.Sprintf("local - локально `%s .` direct - напрямую `%s -j%s`", imag, imag, hp), ss)
-				ss = ""
-				if len(ips) != 0 {
-					ss = fmt.Sprintf("\t`%s -u :`", imag)
+				Println(fmt.Sprintf("local or over jump host - локально или через посредника `%s .` over - через LAN "+j, imag, hp), ss)
+				j = "\t`" + imag + "  -u%s`"
+				if ss != "" {
+					ss = fmt.Sprintf(j, "j"+eip)
 				}
-				Println(fmt.Sprintf("\tPuTTY\t`%s -u .`\t`%s -uj%s`%s", imag, imag, hp, ss))
-				ss = ""
-				if len(ips) != 0 {
-					ss = fmt.Sprintf("\t`%s -uz :`", imag)
+				Println(fmt.Sprintf("\tPuTTY"+j+j, " .", "j"+hp) + ss)
+				j = "\t`" + imag + " -uz%s`"
+				if ss != "" {
+					ss = fmt.Sprintf(j, "j"+eip)
 				}
-				Println(fmt.Sprintf("\tplink\t`%s -uz .`\t`%s -uzj%s`%s", imag, imag, hp, ss))
-				if len(ips) != 0 {
-					ss = fmt.Sprintf("\t`%s -Z :`", imag)
+				Println(fmt.Sprintf("\tplink"+j+j, " .", "j"+hp) + ss)
+				j = "\t`" + imag + "  -Z%s`"
+				if ss != "" {
+					ss = fmt.Sprintf(j, "j"+eip)
 				}
-				Println(fmt.Sprintf("\tssh\t`%s -Z .`\t`%s -Zj%s`%s", imag, imag, hp, ss))
+				Println(fmt.Sprintf("\tssh"+j+j, " .", "j"+hp) + ss)
 				code := Tssh(&args)
 				if code == 0 {
 					Println(s, code)
@@ -923,7 +941,7 @@ Host ` + SSHJ + ` :
 				}
 				time.Sleep(TOR)
 			}
-		}()
+		})
 		if os.WriteFile(tmpU, []byte{}, FILEMODE) == nil {
 			closer.Bind(func() { os.Remove(tmpU) })
 		}
@@ -1689,4 +1707,53 @@ func optS(portT, portW int) (t, w int) {
 		}
 	}
 	return portT, portW
+}
+
+func GetExternalIP(timeout time.Duration, servers ...string) (ip, message string, err error) {
+	type IPfromSince struct {
+		IP, From string
+		Since    time.Duration
+		Err      error
+	}
+
+	ch := make(chan *IPfromSince)
+	defer close(ch)
+
+	var once sync.Once
+	t := time.AfterFunc(timeout, func() {
+		once.Do(func() {
+			ch <- &IPfromSince{"", strings.Join(servers, ","), timeout, fmt.Errorf("timeout")}
+		})
+	})
+	defer t.Stop()
+	for _, server := range servers {
+		go func(s string) {
+			client := stun.NewClient()
+			client.SetServerAddr(s)
+			t := time.Now()
+			ip, err := client.GetExternalIP()
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "Error:", err, "from", s)
+				return
+			}
+			// time.Sleep(time.Second)
+			once.Do(func() {
+				ch <- &IPfromSince{ip, s, time.Since(t), nil}
+			})
+		}(server)
+	}
+	i := <-ch
+	message = fmt.Sprint(i.Err, " get external IP")
+	if i.Err == nil {
+		message = fmt.Sprint("External IP: ", i.IP)
+	}
+	message += fmt.Sprint(" from ", i.From, " since ", i.Since.Seconds(), "s")
+
+	if i.Err != nil {
+		return "127.0.0.1", message, fmt.Errorf("%s", message)
+	}
+
+	// time.Sleep(time.Second * 3)
+
+	return i.IP, message, nil
 }
