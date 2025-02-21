@@ -892,7 +892,6 @@ Host ` + SSHJ + ` :
 			}
 			for {
 				Println(s, "has been started - запущен")
-				Println("to connect use - чтоб подключится используй:")
 				var ss, eip, m string
 				j := "`" + imag + " -j%s`"
 				if len(ips) != 0 {
@@ -905,9 +904,12 @@ Host ` + SSHJ + ` :
 						}
 						if isHP(ehp) {
 							ss = fmt.Sprintf("или WAN "+j, eip)
+						} else {
+							Println(fmt.Errorf("на роутере не настроен перенос %s->%s", ehp, hp))
 						}
 					}
 				}
+				Println("to connect use - чтоб подключится используй:")
 				Println(fmt.Sprintf("local or over jump host - локально или через посредника `%s .` over - через LAN "+j, imag, hp), ss)
 				j = "\t`" + imag + "  -u%s`"
 				if ss != "" {
