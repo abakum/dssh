@@ -132,19 +132,31 @@ dssh:=(tssh from trzsz)+(CA key with embed-encrypt)+(sshd from gliderlabs)+(acce
 10. Чтоб перезапустить dssh-сервер используйте ключ `-r` или `--restart`. Сервер остановится и запустится через 15 секунд.
 11. Чтоб остановить dssh-сервер используйте ключ `--stop`.
 12. Если из корпоративной сети невозможно подключиться к dssh-серверу командой `dssh -j host:port` но возможно с алиаса jh то подключаемся `dssh -J jh -j host:port`
-13. Передавать VNC трафик можно и через посредника, но это не хорошо для него - лучше использовать VNC через WAN: 
+13. Передавать VNC трафик можно и через посредника, но не будем злоупотреблять его добротой - лучше использовать VNC через WAN: 
 13.1 Показывающий стартует dssh-сервер c доступом через посредника `dssh`.
-13.2 Наблюдатель запускает слушающего vnc-клиента `cd /d c:\Program Files\TightVNC&tvnviewer -listen` или `vncviewer -listen`.
+13.2 Наблюдатель запускает слушающего vnc-клиента от TightVNC `cd /d c:\Program Files\TightVNC&tvnviewer -listen` или от RealVNC `vncviewer -listen`. Мне нравятся версии 5.
 13.3 Стартует dssh-сервер c доступом через WAN `dssh _` если нет DDNS запоминает IP WANа - например host:port.
 13.4 В новой консоле подключается к dssh-серверу показывающего через посредника `dssh :`.
 13.5 Стартует перенос порта 5500 с показывающего хоста на свой хост через WAN `dssh -4NL5500:127.0.0.1:5500 -j host:port`.
-13.6 В новой консоле подключается к dssh-серверу показывающего через посредника `dssh :` затем `cd /d c:\Program Files\TightVNC`.
-13.7 На показывающем хосте запускает vnc-сервер как приложение `tvnserver -run` или как сервис `tvnserver -start`.
-13.8 Подключает его к своему слушающему vnc-клиенту как приложение `tvnserver -controlapp -connect 127.0.0.1` или как сервис `tvnserver -controlservice -connect 127.0.0.1`.
-13.9 Отключает его от слушающего vnc-клиента как приложение `tvnserver -controlapp -disconnectall` или как сервис `tvnserver -controlservice -disconnectall`.
-13.10 Останавливает vnc-сервер как приложение `tvnserver -controlapp -shutdown` или как сервис `tvnserver -stop`.
+13.6 В новой консоле подключается к dssh-серверу показывающего через посредника `dssh :`. Если показывающий на Windows то `cd /d c:\Program Files\TightVNC`.
+13.7 Если показывающий на Windows то запускает vnc-сервер как приложение `tvnserver -run` или как сервис `tvnserver -start`. Если показывающий на Linux запускает vnc-сервер `vncserver -geometry 1920x1080 :2`. 
+13.8 Подключает его к своему слушающему vnc-клиенту на Windows как приложение `tvnserver -controlapp -connect 127.0.0.1` или как сервис `tvnserver -controlservice -connect 127.0.0.1`. На Linux для TigerVNC `vncconfig -nowin -display :2 -connect 127.0.0.1` для TightVNC `vncconnect -display :2 127.0.0.1`
+13.9 Отключает его от слушающего vnc-клиента на Windows как приложение `tvnserver -controlapp -disconnectall` или как сервис `tvnserver -controlservice -disconnectall`. На Linux для TigerVNC `vncconfig -nowin -display :2 -disconnect`.
+13.10 Останавливает vnc-сервер на Windows как приложение `tvnserver -controlapp -shutdown` или как сервис `tvnserver -stop`. На Linux `vncserver -kill :2`.
 13.11 Закрывает консоль показывающего `exit`.
 13.12 Останавливает слушающего vnc-клиента `taskkill /F /IM tvnviewer.exe` или `taskkill /F /IM vncviewer.exe`.
+14. Вот скрипт для VNC через LAN где показывающий host это сервис TightVNC на Windows и наблюдатель на Windows:
+```
+start y:\PortableApps\VNC\vncviewer.exe -listen
+dssh -4R5500:127.0.0.1:5500 -jhost cd /d c:\Program Files\TightVNC^&tvnserver -controlservice -connect 127.0.0.1^&pause^&tvnserver -controlservice -disconnectall
+taskkill /F /IM vncviewer.exe
+```
+15. Вот скрипт для VNC через LAN где показывающий host это TigerVNC на Linux а наблюдатель на Windows:
+```
+start y:\PortableApps\VNC\vncviewer.exe -listen
+dssh -4R5500:127.0.0.1:5500 -jhost vncserver -geometry 1366x768 :2;vncconfig -nowin -display :2 -connect 127.0.0.1;read -rn1;vncconfig -nowin -display :2 -disconnect;vncserver -kill :2
+taskkill /F /IM vncviewer.exe
+```
 
 # 9. Удалённый доступ к последовательной консоли на хосте с [RouterOS](#0.10) или с [ser2net](#0.8) или с [hub4com](#0.9):
 1. Подключаем USB2serial переходник в USB порт устройства под управлением RouterOS.
