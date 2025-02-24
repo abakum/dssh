@@ -51,7 +51,7 @@ dssh:=(tssh from trzsz)+(CA key with embed-encrypt)+(sshd from gliderlabs)+(acce
 2. При наличии у клиента Сети подключаемся к dssh-серверу `dssh .` Это сработает и за NAT так как подключение идёт через посредника `ssh-j.com` [0.4](#0.4).<div id=2.3>
 3. При отсутствии на хосте Сети запускаем dssh-сервер `dssh +` или `dssh _` или `dssh -d x[:port2200]` и сообщаем клиенту x[:port2200].<div id=2.4>
 4. При отсутствии на клиенте Сети но при наличии локальной сети подключаемся к dssh-серверу `dssh -j x[:port2200]`.<div id=2.5>
-5. Если клиент находится на хосте с dssh-сервером, подключаемся к нему без посредников `dssh .` или `dssh -j:` или `dssh -j x[:port2200]` или через посредника `dssh :` .<div id=2.6>
+5. Если клиент находится на хосте с dssh-сервером, подключаемся к нему без посредников `dssh .` или `dssh -j :` или `dssh -j x[:port2200]` или через посредника `dssh :` .<div id=2.6>
 6. Так же как в [1.4](#1.4) и [1.5](#1.5) но с параметром `.`. Например вместе с PuTTY `dssh -u .` или вместе c plink `dssh -zu .`. Должно выполняться условие [6.8](#6.8).
 7. Вместе с ssh в отдельном окне `dssh -Z .` похоже на [1.6](#1.6) или вместе с ssh в том же окне `dssh -zZ .` похоже на [1.7](#1.7). Должно выполняться условие [6.8](#6.8). C Cygwin на Windows 7 `dssh -Z .` значит `dssh -zZ .`
 8. Так же как в [1.8](#1.8)-[1.12](#1.12) но с параметром `-Hcmd` для Windows или `-Hbash` для Linux. Например `dssh -Hcmd -20 .` [или короче](#noWin7withoutCygwin) `dssh -0Hcmd` или через браузер и Linux `dssh -0Hbash -88`.
@@ -70,7 +70,7 @@ dssh:=(tssh from trzsz)+(CA key with embed-encrypt)+(sshd from gliderlabs)+(acce
 1. Запускаем на удалённом хосте dssh-сервер `dssh`.<div id=4.2>
 2. Команда `dssh -2 5000 .` или `dssh -20 .` [или короче](#noWin7withoutCygwin) `dssh -0` запускает на хосте с dssh-сервером RFC2217 телнет-сервер с портом 5000 и локальный телнет-клиент. По умолчанию порт 5000 будет подключен к последовательной консоли на первом USB порту. Ключами `-H` `-U` можно указать другой последовательный порт и другую стартовую скорость. Если порт 5000 на хосте с dssh-сервером занят то `dssh -20 .` [или короче](#noWin7withoutCygwin) `dssh -0` запустит только локальный телнет-клиент.<div id=4.3>
 3. Присоединяемся к консоли на порту 5000 `dssh -H:5000 .` или короче `dssh -HH` или с PuTTY `dssh -uHH` или c telnet `dssh -ZHH`. Эти команды запускают локальный телнет-клиент. Таких подключений может быть несколько.<div id=4.4>
-4. Если клиенты находятся на хосте то присоединиться к консоли можно `dssh -20 -j:` или `dssh -20` или как в [4.3](#4.3).<div id=4.5>
+4. Если клиенты находятся на хосте то присоединиться к консоли можно `dssh -20 -j :` или `dssh -20` или как в [4.3](#4.3).<div id=4.5>
 5. Другие клиенты в локальной сети хоста могут присоединиться к консоли `dssh -20 -j host[:port2200]`.<div id=4.6>
 6. Если в пунктах [4.2](#4.2)-[4.5](#4.5) заменить `-20` на `-80` то вместо telnet://host:5000 будет использоваться http&#65279;://host:8000 то есть будет запущен веб-сервер на порту 8000. Например `dssh -8 8000` или `dssh -80`. Это используется в `dssh -0` [которая](#Win7withoutCygwin) вместо `dssh -20 .` запустит `dssh -80 .`. <div id=4.7>
 7. Другие клиенты в локальной сети хоста могут присоединиться к консоли `dssh -88 -j host[:port2200]`.
@@ -133,11 +133,11 @@ dssh:=(tssh from trzsz)+(CA key with embed-encrypt)+(sshd from gliderlabs)+(acce
 11. Чтоб остановить dssh-сервер используйте ключ `--stop`.
 12. Если из корпоративной сети невозможно подключиться к dssh-серверу командой `dssh -j host:port` но возможно с алиаса jh то подключаемся `dssh -J jh -j host:port`
 13. Передавать VNC трафик можно и через посредника, но не будем злоупотреблять его добротой - лучше использовать VNC через WAN: 
-13.1 Показывающий стартует dssh-сервер c доступом через посредника `dssh`.
-13.2 Наблюдатель запускает слушающего vnc-клиента от TightVNC `cd /d c:\Program Files\TightVNC&tvnviewer -listen` или от RealVNC `vncviewer -listen`. Мне нравятся версии 5.
-13.3 Стартует dssh-сервер c доступом через WAN `dssh _` если нет DDNS запоминает IP WANа - например host:port.
+13.1 Показывающий (VNC-server) стартует dssh-сервер c доступом через посредника `dssh`.
+13.2 Наблюдатель (VNC-client) запускает слушающего vnc-клиента `cd /d c:\Program Files\TightVNC&tvnviewer -listen` или `cd /d c:\Program Files (x86)\RealVNC\VNC Viewer&vncviewer -listen`. Мне нравятся версии 5.
+13.3 Стартует локальный dssh-сервер c доступом через WAN `dssh _` если нет DDNS запоминает IP WANа - например [host](#host).
 13.4 В новой консоле подключается к dssh-серверу показывающего через посредника `dssh :`.
-13.5 Стартует перенос порта 5500 с показывающего хоста на свой хост через WAN `dssh -4NL5500:127.0.0.1:5500 -j host:port`.
+13.5 Стартует перенос порта 5500 с показывающего хоста на свой хост через WAN `dssh -4NL5500:127.0.0.1:5500 -j host`.
 13.6 В новой консоле подключается к dssh-серверу показывающего через посредника `dssh :`. Если показывающий на Windows то `cd /d c:\Program Files\TightVNC`.
 13.7 Если показывающий на Windows то запускает vnc-сервер как приложение `tvnserver -run` или как сервис `tvnserver -start`. Если показывающий на Linux запускает vnc-сервер `vncserver -geometry 1920x1080 :2`. 
 13.8 Подключает его к своему слушающему vnc-клиенту на Windows как приложение `tvnserver -controlapp -connect 127.0.0.1` или как сервис `tvnserver -controlservice -connect 127.0.0.1`. На Linux для TigerVNC `vncconfig -nowin -display :2 -connect 127.0.0.1` для TightVNC `vncconnect -display :2 127.0.0.1`
@@ -145,18 +145,11 @@ dssh:=(tssh from trzsz)+(CA key with embed-encrypt)+(sshd from gliderlabs)+(acce
 13.10 Останавливает vnc-сервер на Windows как приложение `tvnserver -controlapp -shutdown` или как сервис `tvnserver -stop`. На Linux `vncserver -kill :2`.
 13.11 Закрывает консоль показывающего `exit`.
 13.12 Останавливает слушающего vnc-клиента `taskkill /F /IM tvnviewer.exe` или `taskkill /F /IM vncviewer.exe`.
-14. Вот скрипт для VNC через LAN где показывающий host это сервис TightVNC на Windows и наблюдатель на Windows:
-```
-start y:\PortableApps\VNC\vncviewer.exe -listen
-dssh -4R5500:127.0.0.1:5500 -jhost cd /d c:\Program Files\TightVNC^&tvnserver -controlservice -connect 127.0.0.1^&pause^&tvnserver -controlservice -disconnectall
-taskkill /F /IM vncviewer.exe
-```
-15. Вот скрипт для VNC через LAN где показывающий host это TigerVNC на Linux а наблюдатель на Windows:
-```
-start y:\PortableApps\VNC\vncviewer.exe -listen
-dssh -4R5500:127.0.0.1:5500 -jhost vncserver -geometry 1366x768 :2;vncconfig -nowin -display :2 -connect 127.0.0.1;read -rn1;vncconfig -nowin -display :2 -disconnect;vncserver -kill :2
-taskkill /F /IM vncviewer.exe
-```
+13.13 Останавливает локальный dssh-сервер c доступом через WAN  `dssh --stop .`.
+14. Вот [скрипт](viewWindowsOverWAN.bat) для VNC через WAN где показывающий с адресом ddns.name это сервис TightVNC на Windows и наблюдатель на Windows.
+15. Вот [скрипт](viewLinuxOverWAN.bat) для VNC через WAN где показывающий с адресом lan.ip.behind.nat это сервис TigerVNC на Linux который находится за NAT с адресом ddns.name а наблюдатель на Windows.
+16. Вот [скрипт](viewWindowsOverLAN.bat) для VNC через LAN где показывающий с адресом direct.accesible.lan.ip это сервис TightVNC на Windows и наблюдатель на Windows.
+17. Вот [скрипт](viewLinuxOverLAN.bat) для VNC через LAN где показывающий с адресом lan.ip.behind.nat это сервис TigerVNC на Linux который находится за NAT с адресом nat.alias а наблюдатель на Windows.
 
 # 9. Удалённый доступ к последовательной консоли на хосте с [RouterOS](#0.10) или с [ser2net](#0.8) или с [hub4com](#0.9):
 1. Подключаем USB2serial переходник в USB порт устройства под управлением RouterOS.

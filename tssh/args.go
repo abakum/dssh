@@ -100,9 +100,10 @@ type SshArgs struct {
 	Telnet         bool    `arg:"-Z,--telnet" help:"telnet for serial console or ssh for shell - the sign of Zorro"`
 	EscapeChar     string  `arg:"-e,--escape-char" placeholder:"EscapeChar" help:"set escape character for sessions"` // default:"~"
 	Socks5         bool    `arg:"-5,--socks5" help:"for dynamic port forwarding forces ssh to use version 5 of socks"`
-	DirectJump     string  `arg:"-j,--" placeholder:"destination" help:"jump to daemon by destination"`
-	Share          bool    `arg:"-s,--share" help:"share local console"`
-	Use            bool    `arg:"-0,--use" help:"use remote console"`
+	// DirectJump     string  `arg:"-j,--" placeholder:"destination" help:"jump to daemon by destination"`
+	DirectJump bool `arg:"-j,--" help:"jump to dssh by ip[:port] or dnsName[:port] or : as 127.0.0.1:2200"`
+	Share      bool `arg:"-s,--share" help:"share local console"`
+	Use        bool `arg:"-0,--use" help:"use remote console"`
 }
 
 func (SshArgs) Description() string {

@@ -431,15 +431,18 @@ func main() {
 
 	djh := ""
 	djp := ""
-	if args.DirectJump != "" {
-		dj := args.DirectJump
-		if strings.Count(args.DirectJump, ":") == 0 {
+	if args.DirectJump {
+		dj := args.Destination
+		if strings.Count(dj, ":") == 0 {
 			dj += ":" + listen
 		}
 		djh, djp, err = net.SplitHostPort(dj)
 		if err == nil {
 			s2, dial = host2LD(djh)
 			djh = dial
+			// if args.Command != "" {
+			// 	args.Command = args.Destination + " " + args.Command
+			// }
 			args.Destination = repo // Не локальный
 			if djh == LH {
 				args.Destination = "." // Локальный
@@ -455,7 +458,7 @@ func main() {
 				djp = listen
 			}
 		} else {
-			Println(fmt.Errorf("error in param - ошибка в параметре `%s -j %s` %v", repo, args.DirectJump, err))
+			Println(fmt.Errorf("error in param - ошибка в параметре `%s -j %s` %v", repo, args.Destination, err))
 		}
 	}
 	loc = localHost(args.Destination)
@@ -834,7 +837,7 @@ Host ` + SSHJ + ` :
 		args.Relay ||
 		args.Zmodem ||
 		args.Putty ||
-		args.DirectJump != "" ||
+		args.DirectJump ||
 		false
 	if cli && args.Destination == "" {
 		args.Destination = "@"
@@ -893,8 +896,8 @@ Host ` + SSHJ + ` :
 			for {
 				Println(s, "has been started - запущен")
 				var ss, eip, m string
-				j := "`" + imag + " -j%s`"
-				if len(ips) != 0 {
+				j := "`" + imag + " -j %s`"
+				if ips[0] != LH && hh != LH {
 					eip, m, err = GetExternalIP(time.Second, "stun.sipnet.ru:3478", "stun.l.google.com:19302", "stun.fitauto.ru:3478")
 					if err == nil {
 						Println(m)
@@ -913,19 +916,19 @@ Host ` + SSHJ + ` :
 				Println(fmt.Sprintf("local or over jump host - локально или через посредника `%s .` over - через LAN "+j, imag, hp), ss)
 				j = "\t`" + imag + "  -u%s`"
 				if ss != "" {
-					ss = fmt.Sprintf(j, "j"+eip)
+					ss = fmt.Sprintf(j, "j "+eip)
 				}
-				Println(fmt.Sprintf("\tPuTTY"+j+j, " .", "j"+hp) + ss)
+				Println(fmt.Sprintf("\tPuTTY"+j+j, " .", "j "+hp) + ss)
 				j = "\t`" + imag + " -uz%s`"
 				if ss != "" {
-					ss = fmt.Sprintf(j, "j"+eip)
+					ss = fmt.Sprintf(j, "j "+eip)
 				}
-				Println(fmt.Sprintf("\tplink"+j+j, " .", "j"+hp) + ss)
+				Println(fmt.Sprintf("\tplink"+j+j, " .", "j "+hp) + ss)
 				j = "\t`" + imag + "  -Z%s`"
 				if ss != "" {
-					ss = fmt.Sprintf(j, "j"+eip)
+					ss = fmt.Sprintf(j, "j "+eip)
 				}
-				Println(fmt.Sprintf("\tssh"+j+j, " .", "j"+hp) + ss)
+				Println(fmt.Sprintf("\tssh"+j+j, " .", "j "+hp) + ss)
 				code := Tssh(&args)
 				if code == 0 {
 					Println(s, code)
