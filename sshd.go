@@ -150,21 +150,21 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 	gl.Handle(func(s gl.Session) {
 		defer s.Exit(0)
 		Println(s.Context().ClientVersion())
-		if len(s.Command()) < 2 || s.Command()[0] != repo {
+		var args cgiArgs
+		if len(s.Command()) > 1 && s.Command()[0] == repo {
+			parser, err := NewParser(arg.Config{}, &args)
+			if err == nil {
+				err = parser.Parse(s.Command()[1:])
+			}
+			if err != nil {
+				winssh.ShellOrExec(s)
+				return
+			}
+		} else {
 			winssh.ShellOrExec(s)
 			return
 		}
-		//len(s.Command()) > 1 && s.Command()[0] == repo
-		var args cgiArgs
-		parser, err := NewParser(arg.Config{}, &args)
-		Println("CGI", s.Command(), err)
-		if err != nil {
-			return
-		}
-		err = parser.Parse(s.Command()[1:])
-		if err != nil {
-			return
-		}
+		Println("CGI", s.Command())
 		if args.Baud == "" {
 			if args.Serial == "H" { // -HH
 				args.Serial = ""
