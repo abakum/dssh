@@ -893,8 +893,12 @@ Host ` + SSHJ + ` :
 					hp = ":" + p
 				}
 			}
+
+			prox := "local or over jump host - локально или через посредника"
+			if s2 != ALL && s2 != LH {
+				prox = "local - локально"
+			}
 			for {
-				Println(s, "has been started - запущен")
 				var ss, eip, m string
 				j := "`" + imag + " -j %s`"
 				if ips[0] != LH && hh != LH {
@@ -913,7 +917,7 @@ Host ` + SSHJ + ` :
 					}
 				}
 				Println("to connect use - чтоб подключится используй:")
-				Println(fmt.Sprintf("local or over jump host - локально или через посредника `%s .` over - через LAN "+j, imag, hp), ss)
+				Println(fmt.Sprintf("%s `%s .` over - через LAN "+j, prox, imag, hp), ss)
 				j = "\t`" + imag + "  -u%s`"
 				if ss != "" {
 					ss = fmt.Sprintf(j, "j "+eip)
@@ -929,6 +933,13 @@ Host ` + SSHJ + ` :
 					ss = fmt.Sprintf(j, "j "+eip)
 				}
 				Println(fmt.Sprintf("\tssh"+j+j, " .", "j "+hp) + ss)
+
+				if s2 != ALL && s2 != LH {
+					return
+				}
+				// dssh +
+				// dssh
+				Println(s, "has been started - запущен")
 				code := Tssh(&args)
 				if code == 0 {
 					Println(s, code)
@@ -939,10 +950,6 @@ Host ` + SSHJ + ` :
 						return
 					}
 					i++
-				}
-				if hh != LH {
-					// Не получается через ssh-j.com будем подключаться напрямую через dssh -j host:port .
-					return
 				}
 				time.Sleep(TOR)
 			}
@@ -1125,7 +1132,7 @@ Host ` + SSHJ + ` :
 	code := Tssh(&args)
 	if args.Background {
 		Println("tssh started in background with code:", code)
-		closer.Hold()
+		// closer.Hold()
 	} else {
 		if code != 0 {
 			Println("tssh exit with code:", code)
