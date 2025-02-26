@@ -133,23 +133,22 @@ dssh:=(tssh from trzsz)+(CA key with embed-encrypt)+(sshd from gliderlabs)+(acce
 11. Чтоб остановить dssh-сервер используйте ключ `--stop`.
 12. Если из корпоративной сети невозможно подключиться к dssh-серверу командой `dssh -j host:port` но возможно с алиаса jh то подключаемся `dssh -J jh -j host:port`
 13. Передавать VNC трафик можно и через посредника, но не будем злоупотреблять его добротой - лучше использовать VNC через WAN: 
-13.1 Показывающий (VNC-server) стартует dssh-сервер c доступом через посредника `dssh`.
-13.2 Наблюдатель (VNC-client) запускает слушающего vnc-клиента `cd /d c:\Program Files\TightVNC&tvnviewer -listen` или `cd /d c:\Program Files (x86)\RealVNC\VNC Viewer&vncviewer -listen`. Мне нравятся версии 5.
+13.1 Показывающий (vnc-сервер) стартует dssh-сервер c доступом через посредника `dssh`.
+13.2 Наблюдатель (vnc-клиент) запускает слушающего vnc-клиента `cd /d c:\Program Files\TightVNC&tvnviewer -listen` или `cd /d c:\Program Files (x86)\RealVNC\VNC Viewer&vncviewer -listen`. Мне нравятся версии 5.
 13.3 Стартует локальный dssh-сервер c доступом через WAN `dssh _` если нет DDNS запоминает IP WANа - например [host](#host).
 13.4 В новой консоле подключается к dssh-серверу показывающего через посредника `dssh :`.
-13.5 Стартует перенос порта 5500 с показывающего хоста на свой хост через WAN `dssh -4NL5500:127.0.0.1:5500 -j host`.
+13.5 Стартует перенос порта 5500 с показывающего хоста на свой хост через WAN `dssh -NL:127.0.0.1:5500:127.0.0.1:5500 -j host`.
 13.6 В новой консоле подключается к dssh-серверу показывающего через посредника `dssh :`. Если показывающий на Windows то `cd /d c:\Program Files\TightVNC`.
-13.7 Если показывающий на Windows то запускает vnc-сервер как приложение `tvnserver -run` или как сервис `tvnserver -start`. Если показывающий на Linux запускает vnc-сервер `vncserver -geometry 1920x1080 :2`. 
-13.8 Подключает его к своему слушающему vnc-клиенту на Windows как приложение `tvnserver -controlapp -connect 127.0.0.1` или как сервис `tvnserver -controlservice -connect 127.0.0.1`. На Linux для TigerVNC `vncconfig -nowin -display :2 -connect 127.0.0.1` для TightVNC `vncconnect -display :2 127.0.0.1`
-13.9 Отключает его от слушающего vnc-клиента на Windows как приложение `tvnserver -controlapp -disconnectall` или как сервис `tvnserver -controlservice -disconnectall`. На Linux для TigerVNC `vncconfig -nowin -display :2 -disconnect`.
-13.10 Останавливает vnc-сервер на Windows как приложение `tvnserver -controlapp -shutdown` или как сервис `tvnserver -stop`. На Linux `vncserver -kill :2`.
-13.11 Закрывает консоль показывающего `exit`.
-13.12 Останавливает слушающего vnc-клиента `taskkill /F /IM tvnviewer.exe` или `taskkill /F /IM vncviewer.exe`.
-13.13 Останавливает локальный dssh-сервер c доступом через WAN  `dssh --stop .`.
-14. Вот [скрипт](viewWindowsOverWAN.bat) для VNC через WAN где показывающий с адресом ddns.name это сервис TightVNC на Windows и наблюдатель на Windows.
-15. Вот [скрипт](viewLinuxOverWAN.bat) для VNC через WAN где показывающий с адресом lan.ip.behind.nat это сервис TigerVNC на Linux который находится за NAT с адресом ddns.name а наблюдатель на Windows.
-16. Вот [скрипт](viewWindowsOverLAN.bat) для VNC через LAN где показывающий с адресом direct.accesible.lan.ip это сервис TightVNC на Windows и наблюдатель на Windows.
-17. Вот [скрипт](viewLinuxOverLAN.bat) для VNC через LAN где показывающий с адресом lan.ip.behind.nat это сервис TigerVNC на Linux который находится за NAT с адресом nat.alias а наблюдатель на Windows.
+13.7 Если показывающий на Windows и vnc-сервер остановлен то запускает его `tvnserver -start`. Если показывающий на Linux запускает vnc-сервер `vncserver -SecurityTypes None :2`. 
+13.8 Подключает его к своему слушающему vnc-клиенту на Windows `tvnserver -controlservice -connect 127.0.0.1`. На Linux для TigerVNC `vncconfig -display :2 -connect 127.0.0.1` для TightVNC `vncconnect -display :2 127.0.0.1`
+13.9 Останавливает vnc-сервер на Windows если не был запущен `tvnserver -stop` или отключает наблюдателей `tvnserver -controlservice -disconnectall`. На Linux `vncserver -kill :2`.
+13.10 Останавливает слушающего vnc-клиента `taskkill /F /IM tvnviewer.exe` или `taskkill /F /IM vncviewer.exe`.
+13.11 Перезапускает dssh-сервер на vnc-сервере чтоб остановить перенос порта 5500 `dssh --restart :`.
+13.12 Останавливает локальный dssh-сервер c доступом через WAN  `dssh --stop .`.
+14. Вот [скрипт](viewWindowsOverWAN.bat) для VNC через WAN где наблюдатель с адресом direct.accesible.wan.ip на Windows и показывающий с TightVNC на Windows.
+15. Вот [скрипт](viewLinuxOverWAN.bat) для VNC через WAN где наблюдатель с адресом direct.accesible.wan.ip на Windows а показывающий на Linux.
+16. Вот [скрипт](viewWindowsOverLAN.bat) для VNC через LAN где показывающий с адресом direct.accesible.lan.ip это TightVNC на Windows и наблюдатель на Windows.
+17. Вот [скрипт](viewLinuxOverLAN.bat) для VNC через LAN где показывающий с адресом direct.accesible.lan.ip это TigerVNC на Linux а наблюдатель на Windows.
 
 # 9. Удалённый доступ к последовательной консоли на хосте с [RouterOS](#0.10) или с [ser2net](#0.8) или с [hub4com](#0.9):
 1. Подключаем USB2serial переходник в USB порт устройства под управлением RouterOS.

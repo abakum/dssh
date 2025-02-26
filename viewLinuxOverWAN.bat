@@ -1,30 +1,31 @@
-set host=-J ddns.name -j lan.ip.behind.nat
+set client=-j direct.accesible.wan.ip
+set server=:
+set listen=_
+set/p p=Run `dssh` on VNC server. Press Enter
 
-set geometry=-geometry 1366x768
+set start=vncserver -SecurityTypes None
+set stop=vncserver -kill
 set display=-display :2
 set vncviewer=vncviewer.exe
 set LH=127.0.0.1
 
-echo Run `dssh` on VNC server
-pause
-
 cd /d %~dp0
 start %vncviewer% -listen
-start dssh _
+start dssh %listen%
 
-ping %LH%
-start dssh : dssh -NL%LH%:5500:%LH%:5500 %host%
+ping /n 2 %LH%
+start dssh %server% dssh -NL%LH%:5500:%LH%:5500 %client%
+ping /n 2 %LH%
 
+dssh -TR%LH%:5500:%LH%:5500 %server% ^
+%start% %display%;^
+vncconfig %display% -connect %LH%;^
+killall tigervncconfig;^
+vncconnect %display% %LH%;^
+echo Press Enter to kill;^
+read -rn1;^
+%stop% %display%
 
-:TightVNC
-set connect=vncconnect %display% %LH%
-
-:TigerVNC
-set connect=vncconfig %display% -connect %LH%
-
-echo Press any key to stop view
-dssh : vncserver %geometry% %display%;%connect%;read -rn1;vncserver -kill %display%
-
-dssh --restart :
+dssh --restart %server%
+dssh --stop -j %listen%
 taskkill /F /IM %vncviewer%
-dssh --stop .
