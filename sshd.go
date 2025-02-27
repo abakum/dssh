@@ -246,13 +246,21 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 	})
 
 	switch runtime.GOOS {
+
 	case "windows", "linux":
+		sa := server.Addr
+		all := strings.HasPrefix(sa, ALL) || strings.HasPrefix(sa, ":")
+		if runtime.GOOS == "linux" && all {
+			sa = "::" + strings.TrimPrefix(sa, ALL)
+		}
 		go func() {
-			watch(ctxRWE, caRW, server.Addr, Print)
+			watch(ctxRWE, caRW, sa, Print)
 			Println("local done")
 			server.Close()
 		}()
-		go established(ctxRWE, server.Addr, false, Print)
+		if !all {
+			go established(ctxRWE, sa, false, Print)
+		}
 	case "darwin":
 		noidle()
 	}
@@ -322,7 +330,7 @@ func SetConsoleTitle(s gl.Session) {
 
 // call ca() and return on `Service has been stopped`
 func watch(ctx context.Context, ca context.CancelFunc, dest string, Print func(v ...any)) {
-	if strings.HasPrefix(dest, ":") {
+	if strings.HasPrefix(dest, ":") && !strings.HasPrefix(dest, ":::") {
 		dest = ALL + dest
 	}
 	old := -1
@@ -454,9 +462,13 @@ func remoteAddr2pids(ctx context.Context, dest string) (ok bool) {
 
 // Согласно фильтру accept возвращает количество i и список s
 func netSt(accept netstat.AcceptFn) (i int, s string) {
-	tabs, err := netstat.TCPSocks(accept)
-	if err != nil {
-		return
+	tabs, _ := netstat.TCPSocks(accept)
+	// if err != nil {
+	// 	return
+	// }
+	tabs6, err := netstat.TCP6Socks(accept)
+	if err == nil {
+		tabs = append(tabs, tabs6...)
 	}
 	for _, tab := range tabs {
 		s += "\t" + tab.String() + "\n"
