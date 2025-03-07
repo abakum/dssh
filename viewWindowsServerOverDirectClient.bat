@@ -1,18 +1,23 @@
-set server=j direct.accesible.lan.ip
+set client=-j direct.accesible.dssh
+:set client=-J direct.accesible.sshd -j direct.accesible.dssh
+set server=:
 set listen=_
-set/p p=Run `dssh %listen%` on VNC server. Press Enter
+set/p p=Run `dssh` on VNC server. Press Enter
 
 set vncserver=tvnserver
 set vncpath=c:\Program Files\TightVNC
 set vncviewer=vncviewer.exe
 set LH=127.0.0.1
-set ssh=dssh
 
 cd /d %~dp0
 start %vncviewer% -listen
-ping /n 1 %LH%
+start dssh %listen%
 
-%ssh% -TR%LH%:5500:%LH%:5500 %server% cd /d %vncpath%^
+ping /n 2 %LH%
+start dssh %server% dssh -NL%LH%:5500:%LH%:5500 %client%
+ping /n 2 %LH%
+
+dssh -T %server% cd /d %vncpath%^
 &sc query %vncserver%^|findstr RUNNING^&^
 &(%vncserver% -controlservice -connect %LH%^
 &set/p p=Press Enter to disconnect^
@@ -23,4 +28,6 @@ ping /n 1 %LH%
 &set/p p=Press Enter to stop^
 &%vncserver% -stop
 
+dssh --restart %server%
+dssh --stop -j %listen%
 taskkill /F /IM %vncviewer%

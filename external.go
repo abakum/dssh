@@ -59,6 +59,7 @@ func notPuttyNewConsole(bin string, cmd *exec.Cmd) {
 	}
 }
 
+// dssh on args.Destination
 func isDssh() bool {
 	switch args.Destination {
 	case ".", repo, ":", SSHJ:

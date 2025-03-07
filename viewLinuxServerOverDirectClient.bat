@@ -1,4 +1,5 @@
-set client=-j direct.accesible.wan.ip
+set client=-j direct.accesible.dssh
+:set client=-J direct.accesible.sshd -j direct.accesible.dssh
 set server=:
 set listen=_
 set/p p=Run `dssh` on VNC server. Press Enter
@@ -17,13 +18,11 @@ ping /n 2 %LH%
 start dssh %server% dssh -NL%LH%:5500:%LH%:5500 %client%
 ping /n 2 %LH%
 
-dssh -TR%LH%:5500:%LH%:5500 %server% ^
+dssh -T %server% ^
 %start% %display%;^
-vncconfig %display% -connect %LH%;^
-killall tigervncconfig;^
-vncconnect %display% %LH%;^
-echo Press Enter to kill;^
-read -rn1;^
+which vncconnect^&^&vncconnect %display% %LH%^|^|^
+which vncconfig^&^&vncconfig %display% -connect %LH%^&^&killall tigervncconfig;^
+echo Press Enter to kill;read -rn1;^
 %stop% %display%
 
 dssh --restart %server%

@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -31,6 +32,7 @@ type cgiArgs struct {
 	Restart bool   `arg:"-r,--restart" help:"restart daemon"`
 	Debug   bool   `arg:"-v,--debug" help:"verbose mode for debugging, similar to ssh's -v"`
 	Unix    bool   `arg:"-z,--unix" help:"zero new window"`
+	VNC     string `arg:"--vnc" placeholder:"hostname[:vncViewerListen]" help:"address of direct accesible dssh with vncviewer -listen [vncViewerListen]"`
 }
 
 var Exit string
@@ -165,6 +167,101 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 			return
 		}
 		Println("CGI", s.Command())
+		// Покажу клиенту протокол на стороне сервера
+		lss := log.New(s.Stderr(), "\r:>", lf.Flags())
+		ps := []func(v ...any){lss.Println, Println}
+		print := func(a ...any) {
+			for _, p := range ps {
+				p(a...)
+			}
+		}
+		vncViewerHP, doStop := func() (addr string, started bool) {
+			if args.VNC == "" {
+				return
+			}
+			h, p := SplitHostPort(args.VNC, "", strconv.Itoa(PORTV))
+			if h != "" {
+				forw := exec.CommandContext(s.Context(), repo, fmt.Sprintf("-NL%s:%s:%s:%s", LH, p, LH, p), h)
+				err := forw.Start()
+				print(forw, err)
+				if err != nil {
+					return
+				}
+				go func() {
+					forw.Wait()
+				}()
+				time.Sleep(time.Second * 2)
+			}
+			var start, conn, killall, disconn *exec.Cmd
+			switch runtime.GOOS {
+			case "windows":
+				if vncserver == "" {
+					vncserver = vncserverWindows
+				}
+				psCount := psPrint(vncserver, "", 0, PrintNil)
+				if psCount < 1 {
+					start = exec.Command(vncserver, "-start")
+					err := start.Run()
+					print(start, err)
+					if err != nil {
+						return
+					}
+					started = true
+				}
+				conn = exec.CommandContext(s.Context(), vncserver, "-controlservice", "-connect", LH)
+				disconn = exec.Command(vncserver, "-controlservice", "-disconnectall")
+			default:
+				if vncserver == "" {
+					vncserver = vncserverEtc
+				}
+				if vncSecurityTypes == "" {
+					vncSecurityTypes = vncSecurityTypesEtc
+				}
+				optSecurityTypes := []string{"-SecurityTypes", vncSecurityTypes}
+				if display == "" {
+					display = ":" + p[len(p)-1:]
+				}
+				optDisplay := []string{"-display", display}
+				start = exec.Command(vncserver, append(optSecurityTypes, optDisplay...)...)
+				err := start.Run()
+				print(start, err)
+				// which vncconnect&&vncconnect %display% %LH%||
+				// which vncconfig&&vncconfig %display% -connect %LH%&&killall tigervncconfig
+				vncconnect, err := exec.LookPath("vncconnect")
+				if err == nil {
+					conn = exec.CommandContext(s.Context(), vncconnect, append(optDisplay, LH)...)
+				} else {
+					conn = exec.CommandContext(s.Context(), "vncconfig", append(optDisplay, "-connect", LH)...)
+					killall = exec.Command("killall", "tigervncconfig")
+				}
+				disconn = exec.Command(vncserver, append(optDisplay, "-kill")...)
+			}
+			conn.Cancel = func() error {
+				return disconn.Run()
+			}
+			err := conn.Start()
+			print(conn, err)
+			if err != nil {
+				return
+			}
+			go func() {
+				conn.Wait()
+			}()
+			if killall != nil {
+				killall.Run()
+			} else {
+				time.Sleep(time.Second)
+			}
+			addr = LH + ":" + p
+			return
+		}()
+		if doStop {
+			defer func() {
+				stop := exec.Command(vncserver, "-stop")
+				print(stop, stop.Run())
+			}()
+		}
+
 		if args.Baud == "" {
 			if args.Serial == "H" { // -HH
 				args.Serial = ""
@@ -180,10 +277,7 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 		case args.Restart:
 			caRW()
 		case args.Baud != "" || args.Serial != "" || portT > 0 || portW > 0:
-			// Покажу клиенту протокол на стороне сервера
-			lss := log.New(s.Stderr(), "\r:>", lf.Flags())
 			// Покажу клиенту и на сервере протокол на стороне сервера
-			ps := []func(v ...any){lss.Println, Println}
 			ser, _ := getFirstUsbSerial(args.Serial, args.Baud, lss.Print)
 
 			// Покажу клиенту протокол IAC
@@ -193,11 +287,6 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 				log.SetOutput(s.Stderr())
 			} else {
 				log.SetOutput(io.Discard)
-			}
-			print := func(a ...any) {
-				for _, p := range ps {
-					p(a...)
-				}
 			}
 
 			portT = comm(ser, s2, portT, portW)
@@ -239,6 +328,16 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 			}
 			// dssh -UU :
 			print(cons(s.Context(), s, ser, args.Baud, args.Exit, ps...))
+		case vncViewerHP != "":
+			switch runtime.GOOS {
+			case "windows", "linux":
+				go func() {
+					established(s.Context(), vncViewerHP, true, Println)
+					s.Close()
+				}()
+			}
+			lss.Println("Press any key to stop - Нажми любую клавишу чтоб остановить VNC")
+			_, _ = s.Read([]byte{0})
 		case args.Exit != "":
 			caRW()
 			Exit = args.Exit
@@ -246,7 +345,6 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 	})
 
 	switch runtime.GOOS {
-
 	case "windows", "linux":
 		sa := server.Addr
 		all := strings.HasPrefix(sa, ALL) || strings.HasPrefix(sa, ":")
@@ -463,14 +561,8 @@ func remoteAddr2pids(ctx context.Context, dest string) (ok bool) {
 // Согласно фильтру accept возвращает количество i и список s
 func netSt(accept netstat.AcceptFn) (i int, s string) {
 	tabs, _ := netstat.TCPSocks(accept)
-	// if err != nil {
-	// 	return
-	// }
-	tabs6, err := netstat.TCP6Socks(accept)
-	if err == nil {
-		tabs = append(tabs, tabs6...)
-	}
-	for _, tab := range tabs {
+	tabs6, _ := netstat.TCP6Socks(accept)
+	for _, tab := range append(tabs, tabs6...) {
 		s += "\t" + tab.String() + "\n"
 	}
 	i = len(tabs)

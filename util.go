@@ -4,6 +4,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/abakum/winssh"
@@ -18,10 +19,8 @@ func ModTime(name string) (unix int64) {
 	return
 }
 
-// net.SplitHostPort со значениями по умолчанию
+// net.SplitHostPort со значениями по умолчанию host:port.
 func SplitHostPort(hp, host, port string) (h, p string) {
-	hp = strings.ReplaceAll(hp, "*", ALL)
-	hp = strings.ReplaceAll(hp, "+", ALL) // Linux
 	h, p, err := net.SplitHostPort(hp)
 	if err == nil {
 		if p == "" {
@@ -33,10 +32,10 @@ func SplitHostPort(hp, host, port string) (h, p string) {
 		return h, p
 	}
 	// Нет :
-	// _, err = strconv.Atoi(hp)
-	// if err == nil {
-	// 	return host, hp
-	// }
+	_, err = strconv.Atoi(hp)
+	if err == nil {
+		return host, hp
+	}
 	if hp == "" {
 		hp = host
 	}

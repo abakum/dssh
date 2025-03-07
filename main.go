@@ -99,6 +99,7 @@ const (
 	PORTT    = 5000
 	PORTW    = 8000
 	PORTS    = 2200
+	PORTV    = 5500
 	LockFile = "lockfile"
 )
 
@@ -319,6 +320,7 @@ func main() {
 	dot := psPrint(filepath.Base(exe), "", 0, PrintNil) > 1 && isFileExist(tmpU)
 	portT := portOB(args.Ser2net, PORTT)
 	portW := portOB(args.Ser2web, PORTW)
+	portV := portOB(args.VNC, PORTV)
 
 	argsShare := args.Share
 	if args.Share {
@@ -404,7 +406,7 @@ func main() {
 		}
 	}
 
-	BSnw := args.Serial != "" || args.Baud != "" || portT > 0 || portW > 0
+	BSnw := args.Serial != "" || args.Baud != "" || portT > 0 || portW > 0 || portV > 0
 
 	if !loc && Win7 && !(args.DisableTTY || args.NoCommand || Cygwin || external || BSnw) {
 		s := PUTTY
@@ -585,7 +587,7 @@ func main() {
 			}
 		}
 	}
-	BSnw = ser != "" || args.Baud != "" || portT > 0 || portW > 0
+	BSnw = ser != "" || args.Baud != "" || portT > 0 || portW > 0 || portV > 0
 	var mode serial.Mode
 	if BSnw {
 		enableTrzsz = "no"
@@ -597,7 +599,7 @@ func main() {
 			SP = ser == "" || sw == "s"
 			BSnw = BSnw || ser != ""
 			portT = comm(ser, s2, portT, portW)
-			BSnw = BSnw || portT > 0 || portW > 0
+			BSnw = BSnw || portT > 0 || portW > 0 || portV > 0
 		}
 	}
 
@@ -898,6 +900,7 @@ Host ` + SSHJ + ` :
 			if s2 != ALL && s2 != LH {
 				prox = "local - локально"
 			}
+			var once sync.Once
 			for {
 				var ss, eip, m string
 				j := "`" + imag + " -j %s`"
@@ -934,11 +937,35 @@ Host ` + SSHJ + ` :
 				}
 				Println(fmt.Sprintf("\tssh"+j+j, " .", "j "+hp) + ss)
 
-				if s2 != ALL && s2 != LH {
-					return
+				if s2 != LH {
+					// dssh +
+					// dssh x
+					if portV > 0 {
+						if ss == "" {
+							// LAN
+							eip = s2
+						}
+						once.Do(func() {
+							go func() {
+								args := SshArgs{}
+								args.DisableTTY = true
+								args.Destination = ":"
+								args.Command = repo
+								args.Argument = append(args.Argument, "--vnc", net.JoinHostPort(eip, strconv.Itoa(portV)))
+								s := strings.Join(append([]string{repo, "-T", args.Destination, args.Command}, args.Argument...), " ")
+								Println(s, "has been started - запущен")
+								code := Tssh(&args)
+								Println(s, code)
+							}()
+						})
+					}
+					if s2 != ALL {
+						// dssh x
+						return
+					}
 				}
-				// dssh +
 				// dssh
+				// dssh +
 				Println(s, "has been started - запущен")
 				code := Tssh(&args)
 				if code == 0 {
@@ -1116,11 +1143,11 @@ Host ` + SSHJ + ` :
 			if args.Share {
 				share()
 			} else {
-				cgi(ctx, portT, portW, &args, ser, dial, exit)
+				cgi(ctx, portT, portW, portV, &args, ser, dial, exit)
 			}
 		} else {
 			if args.Destination != "" && args.Use && emptyCommand {
-				cgi(ctx, portT, portW, &args, ser, LH, "")
+				cgi(ctx, portT, portW, portV, &args, ser, LH, "")
 			} else {
 				share()
 			}
@@ -1396,6 +1423,8 @@ func host2LD(host string) (listen, dial string) {
 	}
 }
 
+// portOB(1,5900) return 5901.
+// portOB(5910,5900) return 5910.
 func portOB(opt, base int) int {
 	if opt >= 0 && opt <= 9 {
 		return base + opt
@@ -1403,6 +1432,8 @@ func portOB(opt, base int) int {
 	return opt
 }
 
+// portPB("1",5900) return 5901.
+// portPB("",5900) return 5900.
 func portPB(p string, base int) string {
 	if ui, err := strconv.ParseUint(p, 10, 16); err == nil {
 		base = portOB(int(ui), base)
@@ -1410,7 +1441,8 @@ func portPB(p string, base int) string {
 	return strconv.Itoa(base)
 }
 
-func cgi(ctx context.Context, portT, portW int, args *SshArgs, serial, host, exit string) {
+// Что-то выполнить на дальнем dssh
+func cgi(ctx context.Context, portT, portW, portV int, args *SshArgs, serial, host, exit string) {
 	Println("Remote console - Консоль", serial, "на", repo)
 	if args.Debug {
 		args.Argument = append(args.Argument, "--debug")
@@ -1440,6 +1472,38 @@ func cgi(ctx context.Context, portT, portW int, args *SshArgs, serial, host, exi
 			Println(browse(ctx, host, portW, nil))
 		})
 	}
+	func() {
+		if portV < 0 {
+			return
+		}
+		vncViewerP := strconv.Itoa(portV)
+		if args.DirectJump {
+			args.Argument = append(args.Argument, "--vnc", vncViewerP)
+			s4 := fmt.Sprintf("%s:%d:%s:%d", LH, portV, LH, portV)
+			Println("-R", s4)
+			args.RemoteForward.UnmarshalText([]byte(s4))
+		} else {
+			Println(fmt.Errorf("let's not abuse the kindness of %s - не будем злоупотреблять добротой посредника", JumpHost))
+			Println(fmt.Sprintf("use `%s -j dsshHostWithVNCserver`", repo))
+			return
+		}
+		if vncviewer == "" {
+			vncviewer = vncviewerEtc
+			if runtime.GOOS == "windows" {
+				vncviewer = vncviewerWindows
+			}
+		}
+		if !isHP(net.JoinHostPort(LH, vncViewerP)) {
+			vnc := exec.Command(vncviewer, "-listen", vncViewerP)
+			err := vnc.Start()
+			Println(vnc, err)
+			if err != nil {
+				return
+			}
+			vnc.Process.Release()
+			time.Sleep(time.Second)
+		}
+	}()
 	if exit != "" {
 		args.Argument = append(args.Argument, "--exit", exit)
 	}
@@ -1450,6 +1514,7 @@ func cgi(ctx context.Context, portT, portW int, args *SshArgs, serial, host, exi
 		}
 	}
 }
+
 func optL(port int, args *SshArgs, s2 string, loc, dot bool) {
 	if port < 0 || loc || args.Share {
 		return

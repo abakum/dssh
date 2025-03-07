@@ -104,6 +104,7 @@ type SshArgs struct {
 	DirectJump bool `arg:"-j,--" help:"jump to dssh by ip[:port] or dnsName[:port] or : as 127.0.0.1:2200"`
 	Share      bool `arg:"-s,--share" help:"share local console"`
 	Use        bool `arg:"-0,--use" help:"use remote console"`
+	VNC        int  `arg:"--vnc" placeholder:"vncViewerListenPort" help:"port of reverse vnc-client from 'vncviewer -listen [vncViewerListenPort]'" default:"-1"`
 }
 
 func (SshArgs) Description() string {
