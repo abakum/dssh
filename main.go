@@ -1226,10 +1226,22 @@ Host ` + SSHJ + ` :
 
 // Какая ОС на sshd
 func goos(dest string) (s string) {
-	s = "linux"
-	switch dest {
-	case "189", "151": // Заглушка
+	echo := exec.Command(repo, "-T", dest, "echo", "~")
+	echo.Stdin = os.Stdin
+	output, err := echo.Output()
+	if err != nil {
+		Println(echo, output, err)
+		return
+	}
+	out := string(output)
+	Println(echo, output, out)
+	switch {
+	case strings.HasPrefix(out, "~"):
 		return "windows"
+	case strings.HasPrefix(out, "/Users/"):
+		return "darwin"
+	case strings.HasPrefix(out, "/home/"):
+		return "linux"
 	}
 	return
 }
