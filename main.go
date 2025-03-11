@@ -885,7 +885,6 @@ Host ` + SSHJ + ` :
 		client(signer, signers, local(hh, p, repo)+sshj+sshJ(JumpHost, u, hh, p))
 		args.Destination = JumpHost
 		time.AfterFunc(time.Second, func() {
-			time.Sleep(time.Second)
 			s := fmt.Sprintf("`tssh %s`", JumpHost)
 			i := 0
 			hp := hh + ":" + p
@@ -954,16 +953,15 @@ Host ` + SSHJ + ` :
 							// dssh --vnc 0 _
 							startViewer(portV, false)
 							go func() {
-								args := SshArgs{}
-								args.DisableTTY = true
-								args.Destination = SSHJ
-								args.Command = repo
-								args.Argument = append(args.Argument, "--vnc", JoinHostPort(eip, portV))
-								s := strings.Join(append([]string{repo, "-T", args.Destination, args.Command}, args.Argument...), " ")
-								Println(s, "has been started - запущен")
-								client(signer, signers, sshj+sshJ(JumpHost, u, "", p), repo, SSHJ)
-								code := Tssh(&args)
-								Println(s, code)
+								vnc := exec.CommandContext(ctx, repo, "-T", ":", repo, "--vnc", JoinHostPort(eip, portV))
+								vnc.Stdin = os.Stdin
+								vnc.Stderr = os.Stderr
+								createNewConsole(vnc)
+								err := vnc.Start()
+								Println(vnc, err)
+								if err == nil {
+									Println(vnc, vnc.Wait())
+								}
 							}()
 						})
 					}

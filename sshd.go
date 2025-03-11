@@ -178,14 +178,13 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 		}
 		// dssh --vnc 5500.
 		// dssh --vnc viewer:5500.
-		vncViewerHP, doStop, clientDirect, disconn := func() (vncViewerHP string, doStop, clientDirect bool, disconn *exec.Cmd) {
+		vncViewerHP, doStop, disconn := func() (vncViewerHP string, doStop bool, disconn *exec.Cmd) {
 			if args.VNC == "" {
 				return
 			}
 			h, p := SplitHostPort(args.VNC, "", PORTV)
 			lhp := LH + ":" + p
-			clientDirect = h != ""
-			if clientDirect {
+			if h != "" {
 				forw := exec.CommandContext(s.Context(), repo, "-NL"+lhp+":"+lhp, "-j", h)
 				err := forw.Start()
 				print(forw, err)
@@ -224,11 +223,7 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 				}
 				optSecurityTypes := []string{"-SecurityTypes", vncSecurityTypes}
 				if display == "" {
-					i, err := strconv.Atoi(p)
-					if err != nil {
-						i = PORTV
-					}
-					display = ":" + strconv.Itoa(i-PORTV)
+					display = ":" + strconv.Itoa(Atoi(p, PORTV)-PORTV)
 				}
 				optDisplay := []string{"-display", display}
 				start = exec.Command(vncserver, append(optSecurityTypes, display)...)
@@ -333,13 +328,11 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 			// dssh -UU :
 			print(cons(s.Context(), s, ser, args.Baud, args.Exit, ps...))
 		case vncViewerHP != "":
-			if !clientDirect {
-				lss.Println("Press any key to stop - Нажми любую клавишу чтоб остановить VNC")
-				go func() {
-					_, _ = s.Read([]byte{0})
-					s.Close()
-				}()
-			}
+			lss.Println("Press any key to stop - Нажми любую клавишу чтоб остановить VNC")
+			go func() {
+				_, _ = s.Read([]byte{0})
+				s.Close()
+			}()
 			switch runtime.GOOS {
 			case "windows", "linux":
 				established(s.Context(), vncViewerHP, true, Println)

@@ -19,6 +19,14 @@ func ModTime(name string) (unix int64) {
 	return
 }
 
+func Atoi(A string, d int) int {
+	i, err := strconv.Atoi(A)
+	if err != nil {
+		return d
+	}
+	return i
+}
+
 // net.SplitHostPort со значениями по умолчанию host:port.
 func SplitHostPort(hp, host string, port int) (h, p string) {
 	sp := strconv.Itoa(port)
