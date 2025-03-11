@@ -1,5 +1,6 @@
 set server=-j direct.accesible.dssh
 :set server=-J direct.accesible.sshd -j direct.accesible.dssh
+set server=-J 143 -j 192.168.0.12
 set listen=_
 set/p p=Run `dssh %listen%` on VNC server. Press Enter
 

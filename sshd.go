@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/abakum/go-ansiterm"
@@ -175,13 +176,17 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 				p(a...)
 			}
 		}
-		vncViewerHP, doStop := func() (addr string, started bool) {
+		// dssh --vnc 5500.
+		// dssh --vnc viewer:5500.
+		vncViewerHP, doStop, clientDirect, disconn := func() (vncViewerHP string, doStop, clientDirect bool, disconn *exec.Cmd) {
 			if args.VNC == "" {
 				return
 			}
-			h, p := SplitHostPort(args.VNC, "", strconv.Itoa(PORTV))
-			if h != "" {
-				forw := exec.CommandContext(s.Context(), repo, fmt.Sprintf("-NL%s:%s:%s:%s", LH, p, LH, p), h)
+			h, p := SplitHostPort(args.VNC, "", PORTV)
+			lhp := LH + ":" + p
+			clientDirect = h != ""
+			if clientDirect {
+				forw := exec.CommandContext(s.Context(), repo, "-NL"+lhp+":"+lhp, "-j", h)
 				err := forw.Start()
 				print(forw, err)
 				if err != nil {
@@ -192,7 +197,7 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 				}()
 				time.Sleep(time.Second * 2)
 			}
-			var start, conn, killall, disconn *exec.Cmd
+			var start, conn, killall *exec.Cmd
 			switch runtime.GOOS {
 			case "windows":
 				if vncserver == "" {
@@ -206,9 +211,9 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 					if err != nil {
 						return
 					}
-					started = true
+					doStop = true
 				}
-				conn = exec.CommandContext(s.Context(), vncserver, "-controlservice", "-connect", LH)
+				conn = exec.CommandContext(s.Context(), vncserver, "-controlservice", "-connect", lhp)
 				disconn = exec.Command(vncserver, "-controlservice", "-disconnectall")
 			default:
 				if vncserver == "" {
@@ -219,25 +224,24 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 				}
 				optSecurityTypes := []string{"-SecurityTypes", vncSecurityTypes}
 				if display == "" {
-					display = ":" + p[len(p)-1:]
+					i, err := strconv.Atoi(p)
+					if err != nil {
+						i = PORTV
+					}
+					display = ":" + strconv.Itoa(i-PORTV)
 				}
 				optDisplay := []string{"-display", display}
-				start = exec.Command(vncserver, append(optSecurityTypes, optDisplay...)...)
+				start = exec.Command(vncserver, append(optSecurityTypes, display)...)
 				err := start.Run()
 				print(start, err)
-				// which vncconnect&&vncconnect %display% %LH%||
-				// which vncconfig&&vncconfig %display% -connect %LH%&&killall tigervncconfig
 				vncconnect, err := exec.LookPath("vncconnect")
 				if err == nil {
-					conn = exec.CommandContext(s.Context(), vncconnect, append(optDisplay, LH)...)
+					conn = exec.CommandContext(s.Context(), vncconnect, append(optDisplay, lhp)...)
 				} else {
-					conn = exec.CommandContext(s.Context(), "vncconfig", append(optDisplay, "-connect", LH)...)
+					conn = exec.CommandContext(s.Context(), "vncconfig", append(optDisplay, "-connect", lhp)...)
 					killall = exec.Command("killall", "tigervncconfig")
 				}
-				disconn = exec.Command(vncserver, append(optDisplay, "-kill")...)
-			}
-			conn.Cancel = func() error {
-				return disconn.Run()
+				disconn = exec.Command(vncserver, "-kill", display)
 			}
 			err := conn.Start()
 			print(conn, err)
@@ -248,11 +252,11 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 				conn.Wait()
 			}()
 			if killall != nil {
-				killall.Run()
+				print(killall, killall.Run())
 			} else {
 				time.Sleep(time.Second)
 			}
-			addr = LH + ":" + p
+			vncViewerHP = lhp
 			return
 		}()
 		if doStop {
@@ -329,28 +333,35 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 			// dssh -UU :
 			print(cons(s.Context(), s, ser, args.Baud, args.Exit, ps...))
 		case vncViewerHP != "":
-			switch runtime.GOOS {
-			case "windows", "linux":
+			if !clientDirect {
+				lss.Println("Press any key to stop - Нажми любую клавишу чтоб остановить VNC")
 				go func() {
-					established(s.Context(), vncViewerHP, true, Println)
+					_, _ = s.Read([]byte{0})
 					s.Close()
 				}()
 			}
-			lss.Println("Press any key to stop - Нажми любую клавишу чтоб остановить VNC")
-			_, _ = s.Read([]byte{0})
+			switch runtime.GOOS {
+			case "windows", "linux":
+				established(s.Context(), vncViewerHP, true, Println)
+			default:
+				watchDarwin(s.Context(), nil, vncViewerHP, Println)
+			}
+			if !doStop {
+				print(disconn, disconn.Run())
+			}
 		case args.Exit != "":
 			caRW()
 			Exit = args.Exit
 		}
 	})
 
+	sa := server.Addr
+	all := strings.HasPrefix(sa, ALL) || strings.HasPrefix(sa, ":")
+	if runtime.GOOS != "windows" && all {
+		sa = "::" + strings.TrimPrefix(sa, ALL)
+	}
 	switch runtime.GOOS {
 	case "windows", "linux":
-		sa := server.Addr
-		all := strings.HasPrefix(sa, ALL) || strings.HasPrefix(sa, ":")
-		if runtime.GOOS == "linux" && all {
-			sa = "::" + strings.TrimPrefix(sa, ALL)
-		}
 		go func() {
 			watch(ctxRWE, caRW, sa, Print)
 			Println("local done")
@@ -360,6 +371,11 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 			go established(ctxRWE, sa, false, Print)
 		}
 	case "darwin":
+		go func() {
+			watchDarwin(ctxRWE, caRW, sa, Print)
+			Println("local done")
+			server.Close()
+		}()
 		noidle()
 	}
 	Println("ListenAndServe", server.ListenAndServe())
@@ -466,6 +482,34 @@ func watch(ctx context.Context, ca context.CancelFunc, dest string, Print func(v
 	}
 }
 
+// call ca() and return on `Service has been stopped`
+func watchDarwin(ctx context.Context, ca context.CancelFunc, dest string, Print func(v ...any)) {
+	if strings.HasPrefix(dest, ":") && !strings.HasPrefix(dest, ":::") {
+		dest = ALL + dest
+	}
+	t := time.NewTicker(TOW)
+	defer t.Stop()
+	var once sync.Once
+	for {
+		select {
+		case <-t.C:
+			if !isHP(dest) {
+				Print("The service has been stopped - Служба остановлена\n\t", dest)
+				if ca != nil {
+					ca()
+				}
+				return
+			}
+			once.Do(func() {
+				Print("\nThe service is running - Служба работает\n\t", dest)
+			})
+		case <-ctx.Done():
+			Print("watch ", dest, " done\n")
+			return
+		}
+	}
+}
+
 // Что там с подключениями к dest
 func established(ctx context.Context, dest string, exit bool, Print func(v ...any)) {
 	old := 0
@@ -478,13 +522,17 @@ func established(ctx context.Context, dest string, exit bool, Print func(v ...an
 			new, ste := netSt(func(s *netstat.SockTabEntry) bool {
 				return s.State == netstat.Established && s.LocalAddr.String() == dest
 			})
+			if exit && new == 0 {
+				Print(dest, " Case no connections then exit - Нет подключений значит выходим\n")
+				return
+			}
 			if old != new {
 				switch {
 				case new == 0:
 					Print(dest, " There are no connections - Нет подключений\n")
-					if exit {
-						return
-					}
+					// if exit {
+					// 	return
+					// }
 				case old > new:
 					Print(dest, " Connections have decreased - Подключений уменьшилось\n", ste)
 				default:

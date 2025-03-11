@@ -406,7 +406,11 @@ func main() {
 		}
 	}
 
-	BSnw := args.Serial != "" || args.Baud != "" || portT > 0 || portW > 0 || portV > 0
+	vncDirect := portV > 0 && !loc
+	if vncDirect && isDssh() {
+		vncDirect = args.DirectJump
+	}
+	BSnw := args.Serial != "" || args.Baud != "" || portT > 0 || portW > 0 || vncDirect
 
 	if !loc && Win7 && !(args.DisableTTY || args.NoCommand || Cygwin || external || BSnw) {
 		s := PUTTY
@@ -587,7 +591,7 @@ func main() {
 			}
 		}
 	}
-	BSnw = ser != "" || args.Baud != "" || portT > 0 || portW > 0 || portV > 0
+	BSnw = ser != "" || args.Baud != "" || portT > 0 || portW > 0 || vncDirect
 	var mode serial.Mode
 	if BSnw {
 		enableTrzsz = "no"
@@ -599,7 +603,7 @@ func main() {
 			SP = ser == "" || sw == "s"
 			BSnw = BSnw || ser != ""
 			portT = comm(ser, s2, portT, portW)
-			BSnw = BSnw || portT > 0 || portW > 0 || portV > 0
+			BSnw = BSnw || portT > 0 || portW > 0 || vncDirect
 		}
 	}
 
@@ -868,6 +872,7 @@ Host ` + SSHJ + ` :
 			daemon = h+p == listen
 		}
 	}
+	// Сервис.
 	if args.Daemon || !cli && daemon {
 		args.Daemon = true
 		hh := dial
@@ -946,14 +951,17 @@ Host ` + SSHJ + ` :
 							eip = s2
 						}
 						once.Do(func() {
+							// dssh --vnc 0 _
+							startViewer(portV, false)
 							go func() {
 								args := SshArgs{}
 								args.DisableTTY = true
-								args.Destination = ":"
+								args.Destination = SSHJ
 								args.Command = repo
-								args.Argument = append(args.Argument, "--vnc", net.JoinHostPort(eip, strconv.Itoa(portV)))
+								args.Argument = append(args.Argument, "--vnc", JoinHostPort(eip, portV))
 								s := strings.Join(append([]string{repo, "-T", args.Destination, args.Command}, args.Argument...), " ")
 								Println(s, "has been started - запущен")
+								client(signer, signers, sshj+sshJ(JumpHost, u, "", p), repo, SSHJ)
 								code := Tssh(&args)
 								Println(s, code)
 							}()
@@ -1146,8 +1154,53 @@ Host ` + SSHJ + ` :
 				cgi(ctx, portT, portW, portV, &args, ser, dial, exit)
 			}
 		} else {
-			if args.Destination != "" && args.Use && emptyCommand {
+			if args.Destination != "" && emptyCommand && args.Use {
 				cgi(ctx, portT, portW, portV, &args, ser, LH, "")
+			} else if args.Destination != "" && emptyCommand && vncDirect {
+				startViewer(portV, true)
+				args.Argument = []string{}
+				lhp := JoinHostPort(LH, portV)
+				switch goos(args.Destination) {
+				case "windows":
+					if vncserver == "" {
+						vncserver = vncserverWindows
+					}
+					vncserver = strings.TrimSuffix(strings.ToLower(vncserver), ".exe")
+					args.Command = fmt.Sprintf(
+						"sc query %s|findstr RUNNING&&(%s -controlservice -connect %s&set/p p=Press Enter to disconnect&%s -controlservice -disconnectall&exit)&"+
+							"%s -start&%s -controlservice -connect %s&set/p p=Press Enter to stop&%s -stop",
+						vncserver, vncserver, lhp, vncserver,
+						vncserver, vncserver, lhp, vncserver)
+				default:
+					if vncserver == "" {
+						vncserver = vncserverEtc
+					}
+					if vncSecurityTypes == "" {
+						vncSecurityTypes = vncSecurityTypesEtc
+					}
+					if display == "" {
+						display = ":" + strconv.Itoa(portV-PORTV)
+					}
+					args.Command = fmt.Sprintf(
+						"%s -SecurityTypes %s %s;"+
+							"which vncconnect&&vncconnect -display %s %s||"+
+							"which vncconfig&&vncconfig -display %s -connect %s&&killall tigervncconfig;"+
+							"echo Press Enter to kill;read -rn1;%s -kill %s",
+						vncserver, vncSecurityTypes, display,
+						display, lhp,
+						display, lhp,
+						vncserver, display)
+				}
+				Println(args.Command)
+				time.AfterFunc(time.Second, func() {
+					switch runtime.GOOS {
+					case "windows", "linux":
+						established(ctx, lhp, true, Println)
+					default:
+						watchDarwin(ctx, nil, lhp, Println)
+					}
+					closer.Close()
+				})
 			} else {
 				share()
 			}
@@ -1169,6 +1222,16 @@ Host ` + SSHJ + ` :
 			}
 		}
 	}
+}
+
+// Какая ОС на sshd
+func goos(dest string) (s string) {
+	s = "linux"
+	switch dest {
+	case "189", "151": // Заглушка
+		return "windows"
+	}
+	return
 }
 
 // tssh
@@ -1472,38 +1535,7 @@ func cgi(ctx context.Context, portT, portW, portV int, args *SshArgs, serial, ho
 			Println(browse(ctx, host, portW, nil))
 		})
 	}
-	func() {
-		if portV < 0 {
-			return
-		}
-		vncViewerP := strconv.Itoa(portV)
-		if args.DirectJump {
-			args.Argument = append(args.Argument, "--vnc", vncViewerP)
-			s4 := fmt.Sprintf("%s:%d:%s:%d", LH, portV, LH, portV)
-			Println("-R", s4)
-			args.RemoteForward.UnmarshalText([]byte(s4))
-		} else {
-			Println(fmt.Errorf("let's not abuse the kindness of %s - не будем злоупотреблять добротой посредника", JumpHost))
-			Println(fmt.Sprintf("use `%s -j dsshHostWithVNCserver`", repo))
-			return
-		}
-		if vncviewer == "" {
-			vncviewer = vncviewerEtc
-			if runtime.GOOS == "windows" {
-				vncviewer = vncviewerWindows
-			}
-		}
-		if !isHP(net.JoinHostPort(LH, vncViewerP)) {
-			vnc := exec.Command(vncviewer, "-listen", vncViewerP)
-			err := vnc.Start()
-			Println(vnc, err)
-			if err != nil {
-				return
-			}
-			vnc.Process.Release()
-			time.Sleep(time.Second)
-		}
-	}()
+	startViewer(portV, true)
 	if exit != "" {
 		args.Argument = append(args.Argument, "--exit", exit)
 	}
@@ -1512,6 +1544,35 @@ func cgi(ctx context.Context, portT, portW, portV int, args *SshArgs, serial, ho
 		if exit == "" && !args.DisableTTY {
 			args.ForceTTY = true
 		}
+	}
+}
+
+func startViewer(portV int, R bool) {
+	if portV < 0 {
+		return
+	}
+	vncViewerP := strconv.Itoa(portV)
+	if R {
+		args.Argument = append(args.Argument, "--vnc", vncViewerP)
+		s4 := fmt.Sprintf("%s:%d:%s:%d", LH, portV, LH, portV)
+		Println("-R", s4)
+		args.RemoteForward.UnmarshalText([]byte(s4))
+	}
+	if vncviewer == "" {
+		vncviewer = vncviewerEtc
+		if runtime.GOOS == "windows" {
+			vncviewer = vncviewerWindows
+		}
+	}
+	if !isHP(net.JoinHostPort(LH, vncViewerP)) {
+		vnc := exec.Command(vncviewer, "-listen", vncViewerP)
+		err := vnc.Start()
+		Println(vnc, err)
+		if err != nil {
+			return
+		}
+		vnc.Process.Release()
+		time.Sleep(time.Second)
 	}
 }
 

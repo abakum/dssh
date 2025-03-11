@@ -1,5 +1,6 @@
 set client=-j direct.accesible.dssh
 :set client=-J direct.accesible.sshd -j direct.accesible.dssh
+set client=-j ssh.cloudns.ch
 set server=:
 set listen=_
 set/p p=Run `dssh` on VNC server. Press Enter

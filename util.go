@@ -20,11 +20,12 @@ func ModTime(name string) (unix int64) {
 }
 
 // net.SplitHostPort со значениями по умолчанию host:port.
-func SplitHostPort(hp, host, port string) (h, p string) {
+func SplitHostPort(hp, host string, port int) (h, p string) {
+	sp := strconv.Itoa(port)
 	h, p, err := net.SplitHostPort(hp)
 	if err == nil {
 		if p == "" {
-			p = port
+			p = sp
 		}
 		if h == "" {
 			h = host
@@ -39,7 +40,7 @@ func SplitHostPort(hp, host, port string) (h, p string) {
 	if hp == "" {
 		hp = host
 	}
-	return hp, port
+	return hp, sp
 }
 
 func UserHomeDir(s string) string {
