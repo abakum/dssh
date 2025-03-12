@@ -101,6 +101,7 @@ const (
 	PORTS    = 2200
 	PORTV    = 5500
 	LockFile = "lockfile"
+	SEP      = ","
 )
 
 var (
@@ -127,6 +128,7 @@ var (
 	ioc            = ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: os.Stdout, Cygwin: Cygwin}
 	listen         = strconv.Itoa(PORTS)
 	tt             *time.Timer
+	eips           []string
 )
 
 //go:generate go run github.com/abakum/version
@@ -408,6 +410,24 @@ func main() {
 
 	vncDirect := portV > 0 && !loc
 	if vncDirect && isDssh() {
+		if true || !args.DirectJump {
+			vnc := exec.Command(repo, "-T", ":", repo, "-j")
+			vnc.Stdin = os.Stdin
+			vnc.Stderr = os.Stderr
+			output, err := vnc.Output()
+			Println(output, err, string(output))
+			if err == nil {
+				ips := strings.Split(string(output), SEP)
+				for _, ip := range ips {
+					if isHP(JoinHostPort(ip, PORTS)) {
+						args.DirectJump = true
+						args.Destination = ip
+						Println("--vnc", portV, "-j", ip)
+						break
+					}
+				}
+			}
+		}
 		vncDirect = args.DirectJump
 	}
 	BSnw := args.Serial != "" || args.Baud != "" || portT > 0 || portW > 0 || vncDirect
@@ -936,15 +956,24 @@ Host ` + SSHJ + ` :
 				}
 				Println(fmt.Sprintf("\tplink"+j+j, " .", "j "+hp) + ss)
 				j = "\t`" + imag + "  -Z%s`"
+
+				eips = []string{}
 				if ss != "" {
 					ss = fmt.Sprintf(j, "j "+eip)
+					eips = append(eips, eip)
 				}
-				Println(fmt.Sprintf("\tssh"+j+j, " .", "j "+hp) + ss)
+				if s2 == ALL {
+					eips = append(eips, ips...)
+				} else {
+					eips = append(eips, s2)
+				}
 
-				if s2 != LH {
-					// dssh +
-					// dssh x
-					if portV > 0 {
+				Println(fmt.Sprintf("\tssh"+j+j, " .", "j "+hp) + ss)
+				lhListen := s2 == LH || s2 == ALL
+				if portV > 0 {
+					if lhListen {
+						Println(fmt.Errorf("not compatible - не совместимы `--vnc %d  %s`", portV, s2))
+					} else {
 						if ss == "" {
 							// LAN
 							eip = s2
@@ -953,6 +982,7 @@ Host ` + SSHJ + ` :
 							// dssh --vnc 0 _
 							startViewer(portV, false)
 							go func() {
+								// Показывающий на `dssh`, подключись ко мне. Я наблюдатель на `dssh _` жду тебя на порту portV на адресе eip
 								vnc := exec.CommandContext(ctx, repo, "-T", ":", repo, "--vnc", JoinHostPort(eip, portV))
 								vnc.Stdin = os.Stdin
 								vnc.Stderr = os.Stderr
@@ -960,15 +990,14 @@ Host ` + SSHJ + ` :
 								err := vnc.Start()
 								Println(vnc, err)
 								if err == nil {
-									Println(vnc, vnc.Wait())
+									Println(vnc, vnc.Wait(), "done")
 								}
 							}()
 						})
 					}
-					if s2 != ALL {
-						// dssh x
-						return
-					}
+				}
+				if !lhListen {
+					return
 				}
 				// dssh
 				// dssh +

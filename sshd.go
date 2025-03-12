@@ -25,15 +25,16 @@ import (
 )
 
 type cgiArgs struct {
-	Baud    string `arg:"-U,--baud" placeholder:"baUd" help:"set baud rate of serial console"`
-	Serial  string `arg:"-H,--path" placeholder:"patH" help:"device path (name for Windows) of serial console"`
-	Ser2net int    `arg:"-2,--2217" placeholder:"port" help:"RFC2217 telnet port for serial console over telnet" default:"-1"`
-	Ser2web int    `arg:"-8,--web" placeholder:"port" help:"web port for serial console over web" default:"-1"`
-	Exit    string `arg:"--exit" help:"exit shortcut"`
-	Restart bool   `arg:"-r,--restart" help:"restart daemon"`
-	Debug   bool   `arg:"-v,--debug" help:"verbose mode for debugging, similar to ssh's -v"`
-	Unix    bool   `arg:"-z,--unix" help:"zero new window"`
-	VNC     string `arg:"--vnc" placeholder:"hostname[:vncViewerListen]" help:"address of direct accesible dssh with vncviewer -listen [vncViewerListen]"`
+	Baud       string `arg:"-U,--baud" placeholder:"baUd" help:"set baud rate of serial console"`
+	Serial     string `arg:"-H,--path" placeholder:"patH" help:"device path (name for Windows) of serial console"`
+	Ser2net    int    `arg:"-2,--2217" placeholder:"port" help:"RFC2217 telnet port for serial console over telnet" default:"-1"`
+	Ser2web    int    `arg:"-8,--web" placeholder:"port" help:"web port for serial console over web" default:"-1"`
+	Exit       string `arg:"--exit" help:"exit shortcut"`
+	Restart    bool   `arg:"-r,--restart" help:"restart daemon"`
+	Debug      bool   `arg:"-v,--debug" help:"verbose mode for debugging, similar to ssh's -v"`
+	Unix       bool   `arg:"-z,--unix" help:"zero new window"`
+	VNC        string `arg:"--vnc" placeholder:"hostname[:vncViewerListen]" help:"address of direct accesible dssh with vncviewer -listen [vncViewerListen]"`
+	DirectJump bool   `arg:"-j,--" help:"get csv of listen ip"`
 }
 
 var Exit string
@@ -175,6 +176,12 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 			for _, p := range ps {
 				p(a...)
 			}
+		}
+		if args.DirectJump {
+			csv := strings.Join(eips, SEP)
+			print(csv)
+			s.Write([]byte(csv))
+			return
 		}
 		// dssh --vnc 5500.
 		// dssh --vnc viewer:5500.
