@@ -303,6 +303,40 @@ func main() {
 	}
 	EEDE = EED + exit
 
+	autoDirectJump := ""
+	autoDirectJumpOnce := false
+	// -j  Это автообход посредника для dssh-сервера с внешним IP и `dssh +`
+	adj := func() (s string) {
+		cgi := exec.Command(repo, "-T", ":", repo, "-j")
+		cgi.Stdin = os.Stdin
+		cgi.Stderr = os.Stderr
+		output, err := cgi.Output()
+		Println(string(output), err)
+		if err != nil {
+			return
+		}
+		ips := strings.Split(string(output), SEP)
+		for _, ip := range ips {
+			if ip != LH && isHP(JoinHostPort(ip, PORTS)) {
+				Println("-j", ip)
+				return ip
+			}
+		}
+		return
+	}
+	if args.DirectJump && args.Destination == "" {
+		autoDirectJumpOnce = true
+		autoDirectJump = adj()
+		if autoDirectJump == "" {
+			Println(fmt.Errorf("auto directJump failed - без посредника не обойтись"))
+			args.DirectJump = false
+			args.Destination = "."
+		} else {
+			Println("directJump success - Дальше без посредника")
+			args.Destination = autoDirectJump
+		}
+	}
+
 	u, h, p := ParseDestination(args.Destination) //tssh
 	p = portPB(p, PORTS)
 	s2, dial := host2LD(h)
@@ -409,26 +443,17 @@ func main() {
 	}
 
 	vncDirect := portV > 0 && !loc
-	if vncDirect && isDssh() {
-		if true || !args.DirectJump {
-			vnc := exec.Command(repo, "-T", ":", repo, "-j")
-			vnc.Stdin = os.Stdin
-			vnc.Stderr = os.Stderr
-			output, err := vnc.Output()
-			Println(output, err, string(output))
-			if err == nil {
-				ips := strings.Split(string(output), SEP)
-				for _, ip := range ips {
-					if isHP(JoinHostPort(ip, PORTS)) {
-						args.DirectJump = true
-						args.Destination = ip
-						Println("--vnc", portV, "-j", ip)
-						break
-					}
-				}
-			}
+	if vncDirect && isDssh() && !args.DirectJump {
+		// -70 : Это Показывающий подключается к Наблюдателю с внешним IP и `dssh +`
+		if !autoDirectJumpOnce {
+			autoDirectJump = adj()
 		}
-		vncDirect = args.DirectJump
+		if autoDirectJump == "" {
+			vncDirect = false
+		} else {
+			args.DirectJump = true
+			args.Destination = autoDirectJump
+		}
 	}
 	BSnw := args.Serial != "" || args.Baud != "" || portT > 0 || portW > 0 || vncDirect
 
@@ -957,6 +982,7 @@ Host ` + SSHJ + ` :
 				Println(fmt.Sprintf("\tplink"+j+j, " .", "j "+hp) + ss)
 				j = "\t`" + imag + "  -Z%s`"
 
+				// Список внешних IP для CGI -j
 				eips = []string{}
 				if ss != "" {
 					ss = fmt.Sprintf(j, "j "+eip)
@@ -974,16 +1000,12 @@ Host ` + SSHJ + ` :
 					if lhListen {
 						Println(fmt.Errorf("not compatible - не совместимы `--vnc %d  %s`", portV, s2))
 					} else {
-						if ss == "" {
-							// LAN
-							eip = s2
-						}
 						once.Do(func() {
 							// dssh --vnc 0 _
 							startViewer(portV, false)
 							go func() {
-								// Показывающий на `dssh`, подключись ко мне. Я наблюдатель на `dssh _` жду тебя на порту portV на адресе eip
-								vnc := exec.CommandContext(ctx, repo, "-T", ":", repo, "--vnc", JoinHostPort(eip, portV))
+								// Показывающий на `dssh`, подключись ко мне. Я наблюдатель с внешним IP на `dssh _` жду тебя на порту portV на адресе eip
+								vnc := exec.CommandContext(ctx, repo, "-T", ":", repo, "--vnc", JoinHostPort(eips[0], portV))
 								vnc.Stdin = os.Stdin
 								vnc.Stderr = os.Stderr
 								createNewConsole(vnc)
