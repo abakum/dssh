@@ -982,9 +982,10 @@ Host ` + SSHJ + ` :
 				Println(fmt.Sprintf("\tplink"+j+j, " .", "j "+hp) + ss)
 				j = "\t`" + imag + "  -Z%s`"
 
-				// Список внешних IP для CGI -j
+				// Список слушающих IP для CGI -j
 				eips = []string{}
 				if ss != "" {
+					// WAN
 					ss = fmt.Sprintf(j, "j "+eip)
 					eips = append(eips, eip)
 				}
@@ -1004,15 +1005,21 @@ Host ` + SSHJ + ` :
 							// dssh --vnc 0 _
 							startViewer(portV, false)
 							go func() {
-								// Показывающий на `dssh`, подключись ко мне. Я наблюдатель с внешним IP на `dssh _` жду тебя на порту portV на адресе eip
-								vnc := exec.CommandContext(ctx, repo, "-T", ":", repo, "--vnc", JoinHostPort(eips[0], portV))
-								vnc.Stdin = os.Stdin
-								vnc.Stderr = os.Stderr
-								createNewConsole(vnc)
-								err := vnc.Start()
-								Println(vnc, err)
-								if err == nil {
-									Println(vnc, vnc.Wait(), "done")
+								for _, ip := range eips {
+									if ip == LH {
+										continue
+									}
+									// Показывающий на `dssh` или `dssh +`, подключись ко мне. Я Наблюдатель на `dssh _` жду тебя на порту portV на адресе ip
+									cgi := exec.CommandContext(ctx, repo, "-T", ":", repo, "--vnc", JoinHostPort(ip, portV))
+									cgi.Stdin = os.Stdin
+									cgi.Stderr = os.Stderr
+									createNewConsole(cgi)
+									err := cgi.Start()
+									Println(cgi, err)
+									if err == nil {
+										Println(cgi, cgi.Wait(), "done")
+										return
+									}
 								}
 							}()
 						})

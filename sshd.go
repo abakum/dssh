@@ -612,8 +612,8 @@ func netSt(accept netstat.AcceptFn) (i int, s string) {
 	tabs6, _ := netstat.TCP6Socks(accept)
 	for _, tab := range append(tabs, tabs6...) {
 		s += "\t" + tab.String() + "\n"
+		i++
 	}
-	i = len(tabs)
 	return
 }
 
