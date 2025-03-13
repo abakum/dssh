@@ -282,6 +282,21 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 		switch {
 		case args.Restart:
 			caRW()
+		case vncViewerHP != "":
+			lss.Println("Press any key to stop - Нажми любую клавишу чтоб остановить VNC")
+			go func() {
+				_, _ = s.Read([]byte{0})
+				s.Close()
+			}()
+			switch runtime.GOOS {
+			case "windows", "linux":
+				established(s.Context(), vncViewerHP, true, Println)
+			default:
+				watchDarwin(s.Context(), nil, vncViewerHP, Println)
+			}
+			if !doStop {
+				print(disconn, disconn.Run())
+			}
 		case args.Baud != "" || args.Serial != "" || portT > 0 || portW > 0:
 			// Покажу клиенту и на сервере протокол на стороне сервера
 			ser, _ := getFirstUsbSerial(args.Serial, args.Baud, lss.Print)
@@ -334,21 +349,6 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 			}
 			// dssh -UU :
 			print(cons(s.Context(), s, ser, args.Baud, args.Exit, ps...))
-		case vncViewerHP != "":
-			lss.Println("Press any key to stop - Нажми любую клавишу чтоб остановить VNC")
-			go func() {
-				_, _ = s.Read([]byte{0})
-				s.Close()
-			}()
-			switch runtime.GOOS {
-			case "windows", "linux":
-				established(s.Context(), vncViewerHP, true, Println)
-			default:
-				watchDarwin(s.Context(), nil, vncViewerHP, Println)
-			}
-			if !doStop {
-				print(disconn, disconn.Run())
-			}
 		case args.Exit != "":
 			caRW()
 			Exit = args.Exit
