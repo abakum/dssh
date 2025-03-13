@@ -130,7 +130,7 @@ dssh:=(tssh from trzsz)+(CA key with embed-encrypt)+(sshd from gliderlabs)+(acce
 Можно отдельно указать для `Host D1080` `ProxyPutty socks5://127.0.0.1:1080` а для `Host overSocks5` `ProxyCommand plink -load D1080 -raw %h -P %p`. Приятно, что это сработает и на Windows и на Linux если установлен plink.
 9. Можно использовать dssh-клиента в качестве посредника для доступа к dssh-серверу через `socks5://127.0.0.1:1080` как `dssh -45ND1080 .`
 10. Чтоб перезапустить dssh-сервер используйте ключ `-r` или `--restart`. Сервер остановится и запустится через 15 секунд.
-11. Чтоб остановить dssh-сервер используйте ключ `--stop`.
+11. Чтоб остановить dssh-сервер используйте ключ `--stop`.<div id=8.12>
 12. Если невозможно подключиться к dssh-серверу командой `dssh -j host` но возможно с алиаса `jh` то подключаемся `dssh -J jh -j host`. Если на host.dssh.sshd запущен и dssh-сервер и sshd-сервер и невозможно подключиться `dssh -j host` то можно `dssh -J host.dssh.sshd -j :` или `dssh host.dssh.sshd dssh -j`. Смотри [2.2](#2.2).
 13. Передавать VNC трафик можно и через посредника, но не будем злоупотреблять его добротой - лучше использовать VNC напрямую: 
 13.1 Показывающий (vnc-сервер) стартует dssh-сервер c доступом через посредника `dssh`.
@@ -155,7 +155,8 @@ dssh:=(tssh from trzsz)+(CA key with embed-encrypt)+(sshd from gliderlabs)+(acce
 19. Как на [8.17](#8.17) или [8.18](#8.18) для VNC где на Показывающий с адресом direct.accesible.dssh `dssh _` а на Наблюдателе `dssh --vnc 5500 -j direct.accesible.dssh` или `dssh --vnc 0 -j direct.accesible.dssh` или короче `dssh -70 -j direct.accesible.dssh`. Это сработает и за NAT если роутер с WAN адресом direct.accesible.dssh переносит порт 2200 с WAN на LAN адрес vnc.server.with.dssh:2200.<div id=8.20>
 
 20. Используя [8.19](#8.19) и [2.2](#2.2) если Показывающий на direct.accesible.dssh `dssh +` то подключаем Наблюдателя `dssh -j70`.
-21. Для наблюдения за Показывающим на sshd-сервере с адресом vnc.server.with.sshd:2 `dssh -72 vnc.server.with.sshd`
+21. Для наблюдения за Показывающим на sshd-сервере с адресом vnc.server.with.sshd:2 `dssh -72 vnc.server.with.sshd`.
+22. Для наблюдения за Показывающим на host.dssh.sshd c dssh-сервером `dssh` и sshd-сервером можно `dssh -j70 -J host.dssh.sshd`. Смотри [8.12](#8.12).
 
 # 9. Удалённый доступ к последовательной консоли на хосте с [RouterOS](#0.10) или с [ser2net](#0.8) или с [hub4com](#0.9):
 1. Подключаем USB2serial переходник в USB порт устройства под управлением RouterOS.
