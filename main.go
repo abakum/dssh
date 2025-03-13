@@ -14,7 +14,7 @@ package main
 `go install`
 
 Запускаем `dssh -v` как сервис. Первый раз с `-v`. Если указан параметр `-v` или `--debug` то на всякий случай создаются копии старых файлов .old
-Обязательно запускаем `dssh :` как клиента через посредника `dssh@ssh-j.com` на хосте за NAT.
+Обязательно запускаем `dssh .` как клиента через посредника `dssh@ssh-j.com` на хосте за NAT.
 В файл ~/.ssh/config дописываются алиасы хостов dssh, ssh-j, ssh-j.com.
 Создаются файлы известных хостов `~/.ssh/ssh-j` (по запросу) и `~/.ssh/dssh`
 Если агент ключей получает ключ id_x то создаётся сертификат `~/.ssh/id_x-cert.pub`
@@ -449,6 +449,7 @@ func main() {
 			autoDirectJump = adj()
 		}
 		if autoDirectJump == "" {
+			Println(fmt.Errorf("let's not abuse the kindness of - не будем злоупотреблять добротой %s", JumpHost))
 			vncDirect = false
 		} else {
 			args.DirectJump = true

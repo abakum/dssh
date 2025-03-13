@@ -48,7 +48,7 @@ dssh:=(tssh from trzsz)+(CA key with embed-encrypt)+(sshd from gliderlabs)+(acce
 # 2. Как использовать для доступа к удалённой консоли интерпретатора команд по ssh:<div id=port2200>
 - port2200. суффикс порта 2200 от 0 до 9 значит порт от 2200 до 2209 или [port](#port).<div id=2.1>
 1. При наличии на хосте Сети запускаем dssh-сервер `dssh` или `dssh +`. Сервер будет ждать на 127.0.0.1:2200 или соответствено на 0.0.0.0:2200.<div id=2.2>
-2. При наличии у клиента Сети подключаемся к dssh-серверу `dssh .` Это сработает и за NAT так как подключение к [dssh-серверу](#2.1) идёт через посредника `ssh-j.com` [0.4](#0.4).<div id=2.3>
+2. При наличии у клиента Сети подключаемся к dssh-серверу `dssh .` Это сработает и за NAT так как подключение к [dssh-серверу](#2.1) идёт через посредника `ssh-j.com` [0.4](#0.4). Если `dssh +` на direct.accesible.dssh то можно подключится к нему `dssh -j`. Для чего через посредника узнаём direct.accesible.dssh `dssh -T : dssh -j` а потом напрямую `dssh -j direct.accesible.dssh`. Это сработает и через LAN.<div id=2.3>
 3. При отсутствии на хосте Сети запускаем dssh-сервер `dssh +` или `dssh _` или `dssh -d x[:port2200]` и сообщаем клиенту x[:port2200].<div id=2.4>
 4. При отсутствии на клиенте Сети но при наличии локальной сети подключаемся к dssh-серверу `dssh -j x[:port2200]`.<div id=2.5>
 5. Если клиент находится на хосте с dssh-сервером, подключаемся к нему без посредников `dssh .` или `dssh -j :` или `dssh -j x[:port2200]` или через посредника `dssh :` .<div id=2.6>
@@ -131,30 +131,31 @@ dssh:=(tssh from trzsz)+(CA key with embed-encrypt)+(sshd from gliderlabs)+(acce
 9. Можно использовать dssh-клиента в качестве посредника для доступа к dssh-серверу через `socks5://127.0.0.1:1080` как `dssh -45ND1080 .`
 10. Чтоб перезапустить dssh-сервер используйте ключ `-r` или `--restart`. Сервер остановится и запустится через 15 секунд.
 11. Чтоб остановить dssh-сервер используйте ключ `--stop`.
-12. Если из корпоративной сети невозможно подключиться к dssh-серверу командой `dssh -j host:port` но возможно с алиаса jh то подключаемся `dssh -J jh -j host:port`
+12. Если невозможно подключиться к dssh-серверу командой `dssh -j host` но возможно с алиаса `jh` то подключаемся `dssh -J jh -j host`. Если на host.dssh.sshd запущен и dssh-сервер и sshd-сервер и невозможно подключиться `dssh -j host` то можно `dssh -J host.dssh.sshd -j :` или `dssh host.dssh.sshd dssh -j`. Смотри [2.2](#2.2).
 13. Передавать VNC трафик можно и через посредника, но не будем злоупотреблять его добротой - лучше использовать VNC напрямую: 
 13.1 Показывающий (vnc-сервер) стартует dssh-сервер c доступом через посредника `dssh`.
 13.2 Наблюдатель (vnc-клиент) запускает слушающего vnc-клиента `cd /d c:\Program Files\TightVNC&tvnviewer -listen` или `cd /d c:\Program Files (x86)\RealVNC\VNC Viewer&vncviewer -listen`. Мне нравятся версии 5.
 13.3 Стартует локальный dssh-сервер c доступом напрямую `dssh _` если нет DDNS запоминает внешний IP - например [host](#host).
-13.4 В новой консоле подключается к dssh-серверу показывающего через посредника `dssh :`.
-13.5 Стартует перенос порта 5500 с показывающего хоста на свой хост через внешний IP `dssh -NL:127.0.0.1:5500:127.0.0.1:5500 -j host`.
-13.6 В новой консоле подключается к dssh-серверу показывающего через посредника `dssh :`. Если Показывающий на Windows то `cd /d c:\Program Files\TightVNC`.
+13.4 В новой консоле подключается к dssh-серверу Показывающего через посредника `dssh :`.
+13.5 Стартует перенос порта 5500 с Показывающего хоста на свой хост через внешний IP `dssh -NL:127.0.0.1:5500:127.0.0.1:5500 -j host`.
+13.6 В новой консоле подключается к dssh-серверу Показывающего через посредника `dssh :`. Если Показывающий на Windows то `cd /d c:\Program Files\TightVNC`.
 13.7 Если Показывающий на Windows и vnc-сервер остановлен то запускает его `tvnserver -start`. Если Показывающий на Linux запускает vnc-сервер `vncserver -SecurityTypes None :2`. 
 13.8 Подключает его к своему слушающему vnc-клиенту на Windows `tvnserver -controlservice -connect 127.0.0.1`. На Linux для TigerVNC `vncconfig -display :2 -connect 127.0.0.1` для TightVNC `vncconnect -display :2 127.0.0.1`
 13.9 Останавливает vnc-сервер на Windows если не был запущен `tvnserver -stop` или отключает Наблюдателей `tvnserver -controlservice -disconnectall`. На Linux `vncserver -kill :2`.
 13.10 Останавливает слушающего vnc-клиента `taskkill /F /IM tvnviewer.exe` или `taskkill /F /IM vncviewer.exe`.
 13.11 Перезапускает dssh-сервер на vnc-сервере чтоб остановить перенос порта 5500 `dssh --restart :`.
 13.12 Останавливает локальный dssh-сервер c доступом через WAN  `dssh --stop .`.<div id=8.14>
+
 14. Вот [скрипт](viewWindowsServerOverDirectClient.bat) для VNC где Наблюдатель с адресом direct.accesible.dssh на Windows и Показывающий это TightVNC на Windows.<div id=8.15>
 15. Вот [скрипт](viewLinuxServerOverDirectClient.bat) для VNC где Наблюдатель с адресом direct.accesible.dssh на Windows а Показывающий это TigerVNC на Linux.
-16. Как на [8.14](#8.14) или [8.15](#8.15) для VNC где на показывающем `dssh` а на наблюдателе с адресом direct.accesible.dssh `dssh --vnc 5500 _` или `dssh --vnc 0 _` или короче `dssh -70 _`. Это сработает и за NAT если роутер с WAN адресом direct.accesible.dssh переносит порт 2200 с WAN на LAN адрес vnc.viewer.with.dssh:2200.<div id=8.17>
+16. Как на [8.14](#8.14) или [8.15](#8.15) для VNC где на Показывающем `dssh` а на Наблюдателе с адресом direct.accesible.dssh `dssh --vnc 5500 _` или `dssh --vnc 0 _` или короче `dssh -70 _`. Это сработает и за NAT если роутер с WAN адресом direct.accesible.dssh переносит порт 2200 с WAN на LAN адрес vnc.viewer.with.dssh:2200.<div id=8.17>
+
 17. Вот [скрипт](viewWindowsServerDirect.bat) для VNC где Показывающий с адресом direct.accesible.dssh это TightVNC на Windows и Наблюдатель на Windows.<div id=8.18>
 18. Вот [скрипт](viewLinuxServerDirect.bat) для VNC где Показывающий с адресом direct.accesible.dssh это TigerVNC на Linux а Наблюдатель на Windows.<div id=8.19>
+19. Как на [8.17](#8.17) или [8.18](#8.18) для VNC где на Показывающий с адресом direct.accesible.dssh `dssh _` а на Наблюдателе `dssh --vnc 5500 -j direct.accesible.dssh` или `dssh --vnc 0 -j direct.accesible.dssh` или короче `dssh -70 -j direct.accesible.dssh`. Это сработает и за NAT если роутер с WAN адресом direct.accesible.dssh переносит порт 2200 с WAN на LAN адрес vnc.server.with.dssh:2200.<div id=8.20>
 
-19. Как на [8.17](#8.17) или [8.18](#8.18) для VNC где на Показывающий с адресом direct.accesible.dssh `dssh _` а на наблюдателе `dssh --vnc 5500 -j direct.accesible.dssh` или `dssh --vnc 0 -j direct.accesible.dssh` или короче `dssh -70 -j direct.accesible.dssh`. Это сработает и за NAT если роутер с WAN адресом direct.accesible.dssh переносит порт 2200 с WAN на LAN адрес vnc.server.with.dssh:2200.<div id=8.20>
-20. Если dssh-сервер на direct.accesible.dssh `dssh +` то можно подключится к нему `dssh -j`. Для чего через посредника узнаём direct.accesible.dssh `dssh -T : dssh -j` а потом напрямую `dssh -j direct.accesible.dssh`. Это сработает и через LAN.
-21. Используя [8.19](#8.19) и [8.20](#8.20) если Показывающий на direct.accesible.dssh `dssh +` то подключаем наблюдателя `dssh -j70`.
-22. Для наблюдения за Показывающим на sshd с адресом X:2 `dssh -72 X`
+20. Используя [8.19](#8.19) и [2.2](#2.2) если Показывающий на direct.accesible.dssh `dssh +` то подключаем Наблюдателя `dssh -j70`.
+21. Для наблюдения за Показывающим на sshd-сервере с адресом vnc.server.with.sshd:2 `dssh -72 vnc.server.with.sshd`
 
 # 9. Удалённый доступ к последовательной консоли на хосте с [RouterOS](#0.10) или с [ser2net](#0.8) или с [hub4com](#0.9):
 1. Подключаем USB2serial переходник в USB порт устройства под управлением RouterOS.
