@@ -304,37 +304,42 @@ func main() {
 	EEDE = EED + exit
 
 	autoDirectJump := ""
-	autoDirectJumpOnce := false
+	ctx, cancel := context.WithCancel(context.Background())
 	// -j  Это автообход посредника для dssh-сервера с внешним IP и `dssh +`
-	adj := func() (s string) {
-		cgi := exec.Command(repo, "-T", ":", repo, "-j")
+	adj := func(once string) (s string) {
+		s = "."
+		if once == s {
+			// Уже пробовал и не успешно
+			return
+		}
+		to, toC := context.WithTimeout(ctx, time.Second*2)
+		defer toC()
+		cgi := exec.CommandContext(to, repo, "-T", ":", repo, "-j")
 		cgi.Stdin = os.Stdin
 		cgi.Stderr = os.Stderr
 		output, err := cgi.Output()
-		Println(string(output), err)
-		if err != nil {
+		so := string(output)
+		Println(so, err)
+		if so == "" {
 			return
 		}
-		ips := strings.Split(string(output), SEP)
+		ips := strings.Split(so, SEP)
 		for _, ip := range ips {
-			if ip != LH && isHP(JoinHostPort(ip, PORTS)) {
-				Println("-j", ip)
+			if ip != "" && ip != LH && isHP(JoinHostPort(ip, PORTS)) {
 				return ip
 			}
 		}
 		return
 	}
 	if args.DirectJump && args.Destination == "" {
-		autoDirectJumpOnce = true
-		autoDirectJump = adj()
-		if autoDirectJump == "" {
-			Println(fmt.Errorf("auto directJump failed - без посредника не обойтись"))
+		autoDirectJump = adj(autoDirectJump)
+		if autoDirectJump == "." {
+			Println(fmt.Errorf("auto -j failed - без посредника не обойтись"))
 			args.DirectJump = false
-			args.Destination = "."
 		} else {
-			Println("directJump success - Дальше без посредника")
-			args.Destination = autoDirectJump
+			Println("auto -j success - Дальше через", autoDirectJump)
 		}
+		args.Destination = autoDirectJump
 	}
 
 	u, h, p := ParseDestination(args.Destination) //tssh
@@ -445,10 +450,8 @@ func main() {
 	vncDirect := portV > 0 && !loc
 	if vncDirect && isDssh() && !args.DirectJump {
 		// -70 : Это Показывающий подключается к Наблюдателю с внешним IP и `dssh +`
-		if !autoDirectJumpOnce {
-			autoDirectJump = adj()
-		}
-		if autoDirectJump == "" {
+		autoDirectJump = adj(autoDirectJump)
+		if autoDirectJump == "." {
 			Println(fmt.Errorf("let's not abuse the kindness of - не будем злоупотреблять добротой %s", JumpHost))
 			vncDirect = false
 		} else {
@@ -658,7 +661,6 @@ func main() {
 
 	defer closer.Close()
 	closer.Bind(cleanup)
-	ctx, cancel := context.WithCancel(context.Background())
 	closer.Bind(cancel)
 
 	args.StdioForward = ser2net.LocalPort(args.StdioForward)
