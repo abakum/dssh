@@ -13,6 +13,5 @@ const (
 var (
 	vncserver        = os.Getenv("VNC_SERVER")
 	vncSecurityTypes = os.Getenv("VNC_SECURITY_TYPES")
-	display          = os.Getenv("DISPLAY")
 	vncviewer        = os.Getenv("VNC_VIEWER")
 )

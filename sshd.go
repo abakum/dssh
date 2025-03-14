@@ -201,7 +201,7 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 				go func() {
 					forw.Wait()
 				}()
-				time.Sleep(time.Second * 2)
+				time.Sleep(time.Second)
 			}
 			var start, conn, killall *exec.Cmd
 			switch runtime.GOOS {
@@ -229,9 +229,7 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 					vncSecurityTypes = vncSecurityTypesEtc
 				}
 				optSecurityTypes := []string{"-SecurityTypes", vncSecurityTypes}
-				if display == "" {
-					display = ":" + strconv.Itoa(Atoi(p, PORTV)-PORTV)
-				}
+				display := ":" + strconv.Itoa(Atoi(p, PORTV)-PORTV)
 				optDisplay := []string{"-display", display}
 				start = exec.Command(vncserver, append(optSecurityTypes, display)...)
 				err := start.Run()

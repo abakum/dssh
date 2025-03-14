@@ -1182,9 +1182,7 @@ Host ` + SSHJ + ` :
 				if vncSecurityTypes == "" {
 					vncSecurityTypes = vncSecurityTypesEtc
 				}
-				if display == "" {
-					display = ":" + strconv.Itoa(portV-PORTV)
-				}
+				display := ":" + strconv.Itoa(portV-PORTV)
 				args.Command = fmt.Sprintf(
 					"%s -SecurityTypes %s %s;"+
 						"which vncconnect&&vncconnect -display %s %s||"+

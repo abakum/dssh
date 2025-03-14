@@ -148,15 +148,15 @@ dssh:=(tssh from trzsz)+(CA key with embed-encrypt)+(sshd from gliderlabs)+(acce
 
 14. Вот [скрипт](viewWindowsServerOverDirectClient.bat) для VNC где Наблюдатель с адресом direct.accesible.dssh на Windows и Показывающий это TightVNC на Windows.<div id=8.15>
 15. Вот [скрипт](viewLinuxServerOverDirectClient.bat) для VNC где Наблюдатель с адресом direct.accesible.dssh на Windows а Показывающий это TigerVNC на Linux.
-16. Как на [8.14](#8.14) или [8.15](#8.15) для VNC где на Показывающем `dssh` а на Наблюдателе с адресом direct.accesible.dssh `dssh --vnc 5500 _` или `dssh --vnc 0 _` или короче `dssh -70 _`. Это сработает и за NAT если роутер с WAN адресом direct.accesible.dssh переносит порт 2200 с WAN на LAN адрес vnc.viewer.with.dssh:2200.<div id=8.17>
+16. Как на [8.14](#8.14) или [8.15](#8.15) для VNC где на Показывающем `dssh` или `dssh +` а на Наблюдателе с адресом direct.accesible.dssh `dssh --vnc 5500 _` или `dssh --vnc 0 _` или короче `dssh -70 _`. Это сработает и за NAT если роутер с WAN адресом direct.accesible.dssh переносит порт 2200 на LAN адрес vnc.viewer.with.dssh:2200.<div id=8.17>
 
 17. Вот [скрипт](viewWindowsServerDirect.bat) для VNC где Показывающий с адресом direct.accesible.dssh это TightVNC на Windows и Наблюдатель на Windows.<div id=8.18>
 18. Вот [скрипт](viewLinuxServerDirect.bat) для VNC где Показывающий с адресом direct.accesible.dssh это TigerVNC на Linux а Наблюдатель на Windows.<div id=8.19>
 19. Как на [8.17](#8.17) или [8.18](#8.18) для VNC где на Показывающий с адресом direct.accesible.dssh `dssh _` а на Наблюдателе `dssh --vnc 5500 -j direct.accesible.dssh` или `dssh --vnc 0 -j direct.accesible.dssh` или короче `dssh -70 -j direct.accesible.dssh`. Это сработает и за NAT если роутер с WAN адресом direct.accesible.dssh переносит порт 2200 с WAN на LAN адрес vnc.server.with.dssh:2200.<div id=8.20>
 
 20. Используя [8.19](#8.19) и [2.2](#2.2) если Показывающий на direct.accesible.dssh `dssh +` то подключаем Наблюдателя `dssh -j70`.
-21. Для наблюдения за Показывающим на sshd-сервере с адресом vnc.server.with.sshd:2 `dssh -72 vnc.server.with.sshd`.
-22. Для наблюдения за Показывающим на host.dssh.sshd c dssh-сервером `dssh` и sshd-сервером можно `dssh -j70 -J host.dssh.sshd`. Смотри [8.12](#8.12).
+21. Для наблюдения за Показывающим на vnc.server.with.sshd:2 с sshd-сервером `dssh -72 vnc.server.with.sshd`.
+22. Для наблюдения за Показывающим на vnc.server.with.sshd.dssh:2 c sshd-сервером и dssh-сервером `dssh` вместо `dssh -72 vnc.server.with.sshd.dssh` лучше `dssh -j72 -J host.dssh.sshd`.
 
 # 9. Удалённый доступ к последовательной консоли на хосте с [RouterOS](#0.10) или с [ser2net](#0.8) или с [hub4com](#0.9):
 1. Подключаем USB2serial переходник в USB порт устройства под управлением RouterOS.
