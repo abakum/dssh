@@ -152,9 +152,9 @@ dssh:=(tssh from trzsz)+(CA key with embed-encrypt)+(sshd from gliderlabs)+(acce
 
 17. Вот [скрипт](viewWindowsServerDirect.bat) для VNC где Показывающий с адресом direct.accesible.dssh это TightVNC на Windows и Наблюдатель на Windows.<div id=8.18>
 18. Вот [скрипт](viewLinuxServerDirect.bat) для VNC где Показывающий с адресом direct.accesible.dssh это TigerVNC на Linux а Наблюдатель на Windows.<div id=8.19>
-19. Как на [8.17](#8.17) или [8.18](#8.18) для VNC где на Показывающий с адресом direct.accesible.dssh `dssh _` а на Наблюдателе `dssh --vnc 5500 -j direct.accesible.dssh` или `dssh --vnc 0 -j direct.accesible.dssh` или короче `dssh -70 -j direct.accesible.dssh`. Это сработает и за NAT если роутер с WAN адресом direct.accesible.dssh переносит порт 2200 с WAN на LAN адрес vnc.server.with.dssh:2200.<div id=8.20>
+19. Как на [8.17](#8.17) или [8.18](#8.18) для VNC где на Показывающий с адресом direct.accesible.dssh `dssh _` а на Наблюдателе `dssh --vnc 5500 -j direct.accesible.dssh` или `dssh --vnc 0 -j direct.accesible.dssh` или короче `dssh -70 -j direct.accesible.dssh`. Это сработает и за NAT если роутер с WAN адресом direct.accesible.dssh переносит порт 2200 с WAN на LAN адрес vnc.server.with.dssh:2200. И через LAN `dssh -70 -j vnc.server.with.dssh`<div id=8.20>
 
-20. Используя [8.19](#8.19) и [2.2](#2.2) если Показывающий на direct.accesible.dssh `dssh +` то подключаем Наблюдателя `dssh -j70`.
+20. Используя [8.19](#8.19) и [2.2](#2.2) если Показывающий на direct.accesible.dssh `dssh +` то подключаем Наблюдателя `dssh -j70` или `dssh -70 .`.
 21. Для наблюдения за Показывающим на vnc.server.with.sshd:2 с sshd-сервером `dssh -72 vnc.server.with.sshd`.
 22. Для наблюдения за Показывающим на vnc.server.with.sshd.dssh:2 c sshd-сервером и dssh-сервером `dssh` вместо `dssh -72 vnc.server.with.sshd.dssh` лучше `dssh -j72 -J host.dssh.sshd`.
 
