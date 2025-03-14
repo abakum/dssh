@@ -312,7 +312,7 @@ func main() {
 			// Уже пробовал и не успешно
 			return
 		}
-		to, toC := context.WithTimeout(ctx, time.Second*2)
+		to, toC := context.WithTimeout(ctx, time.Second*3)
 		defer toC()
 		cgi := exec.CommandContext(to, repo, "-T", ":", repo, "-j")
 		cgi.Stdin = os.Stdin
@@ -335,9 +335,11 @@ func main() {
 		autoDirectJump = adj(autoDirectJump)
 		if autoDirectJump == "." {
 			Println(fmt.Errorf("auto -j failed - без посредника не обойтись"))
+			// -j ~> .
 			args.DirectJump = false
 		} else {
 			Println("auto -j success - Дальше через", autoDirectJump)
+			// -j ~> -j autoDirectJump
 		}
 		args.Destination = autoDirectJump
 	}
@@ -449,15 +451,16 @@ func main() {
 
 	vncDirect := portV > 0 && !loc
 	if vncDirect && isDssh() && !args.DirectJump {
-		// -70 : Это Показывающий подключается к Наблюдателю с внешним IP и `dssh +`
+		// -70 :
+		// -70 .
 		autoDirectJump = adj(autoDirectJump)
 		if autoDirectJump == "." {
 			Println(fmt.Errorf("let's not abuse the kindness of - не будем злоупотреблять добротой %s", JumpHost))
-			vncDirect = false
-		} else {
-			args.DirectJump = true
-			args.Destination = autoDirectJump
 		}
+		args.DirectJump = true
+		args.Destination = autoDirectJump
+		// -70 -j .
+		// -70 -j autoDirectJump
 	}
 	BSnw := args.Serial != "" || args.Baud != "" || portT > 0 || portW > 0
 
@@ -1269,7 +1272,7 @@ Host ` + SSHJ + ` :
 				share()
 			}
 		}
-	} else if (enableTrzsz == "no" || args.Destination == repo) && args.StdioForward == "" {
+	} else if (enableTrzsz == "no" || args.Destination == repo) && args.StdioForward == "" && !vncDirect {
 		Println(ToExitPress, EED)
 	}
 	if len(args.Argument) > 0 && args.Command == "" {
@@ -1629,10 +1632,11 @@ func startViewer(portV int, R bool) {
 	if portV < 0 {
 		return
 	}
+	lhp := JoinHostPort(LH, portV)
 	vncViewerP := strconv.Itoa(portV)
 	if R {
 		args.Argument = append(args.Argument, "--vnc", vncViewerP)
-		s4 := fmt.Sprintf("%s:%d:%s:%d", LH, portV, LH, portV)
+		s4 := lhp + ":" + lhp
 		Println("-R", s4)
 		args.RemoteForward.UnmarshalText([]byte(s4))
 	}
@@ -1642,15 +1646,15 @@ func startViewer(portV int, R bool) {
 			vncviewer = vncviewerWindows
 		}
 	}
-	if !isHP(net.JoinHostPort(LH, vncViewerP)) {
+	if !isHP(lhp) {
 		vnc := exec.Command(vncviewer, "-listen", vncViewerP)
 		err := vnc.Start()
 		Println(vnc, err)
 		if err != nil {
 			return
 		}
-		vnc.Process.Release()
 		time.Sleep(time.Second)
+		vnc.Process.Release()
 	}
 }
 
