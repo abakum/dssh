@@ -306,7 +306,22 @@ func main() {
 	autoDirectJump := ""
 	ctx, cancel := context.WithCancel(context.Background())
 	// -j  Это автообход посредника для dssh-сервера с внешним IP и `dssh +`
-	adj := func(once string) (s string) {
+	// `dssh` как `dssh -d`
+	// `foo` как `dssh foo@` как `dssh -dl foo`
+	setU := func(iu string) (u string) {
+		u = iu
+		if args.LoginName != "" {
+			u = args.LoginName // dssh -l foo
+		}
+		if u == "" {
+			u = rev // Имя для посредника ssh-j.com
+			if imag != repo {
+				u = imag // Если бинарный файл переименован то вместо ревизии имя переименованного бинарного файла и будет именем для посредника ssh-j.com
+			}
+		}
+		return
+	}
+	adj := func(once, u string) (s string) {
 		s = "."
 		if once == s {
 			// Уже пробовал и не успешно
@@ -314,7 +329,7 @@ func main() {
 		}
 		to, toC := context.WithTimeout(ctx, time.Second*3)
 		defer toC()
-		cgi := exec.CommandContext(to, repo, "-T", ":", repo, "-j")
+		cgi := exec.CommandContext(to, repo, "-Tl", u, ":", repo, "-j")
 		cgi.Stdin = os.Stdin
 		cgi.Stderr = os.Stderr
 		output, err := cgi.Output()
@@ -331,8 +346,9 @@ func main() {
 		}
 		return
 	}
+
 	if args.DirectJump && args.Destination == "" {
-		autoDirectJump = adj(autoDirectJump)
+		autoDirectJump = adj(autoDirectJump, setU(""))
 		if autoDirectJump == "." {
 			Println(fmt.Errorf("auto -j failed - без посредника не обойтись"))
 			// -j ~> .
@@ -347,18 +363,7 @@ func main() {
 	u, h, p := ParseDestination(args.Destination) //tssh
 	p = portPB(p, PORTS)
 	s2, dial := host2LD(h)
-	// `dssh` как `dssh -d`
-	// `foo` как `dssh foo@` как `dssh -dl foo`
-
-	if args.LoginName != "" {
-		u = args.LoginName // dssh -l foo
-	}
-	if u == "" {
-		u = rev // Имя для посредника ssh-j.com
-		if imag != repo {
-			u = imag // Если бинарный файл переименован то вместо ревизии имя переименованного бинарного файла и будет именем для посредника ssh-j.com
-		}
-	}
+	u = setU(u)
 	tmpU := filepath.Join(tmp, u)
 	dot := psPrint(filepath.Base(exe), "", 0, PrintNil) > 1 && isFileExist(tmpU)
 	portT := portOB(args.Ser2net, PORTT)
@@ -453,7 +458,7 @@ func main() {
 	if vncDirect && isDssh() && !args.DirectJump {
 		// -70 :
 		// -70 .
-		autoDirectJump = adj(autoDirectJump)
+		autoDirectJump = adj(autoDirectJump, u)
 		if autoDirectJump == "." {
 			Println(fmt.Errorf("let's not abuse the kindness of - не будем злоупотреблять добротой %s", JumpHost))
 		}
@@ -464,7 +469,7 @@ func main() {
 	}
 	BSnw := args.Serial != "" || args.Baud != "" || portT > 0 || portW > 0
 
-	if !loc && Win7 && !(args.DisableTTY || args.NoCommand || Cygwin || external || BSnw) {
+	if !loc && Win7 && !(args.DisableTTY || args.NoCommand || Cygwin || external || BSnw || portV > 0) {
 		s := PUTTY
 		_, err := exec.LookPath(s)
 		args.Putty = err == nil
@@ -1016,7 +1021,7 @@ Host ` + SSHJ + ` :
 										continue
 									}
 									// Показывающий на `dssh` или `dssh +`, подключись ко мне. Я Наблюдатель на `dssh _` жду тебя на порту portV на адресе ip
-									cgi := exec.CommandContext(ctx, repo, "-T", ":", repo, "--vnc", JoinHostPort(ip, portV))
+									cgi := exec.CommandContext(ctx, repo, "-Tl", u, ":", repo, "--vnc", JoinHostPort(ip, portV))
 									cgi.Stdin = os.Stdin
 									cgi.Stderr = os.Stderr
 									createNewConsole(cgi)
