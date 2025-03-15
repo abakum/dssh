@@ -303,24 +303,24 @@ func main() {
 	}
 	EEDE = EED + exit
 
+	// `dssh` как `dssh -d`
+	// `foo` как `dssh foo@` как `dssh -dl foo`
+	setU := func(fromDest string) string {
+		if args.LoginName != "" {
+			return args.LoginName // dssh -l foo
+		}
+		if fromDest != "" {
+			return fromDest
+		}
+		if imag != repo {
+			return imag // Если бинарный файл переименован то вместо ревизии имя переименованного бинарного файла и будет именем для посредника ssh-j.com
+		}
+		return rev // Имя для посредника ssh-j.com
+	}
+
 	autoDirectJump := ""
 	ctx, cancel := context.WithCancel(context.Background())
 	// -j  Это автообход посредника для dssh-сервера с внешним IP и `dssh +`
-	// `dssh` как `dssh -d`
-	// `foo` как `dssh foo@` как `dssh -dl foo`
-	setU := func(iu string) (u string) {
-		u = iu
-		if args.LoginName != "" {
-			u = args.LoginName // dssh -l foo
-		}
-		if u == "" {
-			u = rev // Имя для посредника ssh-j.com
-			if imag != repo {
-				u = imag // Если бинарный файл переименован то вместо ревизии имя переименованного бинарного файла и будет именем для посредника ssh-j.com
-			}
-		}
-		return
-	}
 	adj := func(once, u string) (s string) {
 		s = "."
 		if once == s {
@@ -1236,12 +1236,12 @@ Host ` + SSHJ + ` :
 				// Обратный перенос портов
 				args.NoCommand = true
 				if portT > 0 {
-					s4 := fmt.Sprintf("%s:%d:%s:%d", LH, portT, LH, portT)
+					s4 := JoinHostPort(LH, portT) + ":" + JoinHostPort(LH, portT)
 					Println("-R", s4)
 					args.RemoteForward.UnmarshalText([]byte(s4))
 				}
 				if portW > 0 {
-					s4 := fmt.Sprintf("%s:%d:%s:%d", LH, portW, LH, portW)
+					s4 := JoinHostPort(LH, portW) + ":" + JoinHostPort(LH, portW)
 					Println("-R", s4)
 					args.RemoteForward.UnmarshalText([]byte(s4))
 				}
@@ -1251,14 +1251,14 @@ Host ` + SSHJ + ` :
 				})
 			} else if h, p, err := net.SplitHostPort(ser); err == nil {
 				Println("Remote console - Консоль", ser, "через", args.Destination)
-				s4 := fmt.Sprintf("%s:%s:%s:%s", LH, p, h, p)
+				lhp := net.JoinHostPort(LH, p)
+				s4 := lhp + ":" + net.JoinHostPort(h, p)
 				Println("-L", s4)
 				args.LocalForward.UnmarshalText([]byte(s4))
 				args.NoCommand = true
-				LHp := net.JoinHostPort(LH, p)
 				time.AfterFunc(time.Second, func() {
 					setRaw(&once)
-					Println(cons(ctx, ioc, LHp, args.Baud, exit, Println))
+					Println(cons(ctx, ioc, lhp, args.Baud, exit, Println))
 					closer.Close()
 				})
 			}
@@ -1268,11 +1268,12 @@ Host ` + SSHJ + ` :
 			if args.Share {
 				share()
 			} else {
-				cgi(ctx, portT, portW, &args, ser, dial, exit)
+				cgi(ctx, portT, portW, &args, ser, exit)
 			}
 		} else {
 			if args.Destination != "" && emptyCommand && args.Use {
-				cgi(ctx, portT, portW, &args, ser, LH, "")
+				// -0 X
+				cgi(ctx, portT, portW, &args, ser, "")
 			} else {
 				share()
 			}
@@ -1592,7 +1593,7 @@ func portPB(p string, base int) string {
 }
 
 // Что-то выполнить на дальнем dssh
-func cgi(ctx context.Context, portT, portW int, args *SshArgs, serial, host, exit string) {
+func cgi(ctx context.Context, portT, portW int, args *SshArgs, serial, exit string) {
 	Println("Remote console - Консоль", serial, "на", repo)
 	if args.Debug {
 		args.Argument = append(args.Argument, "--debug")
@@ -1606,20 +1607,21 @@ func cgi(ctx context.Context, portT, portW int, args *SshArgs, serial, host, exi
 	if portT > 0 {
 		args.Argument = append(args.Argument, "--2217", strconv.Itoa(portT))
 		if exit == "" {
-			s4 := fmt.Sprintf("%s:%d:%s:%d", LH, portT, LH, portT)
+			// sshd
+			s4 := JoinHostPort(LH, portT) + ":" + JoinHostPort(LH, portT)
 			Println("-L", s4)
 			args.LocalForward.UnmarshalText([]byte(s4))
 		}
 	}
 	if portW > 0 {
 		args.Argument = append(args.Argument, "--web", strconv.Itoa(portW))
-		if exit == "" {
-			s4 := fmt.Sprintf("%s:%d:%s:%d", LH, portW, LH, portW)
+		if exit == "" || args.DirectJump {
+			s4 := JoinHostPort(LH, portW) + ":" + JoinHostPort(LH, portW)
 			Println("-L", s4)
 			args.LocalForward.UnmarshalText([]byte(s4))
 		}
 		time.AfterFunc(time.Second, func() {
-			Println(browse(ctx, host, portW, nil))
+			Println(browse(ctx, LH, portW, nil))
 		})
 	}
 	if exit != "" {
@@ -1678,7 +1680,7 @@ func optL(port int, args *SshArgs, s2 string, loc, dot bool) {
 			return
 		}
 		// -22 : Используем консоль dssh-сервера
-		s4 := fmt.Sprintf("%s:%d:%s:%d", LH, port, s2, port)
+		s4 := JoinHostPort(LH, port) + ":" + JoinHostPort(s2, port)
 		Println("-L", s4)
 		args.LocalForward.UnmarshalText([]byte(s4))
 	}
@@ -1696,7 +1698,6 @@ func MkdirTemp(path string) (name string, err error) {
 // Открывает dest в Хроме или другом браузере.
 func browse(ctx context.Context, dial string, port int, cancel context.CancelFunc) (err error) {
 	dest := "http://" + JoinHostPort(dial, port)
-	// dest := fmt.Sprintf("http://%s:%d", dial, port)
 	if ZerroNewWindow {
 		Println("On remote side open - Открой на дальней стороне", dest)
 		return
