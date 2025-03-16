@@ -420,6 +420,27 @@ func main() {
 	}
 
 	loc := localHost(args.Destination)
+	vncDirect := portV > 0 && !loc
+	// Если loc то dssh-сервер без посредника и `dssh -T : dssh host.dssh:portV``
+	if vncDirect && isDssh() && !args.DirectJump {
+		// -70 :
+		// -70 .
+		autoDirectJump = adj(autoDirectJump, u)
+		if autoDirectJump == "." {
+			Println(fmt.Errorf("let's not abuse the kindness of - не будем злоупотреблять добротой %s", JumpHost))
+			vncDirect = false
+			args.Destination = "_"
+			loc = true
+			s2, dial = host2LD(args.Destination)
+			// Println(repo, args.Destination)
+			// -70 _
+		} else {
+			args.DirectJump = true
+			args.Destination = autoDirectJump
+			// Println(repo, "-j", args.Destination)
+			// -70 -j autoDirectJump
+		}
+	}
 
 	optL(portT, &args, s2, loc, dot)
 	optL(portW, &args, s2, loc, dot)
@@ -454,19 +475,6 @@ func main() {
 		}
 	}
 
-	vncDirect := portV > 0 && !loc
-	if vncDirect && isDssh() && !args.DirectJump {
-		// -70 :
-		// -70 .
-		autoDirectJump = adj(autoDirectJump, u)
-		if autoDirectJump == "." {
-			Println(fmt.Errorf("let's not abuse the kindness of - не будем злоупотреблять добротой %s", JumpHost))
-		}
-		args.DirectJump = true
-		args.Destination = autoDirectJump
-		// -70 -j .
-		// -70 -j autoDirectJump
-	}
 	BSnw := args.Serial != "" || args.Baud != "" || portT > 0 || portW > 0
 
 	if !loc && Win7 && !(args.DisableTTY || args.NoCommand || Cygwin || external || BSnw || portV > 0) {
