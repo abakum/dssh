@@ -48,9 +48,9 @@ require (
 	github.com/trzsz/trzsz-go v1.1.7
 	github.com/unixist/go-ps v0.0.0-20160415204547-177148200605
 	github.com/xlab/closer v1.1.0
-	golang.org/x/crypto v0.24.0
+	golang.org/x/crypto v0.28.0
 	golang.org/x/sys v0.29.0
-	golang.org/x/term v0.21.0
+	golang.org/x/term v0.25.0
 )
 
 require (
@@ -58,6 +58,7 @@ require (
 	github.com/UserExistsError/conpty v0.1.2 // indirect
 	github.com/abakum/cancelreader v0.0.0-20241122215017-9e298cf19164 // indirect
 	github.com/abakum/go-console v0.0.1 // indirect
+	github.com/abakum/go-netroute v0.0.0-20250317083818-2d043769dafc // indirect
 	github.com/abakum/go-terminal-size v0.0.0-20241120142632-2e3252fa87fa // indirect
 	github.com/abakum/term v0.0.1 // indirect
 	github.com/akavel/rsrc v0.10.2 // indirect
@@ -80,6 +81,7 @@ require (
 	github.com/fatih/color v1.16.0 // indirect
 	github.com/fatih/structs v1.1.0 // indirect
 	github.com/fvbommel/sortorder v1.1.0 // indirect
+	github.com/google/gopacket v1.1.19 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
@@ -109,9 +111,9 @@ require (
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 	github.com/yudai/hcl v0.0.0-20151013225006-5fa2393b3552 // indirect
 	golang.org/x/image v0.14.0 // indirect
-	golang.org/x/net v0.21.0 // indirect
-	golang.org/x/sync v0.7.0 // indirect
-	golang.org/x/text v0.16.0 // indirect
+	golang.org/x/net v0.30.0 // indirect
+	golang.org/x/sync v0.8.0 // indirect
+	golang.org/x/text v0.19.0 // indirect
 	google.golang.org/protobuf v1.31.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

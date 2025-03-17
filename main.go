@@ -47,6 +47,7 @@ import (
 	"time"
 
 	"github.com/abakum/embed-encrypt/encryptedfs"
+	"github.com/abakum/go-netroute"
 	"github.com/abakum/go-ser2net/pkg/ser2net"
 	"github.com/abakum/go-serial"
 	"github.com/abakum/go-stun/stun"
@@ -922,16 +923,8 @@ Host ` + SSHJ + ` :
 	case ".", repo: // `dssh .` как `dssh dssh` или `foo -l dssh .` как `foo -l dssh dssh`
 		args.Destination = repo
 		args.LoginName = "_"
-	// case "*", ALL, ips[len(ips)-1], "_", ips[0]:
-	// 	daemon = true
 	default:
 		daemon = localHost(args.Destination)
-		// switch h {
-		// case "*", ALL, ips[len(ips)-1], "_", ips[0]:
-		// 	daemon = true
-		// default:
-		// 	daemon = h+p == ""
-		// }
 		if !daemon {
 			daemon = h+p == listen
 		}
@@ -1570,12 +1563,20 @@ func TimeDone(after, before time.Time) {
 }
 
 func host2LD(host string) (listen, dial string) {
+	s := ips[0]
 	switch host {
 	case "_":
-		return ips[len(ips)-1], ips[len(ips)-1]
-	case "*", "+", ALL:
-		return ALL, ips[0]
-	case "", ".", LH:
+		r, err := netroute.New()
+		if err == nil {
+			_, _, src, err := r.Route(net.IPv4(0, 0, 0, 0))
+			if err == nil {
+				s = src.String()
+			}
+		}
+		return s, s
+	case "", ALL:
+		return ALL, s
+	case ".", "+", LH:
 		return LH, LH
 	default:
 		return host, host
