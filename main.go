@@ -47,7 +47,6 @@ import (
 	"time"
 
 	"github.com/abakum/embed-encrypt/encryptedfs"
-	"github.com/abakum/go-netroute"
 	"github.com/abakum/go-ser2net/pkg/ser2net"
 	"github.com/abakum/go-serial"
 	"github.com/abakum/go-stun/stun"
@@ -450,24 +449,37 @@ func main() {
 
 	switch args.Serial {
 	case "H":
-		args.Serial = ":"
-		if args.Destination == "" && !isHP(JoinHostPort(LH, PORTT)) {
-			args.Destination = ":"
-			if dot {
-				args.Destination = "."
+		args.Serial = ""
+		if args.Destination == "" {
+			// -HH
+			lhIPs := []string{LH}
+			if ips[0] != LH {
+				lhIPs = append(lhIPs, ips...)
+			}
+			for _, ip := range lhIPs {
+				ser := JoinHostPort(ip, PORTT)
+				if isHP(ser) {
+					args.Serial = ser
+					break
+				}
+			}
+			if args.Serial == "" {
+				args.Serial = ":"
+				args.Destination = ":"
+				if dot {
+					args.Destination = "."
+				}
 			}
 		} else if isDssh() {
-			args.Serial = ""
+			// -HH .
+			// -HH :
 			if portT < 0 {
 				portT = PORTT
 			}
 		}
-	case "_", "+":
-		args.Serial += ":"
+		Println(repo, "-H", args.Serial, args.Destination)
 	}
-	if strings.HasSuffix(args.Serial, ":") {
-		args.Serial += strconv.Itoa(PORTT)
-	}
+	ser, sw, sh, sp := swSerial(args.Serial)
 
 	if args.Baud == "" {
 		if args.Destination == "" && external || // -u || -Z
@@ -476,7 +488,7 @@ func main() {
 		}
 	}
 
-	BSnw := args.Serial != "" || args.Baud != "" || portT > 0 || portW > 0
+	BSnw := ser != "" || args.Baud != "" || portT > 0 || portW > 0
 
 	if !loc && Win7 && !(args.DisableTTY || args.NoCommand || Cygwin || external || BSnw || portV > 0) {
 		s := PUTTY
@@ -556,7 +568,6 @@ func main() {
 		Println(err)
 	}
 
-	ser, sw, sh, sp := swSerial(args.Serial)
 	SP = ser == "" || sw == "s"
 	if loc && Win7 && Cygwin && SP {
 		if args.Unix && args.Putty {
@@ -915,6 +926,9 @@ Host ` + SSHJ + ` :
 	}
 	daemon := false
 	switch args.Destination {
+	case "+":
+		args.Destination = LH
+		daemon = true
 	case "@": // Меню tssh.
 		args.Destination = ""
 	case ":", SSHJ: // `dssh :` как `dssh ssh-j` как `foo -l dssh :`
@@ -965,7 +979,7 @@ Host ` + SSHJ + ` :
 			for {
 				var ss, eip, m string
 				j := "`" + imag + " -j %s`"
-				if ips[0] != LH && hh != LH {
+				if ips[0] != LH && (s2 == ALL || s2 == ips[0]) {
 					eip, m, err = GetExternalIP(time.Second, "stun.sipnet.ru:3478", "stun.l.google.com:19302", "stun.fitauto.ru:3478")
 					if err == nil {
 						Println(m)
@@ -1237,12 +1251,14 @@ Host ` + SSHJ + ` :
 				// Обратный перенос портов
 				args.NoCommand = true
 				if portT > 0 {
-					s4 := JoinHostPort(LH, portT) + ":" + JoinHostPort(LH, portT)
+					lhp := JoinHostPort(LH, portT)
+					s4 := lhp + ":" + lhp
 					Println("-R", s4)
 					args.RemoteForward.UnmarshalText([]byte(s4))
 				}
 				if portW > 0 {
-					s4 := JoinHostPort(LH, portW) + ":" + JoinHostPort(LH, portW)
+					lhp := JoinHostPort(LH, portW)
+					s4 := lhp + ":" + lhp
 					Println("-R", s4)
 					args.RemoteForward.UnmarshalText([]byte(s4))
 				}
@@ -1250,10 +1266,10 @@ Host ` + SSHJ + ` :
 					nw(LH, LH)
 					closer.Close()
 				})
-			} else if h, p, err := net.SplitHostPort(ser); err == nil {
+			} else if sw == "t" {
 				Println("Remote console - Консоль", ser, "через", args.Destination)
-				lhp := net.JoinHostPort(LH, p)
-				s4 := lhp + ":" + net.JoinHostPort(h, p)
+				lhp := JoinHostPort(LH, sp)
+				s4 := lhp + ":" + ser
 				Println("-L", s4)
 				args.LocalForward.UnmarshalText([]byte(s4))
 				args.NoCommand = true
@@ -1562,20 +1578,13 @@ func TimeDone(after, before time.Time) {
 	}
 }
 
+// Резолвит локальные dssh алиасы
 func host2LD(host string) (listen, dial string) {
-	s := ips[0]
 	switch host {
 	case "_":
-		r, err := netroute.New()
-		if err == nil {
-			_, _, src, err := r.Route(net.IPv4(0, 0, 0, 0))
-			if err == nil {
-				s = src.String()
-			}
-		}
-		return s, s
+		return ips[0], ips[0]
 	case "", ALL:
-		return ALL, s
+		return ALL, LH
 	case ".", "+", LH:
 		return LH, LH
 	default:
@@ -1695,6 +1704,7 @@ func optL(port int, args *SshArgs, s2 string, loc, dot bool) {
 	}
 }
 
+// Создаёт tmp/path
 func MkdirTemp(path string) (name string, err error) {
 	name = filepath.Join(tmp, path)
 	err = os.MkdirAll(name, DIRMODE)
@@ -1765,6 +1775,7 @@ func browse(ctx context.Context, dial string, port int, cancel context.CancelFun
 	return
 }
 
+// Завершает дочерние процессы
 func KidsDone(ppid int) {
 	if ppid < 1 {
 		return
@@ -1807,6 +1818,7 @@ func comm(serial, s2 string, portT, portW int) int {
 	return portT
 }
 
+// Через delay вызывает cancel если нет name
 func cancelByFile(ctx context.Context, cancel func(), name string, delay time.Duration) {
 	for {
 		select {
@@ -1823,6 +1835,7 @@ func cancelByFile(ctx context.Context, cancel func(), name string, delay time.Du
 	}
 }
 
+// Типа ps
 func psPrint(name, parent string, ppid int, print func(v ...any)) (i int) {
 	var ss []string
 	pes, err := ps.Processes()
@@ -1855,7 +1868,7 @@ func psPrint(name, parent string, ppid int, print func(v ...any)) (i int) {
 	return
 }
 
-// Типа stfioForward
+// Типа stfioForward только с ~.
 func forwardSTDio(ctx context.Context, s io.ReadWriteCloser, addr, exit string, println ...func(v ...any)) (err error) {
 	conn, err := net.Dial("tcp", addr)
 	for _, p := range println {
@@ -1872,6 +1885,7 @@ func forwardSTDio(ctx context.Context, s io.ReadWriteCloser, addr, exit string, 
 	return
 }
 
+// Слушает ли кто hostport
 func isHP(hostport string) (ok bool) {
 	_, _, err := net.SplitHostPort(hostport)
 	if err != nil {
@@ -1888,15 +1902,17 @@ func isHP(hostport string) (ok bool) {
 func PrintNil(v ...any) {
 }
 
+// Как net.JoinHostPort только port int
 func JoinHostPort(host string, port int) string {
 	return net.JoinHostPort(host, strconv.Itoa(port))
 }
 
+// Является ли host локальным IP
 func localHost(host string) (ok bool) {
 	if strings.HasPrefix(host, "127.0.0.") {
 		return true
 	}
-	for _, ip := range append(ips, "", LH, "_", "*", ALL, "+") {
+	for _, ip := range append(ips, "", LH, "_", ALL, "+") {
 		if ip == args.Destination {
 			ok = true
 			return
@@ -1905,6 +1921,7 @@ func localHost(host string) (ok bool) {
 	return
 }
 
+// Что там с параметром -H
 func swSerial(s string) (ser, sw, h string, p int) {
 	ser = s
 	if ser == "" {
@@ -1920,17 +1937,13 @@ func swSerial(s string) (ser, sw, h string, p int) {
 		// Последовательный порт
 		ser = serial.PortName(ser)
 		sw = "s"
+		return
 	}
-	if h, p, err := net.SplitHostPort(ser); err == nil {
-		// Клиент telnet
-		if p, err := strconv.ParseUint(p, 10, 16); err == nil {
-			p := portOB(int(p), PORTT)
-			return ser2net.LocalPort(JoinHostPort(h, p)), "t", h, p
-		}
-	}
-	return
+	h, p = shp(s, PORTT)
+	return JoinHostPort(h, p), "t", h, p
 }
 
+// Для win7 используем веб интерфейс вместо кривой консоли
 func optS(portT, portW int) (t, w int) {
 	if portT < 0 && portW < 0 {
 		if Win7 && !Cygwin {
@@ -1944,6 +1957,7 @@ func optS(portT, portW int) (t, w int) {
 	return portT, portW
 }
 
+// Через STUN ищем внешний IP
 func GetExternalIP(timeout time.Duration, servers ...string) (ip, message string, err error) {
 	type IPfromSince struct {
 		IP, From string
@@ -1991,4 +2005,36 @@ func GetExternalIP(timeout time.Duration, servers ...string) (ip, message string
 	// time.Sleep(time.Second * 3)
 
 	return i.IP, message, nil
+}
+
+func shp(s string, base int) (h string, i int) {
+	if s == "" {
+		return
+	}
+	var p string
+	_, err := strconv.ParseUint(s, 10, 16)
+	if err == nil {
+		// 2, 5500
+		_, h = host2LD("")
+		i, err = strconv.Atoi(portPB(s, base))
+		if err != nil {
+			i = base
+		}
+		return
+		// LH, 5502
+	}
+	// 1:
+	// 1:2
+	h, p, err = net.SplitHostPort(s)
+	if err != nil {
+		h, p = s, ""
+	}
+	_, h = host2LD(h)
+	i, err = strconv.Atoi(portPB(p, base))
+	if err != nil {
+		i = base
+	}
+	return
+	// 1, 5500
+	// 1, 5502
 }

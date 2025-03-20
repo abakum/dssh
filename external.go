@@ -210,6 +210,7 @@ func cmdRun(cmd *exec.Cmd, ctx context.Context, r io.Reader, zu bool, Serial, ho
 	}
 
 	if r != nil {
+		// -Z
 		// -Z22
 		// -u22
 		delay := time.Second
