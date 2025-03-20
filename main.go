@@ -953,33 +953,41 @@ Host ` + SSHJ + ` :
 				p = strconv.Itoa(args.Port)
 			}
 		}
-		client(signer, signers, local(hh, p, repo)+sshj+sshJ(JumpHost, u, hh, p))
-		args.Destination = JumpHost
 		time.AfterFunc(time.Second, func() {
 			s := fmt.Sprintf("`tssh %s`", JumpHost)
 			i := 0
-			hp := hh + ":" + p
+			h0 := dial
+			if s2 == ALL {
+				h0 = ips[0]
+			}
+			hp := h0 + ":" + p
 			if p == listen {
-				if hh == LH {
+				if h0 == LH {
 					hp = ":"
 				} else {
-					hp = hh
+					hp = h0
 				}
 			} else {
-				if hh == LH {
+				if h0 == LH {
 					hp = ":" + p
 				}
 			}
 
-			prox := "local or over jump host - локально или через посредника"
-			if s2 != ALL && s2 != LH {
-				prox = "local - локально"
+			prox := "local - локально"
+			lhListen := s2 == LH || s2 == ALL
+			if lhListen {
+				prox = "local or over jump host - локально или через посредника"
+				if portV > 0 {
+					Println(fmt.Errorf("not compatible - не совместимы `--vnc %d  %s`", portV, s2))
+				}
 			}
 			var once sync.Once
 			for {
-				var ss, eip, m string
+				ss, eip, m := "", "", ""
+				eips = []string{}
 				j := "`" + imag + " -j %s`"
 				if ips[0] != LH && (s2 == ALL || s2 == ips[0]) {
+					// Есть Сеть и слушаем не только на лупбэке
 					eip, m, err = GetExternalIP(time.Second, "stun.sipnet.ru:3478", "stun.l.google.com:19302", "stun.fitauto.ru:3478")
 					if err == nil {
 						Println(m)
@@ -989,13 +997,24 @@ Host ` + SSHJ + ` :
 						}
 						if isHP(ehp) {
 							ss = fmt.Sprintf("или WAN "+j, eip)
+							// Список слушающих IP для CGI -j
+							eips = append(eips, eip)
+							if s2 == ALL {
+								eips = append(eips, ips...)
+							} else {
+								eips = append(eips, s2)
+							}
 						} else {
-							Println(fmt.Errorf("на роутере не настроен перенос %s->%s", ehp, hp))
+							Println(fmt.Errorf("на роутере не настроен перенос %s->%s", ehp, ips[0]))
 						}
 					}
 				}
 				Println("to connect use - чтоб подключится используй:")
-				Println(fmt.Sprintf("%s `%s .` over - через LAN "+j, prox, imag, hp), ss)
+				lan := " over - через LAN "
+				if hp == ":" {
+					lan = " local - локально "
+				}
+				Println(fmt.Sprintf("%s `%s .`"+lan+j, prox, imag, hp), ss)
 				j = "\t`" + imag + "  -u%s`"
 				if ss != "" {
 					ss = fmt.Sprintf(j, "j "+eip)
@@ -1008,52 +1027,41 @@ Host ` + SSHJ + ` :
 				Println(fmt.Sprintf("\tplink"+j+j, " .", "j "+hp) + ss)
 				j = "\t`" + imag + "  -Z%s`"
 
-				// Список слушающих IP для CGI -j
-				eips = []string{}
 				if ss != "" {
 					// WAN
 					ss = fmt.Sprintf(j, "j "+eip)
-					eips = append(eips, eip)
-				}
-				if s2 == ALL {
-					eips = append(eips, ips...)
-				} else {
-					eips = append(eips, s2)
 				}
 
 				Println(fmt.Sprintf("\tssh"+j+j, " .", "j "+hp) + ss)
-				lhListen := s2 == LH || s2 == ALL
-				if portV > 0 {
-					if lhListen {
-						Println(fmt.Errorf("not compatible - не совместимы `--vnc %d  %s`", portV, s2))
-					} else {
-						once.Do(func() {
-							// dssh --vnc 0 _
-							startViewer(portV, false)
-							go func() {
-								for _, ip := range eips {
-									if ip == LH {
-										continue
-									}
-									// Показывающий на `dssh` или `dssh +`, подключись ко мне. Я Наблюдатель на `dssh _` жду тебя на порту portV на адресе ip
-									cgi := exec.CommandContext(ctx, repo, "-Tl", u, ":", repo, "--vnc", JoinHostPort(ip, portV))
-									cgi.Stdin = os.Stdin
-									cgi.Stderr = os.Stderr
-									createNewConsole(cgi)
-									err := cgi.Start()
-									Println(cgi, err)
-									if err == nil {
-										Println(cgi, cgi.Wait(), "done")
-										return
-									}
+				if portV > 0 && !lhListen {
+					once.Do(func() {
+						// dssh --vnc 0 _
+						startViewer(portV, false)
+						go func() {
+							for _, ip := range eips {
+								if ip == LH {
+									continue
 								}
-							}()
-						})
-					}
+								// Показывающий на `dssh` или `dssh +`, подключись ко мне. Я Наблюдатель на `dssh _` жду тебя на порту portV на адресе ip
+								cgi := exec.CommandContext(ctx, repo, "-Tl", u, ":", repo, "--vnc", JoinHostPort(ip, portV))
+								cgi.Stdin = os.Stdin
+								cgi.Stderr = os.Stderr
+								createNewConsole(cgi)
+								err := cgi.Start()
+								Println(cgi, err)
+								if err == nil {
+									Println(cgi, cgi.Wait(), "done")
+									return
+								}
+							}
+						}()
+					})
 				}
 				if !lhListen {
 					return
 				}
+				client(signer, signers, local(hh, p, repo)+sshj+sshJ(JumpHost, u, hh, p))
+				args.Destination = JumpHost
 				// dssh
 				// dssh +
 				Println(s, "has been started - запущен")
@@ -1587,9 +1595,8 @@ func host2LD(host string) (listen, dial string) {
 		return ALL, LH
 	case ".", "+", LH:
 		return LH, LH
-	default:
-		return host, host
 	}
+	return host, host
 }
 
 // portOB(1,5900) return 5901.
