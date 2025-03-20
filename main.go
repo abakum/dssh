@@ -999,15 +999,15 @@ Host ` + SSHJ + ` :
 							ss = fmt.Sprintf("или WAN "+j, eip)
 							// Список слушающих IP для CGI -j
 							eips = append(eips, eip)
-							if s2 == ALL {
-								eips = append(eips, ips...)
-							} else {
-								eips = append(eips, s2)
-							}
 						} else {
 							Println(fmt.Errorf("на роутере не настроен перенос %s->%s", ehp, ips[0]))
 						}
 					}
+				}
+				if s2 == ALL {
+					eips = append(eips, ips...)
+				} else {
+					eips = append(eips, s2)
 				}
 				Println("to connect use - чтоб подключится используй:")
 				lan := " over - через LAN "
