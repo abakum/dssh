@@ -20,6 +20,8 @@ github.com/abakum/go-netstat v0.0.1 h1:gwNEYQFctds8x26jaebGbjlfkxoKM7kd9a/O+HG9l
 github.com/abakum/go-netstat v0.0.1/go.mod h1:VDmPFexMx7WdPUz+8/esyAIL4VIT13CSUmbQQZV420c=
 github.com/abakum/go-ser2net v0.0.2-0.20250320122552-bcfde84981fb h1:ryh9MJftkVo/MaZevHHIH5wdvcMr5uHZoOKs+Vz+WpU=
 github.com/abakum/go-ser2net v0.0.2-0.20250320122552-bcfde84981fb/go.mod h1:aYKxRQ4lLRVyKvC/V/D1jq6TW7mV+VTeCJq7M9MMtyA=
+github.com/abakum/go-ser2net v0.0.2-0.20250320132629-408c56f8259a h1:y5XZtScFFJ2c51nMuxGPwSGSiog25gRTRiPPBzMnJvE=
+github.com/abakum/go-ser2net v0.0.2-0.20250320132629-408c56f8259a/go.mod h1:LTQdyTp+c73WbQMTDaVsWAJHRlaVGdcULdYY/9cxFyg=
 github.com/abakum/go-serial v1.6.3-0.20250320122135-eefecde49188 h1:P/O1YEA42SybwJ7/UeTbh4K2L1OVOVVIft4oMiU0+zg=
 github.com/abakum/go-serial v1.6.3-0.20250320122135-eefecde49188/go.mod h1:v8sKOgab+h4/Y5c5aiVDhLQY7Om3aPO7yKJWRWJhf9Y=
 github.com/abakum/go-stun v0.0.0-20250215144216-9aafc02fa8ac h1:rwx8wTT093s2y9nwfPU2z1InRwHy9tQKCtSYUBVI9/k=
