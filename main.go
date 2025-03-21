@@ -485,7 +485,7 @@ func main() {
 			Println(repo, "-H"+args.Serial, args.Destination)
 		}
 	}
-	ser, sw, sh, sp := swSerial(args.Serial)
+	ser, sw, sh, sp := swSerial(args.Serial, loc || args.Destination == ".")
 
 	if args.Baud == "" {
 		if args.Destination == "" && external || // -u || -Z
@@ -682,7 +682,7 @@ func main() {
 			// Локальный последовательный порт
 			usbSerial := ""
 			usbSerial, mode = getFirstUsbSerial(ser, args.Baud, Print)
-			ser, sw, _, _ = swSerial(usbSerial)
+			ser, sw, _, _ = swSerial(usbSerial, true)
 			SP = ser == "" || sw == "s"
 			BSnw = BSnw || ser != ""
 			portT = comm(ser, s2, portT, portW)
@@ -1091,7 +1091,9 @@ Host ` + SSHJ + ` :
 		for {
 			Println(fmt.Sprintf("%s daemon waiting on - сервер ожидает на %s:%s", repo, h, p))
 			psPrint(filepath.Base(exe), "", 0, Println)
-			exit := server(s2, p, repo, s2, signer, Println, Print)
+			// exit := server(s2, p, repo, s2, signer, Println, Print)
+			// Доступ к сервисам на dssh-сервере через LH
+			exit := server(s2, p, repo, LH, signer, Println, Print)
 			KidsDone(os.Getpid())
 			if exit == "" {
 				Println("the daemon will restart after - сервер перезапустится через", TOR)
@@ -1639,7 +1641,8 @@ func cgi(ctx context.Context, portT, portW int, args *SshArgs, serial, exit stri
 		args.Argument = append(args.Argument, "--2217", strconv.Itoa(portT))
 		if exit == "" {
 			// sshd
-			s4 := JoinHostPort(LH, portT) + ":" + JoinHostPort(LH, portT)
+			lhp := JoinHostPort(LH, portT)
+			s4 := lhp + ":" + lhp
 			Println("-L", s4)
 			args.LocalForward.UnmarshalText([]byte(s4))
 		}
@@ -1647,7 +1650,8 @@ func cgi(ctx context.Context, portT, portW int, args *SshArgs, serial, exit stri
 	if portW > 0 {
 		args.Argument = append(args.Argument, "--web", strconv.Itoa(portW))
 		if exit == "" || args.DirectJump {
-			s4 := JoinHostPort(LH, portW) + ":" + JoinHostPort(LH, portW)
+			lhp := JoinHostPort(LH, portW)
+			s4 := lhp + ":" + lhp
 			Println("-L", s4)
 			args.LocalForward.UnmarshalText([]byte(s4))
 		}
@@ -1934,13 +1938,30 @@ func localHost(host string) (ok bool) {
 	return
 }
 
+// Похож ли path на команду
+func likeCommand(path string) (ok bool) {
+	if strings.Contains(path, " ") {
+		return true
+	}
+	path = strings.ToLower(path)
+	for _, sh := range []string{"cmd", "powershell", "bash", "zsh", "ash", "sh"} {
+		if strings.HasPrefix(path, sh) {
+			return true
+		}
+	}
+	return false
+}
+
 // Что там с параметром -H
-func swSerial(s string) (ser, sw, h string, p int) {
+func swSerial(s string, local bool) (ser, sw, h string, p int) {
 	ser = s
 	if ser == "" {
 		return
 	}
-	_, ok := ser2net.IsCommand(ser)
+	ok := likeCommand(ser)
+	if local {
+		_, ok = ser2net.IsCommand(ser)
+	}
 	if ok {
 		sw = "c"
 		// Команда или интерпретатор команд
