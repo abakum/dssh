@@ -65,7 +65,7 @@ func isDssh() bool {
 	case ".", repo, ":", SSHJ:
 		return true
 	}
-	return args.DirectJump
+	return false //args.DirectJump
 }
 
 func externalClient(external *bool, exe string) (signers []ssh.Signer, err error) {

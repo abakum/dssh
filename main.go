@@ -422,7 +422,7 @@ func main() {
 	loc := localHost(args.Destination)
 	vncDirect := portV > 0 && !loc
 	// Если loc то dssh-сервер без посредника и `dssh -T : dssh host.dssh:portV``
-	if vncDirect && isDssh() && !args.DirectJump {
+	if vncDirect && isDssh() {
 		// -70 :
 		// -70 .
 		autoDirectJump = adj(autoDirectJump, u)
@@ -449,9 +449,10 @@ func main() {
 
 	switch args.Serial {
 	case "H":
-		args.Serial = ""
+		args.Serial = ":"
 		if args.Destination == "" {
 			// -HH
+			// Ищем среди локальных ips:5000
 			lhIPs := []string{LH}
 			if ips[0] != LH {
 				lhIPs = append(lhIPs, ips...)
@@ -463,21 +464,26 @@ func main() {
 					break
 				}
 			}
-			if args.Serial == "" {
-				args.Serial = ":"
+			if args.Serial == ":" {
+				// Не нашли тогда пробуем на dssh
 				args.Destination = ":"
 				if dot {
 					args.Destination = "."
 				}
 			}
-		} else if isDssh() {
-			// -HH .
-			// -HH :
+		}
+		if isDssh() {
+			// -HH .~>-20 .
+			// -HH :~>-20 :
+			args.Serial = ""
 			if portT < 0 {
 				portT = PORTT
 			}
+			Println(repo, "-2", portT, args.Destination)
+		} else {
+			// -HH x~>-H: x
+			Println(repo, "-H"+args.Serial, args.Destination)
 		}
-		Println(repo, "-H", args.Serial, args.Destination)
 	}
 	ser, sw, sh, sp := swSerial(args.Serial)
 
@@ -1000,7 +1006,7 @@ Host ` + SSHJ + ` :
 							// Список слушающих IP для CGI -j
 							eips = append(eips, eip)
 						} else {
-							Println(fmt.Errorf("на роутере не настроен перенос %s->%s", ehp, ips[0]))
+							Println(fmt.Errorf("the router does not forward - роутер не переносит %s~>%s", ehp, ips[0]))
 						}
 					}
 				}
@@ -1010,11 +1016,11 @@ Host ` + SSHJ + ` :
 					eips = append(eips, s2)
 				}
 				Println("to connect use - чтоб подключится используй:")
-				lan := " over - через LAN "
+				lan := "over - через LAN "
 				if hp == ":" {
-					lan = " local - локально "
+					lan = "local - локально "
 				}
-				Println(fmt.Sprintf("%s `%s .`"+lan+j, prox, imag, hp), ss)
+				Println(fmt.Sprintf("%s `%s .` "+lan+j, prox, imag, hp), ss)
 				j = "\t`" + imag + "  -u%s`"
 				if ss != "" {
 					ss = fmt.Sprintf(j, "j "+eip)
