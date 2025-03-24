@@ -349,7 +349,7 @@ func main() {
 	// 	return
 	// }
 
-	if args.DirectJump && isDssh() {
+	if args.DirectJump && (isDssh() || args.Destination == "") {
 		autoDirectJump = ADJ(ctx, autoDirectJump, setU(""))
 		if autoDirectJump == "." {
 			Println(fmt.Errorf("auto -j failed - без посредника не обойтись"))
