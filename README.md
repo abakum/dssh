@@ -149,15 +149,20 @@ dssh:=(tssh from trzsz)+(CA key with embed-encrypt)+(sshd from gliderlabs)+(acce
 
 14. Вот [скрипт](viewWindowsServerOverDirectClient.bat) для VNC где Наблюдатель с адресом direct.accesible.dssh на Windows и Показывающий это TightVNC на Windows.<div id=8.15>
 15. Вот [скрипт](viewLinuxServerOverDirectClient.bat) для VNC где Наблюдатель с адресом direct.accesible.dssh на Windows а Показывающий это TigerVNC на Linux.
-16. Как на [8.14](#8.14) или [8.15](#8.15) для VNC где на Показывающем `dssh` а на Наблюдателе с адресом direct.accesible.dssh `dssh --vnc 5500 _` или `dssh --vnc 0 _` или короче `dssh -70 _`. Это сработает и за NAT если роутер с WAN адресом direct.accesible.dssh переносит порт 2200 на LAN адрес vnc.viewer.with.dssh:2200.<div id=8.17>
+16. Как на [8.14](#8.14) или [8.15](#8.15) для VNC где на Показывающем `dssh` а на Наблюдателе с адресом direct.accesible.dssh `dssh --vnc 5500 _` или `dssh --vnc 0 _` или короче `dssh -70 _` или `dssh -j70`. Это сработает и за NAT если роутер с WAN адресом direct.accesible.dssh переносит порт 2200 на LAN адрес vnc.viewer.with.dssh:2200.<div id=8.17>
 
 17. Вот [скрипт](viewWindowsServerDirect.bat) для VNC где Показывающий с адресом direct.accesible.dssh это TightVNC на Windows и Наблюдатель на Windows.<div id=8.18>
 18. Вот [скрипт](viewLinuxServerDirect.bat) для VNC где Показывающий с адресом direct.accesible.dssh это TigerVNC на Linux а Наблюдатель на Windows.<div id=8.19>
-19. Как на [8.17](#8.17) или [8.18](#8.18) для VNC где на Показывающий с адресом direct.accesible.dssh `dssh _` а на Наблюдателе `dssh --vnc 5500 -j direct.accesible.dssh` или `dssh --vnc 0 -j direct.accesible.dssh` или короче `dssh -70 -j direct.accesible.dssh`. Это сработает и за NAT если роутер с WAN адресом direct.accesible.dssh переносит порт 2200 с WAN на LAN адрес vnc.server.with.dssh:2200. И через LAN `dssh -70 -j vnc.server.with.dssh`<div id=8.20>
-
-20. Используя [8.19](#8.19) и [2.2](#2.2) если Показывающий на direct.accesible.dssh `dssh` то подключаем Наблюдателя `dssh -70 .`.
-21. Для наблюдения за Показывающим на vnc.server.with.sshd:2 с sshd-сервером `dssh -72 vnc.server.with.sshd`.
-22. Для наблюдения за Показывающим на vnc.server.with.sshd.dssh:2 c sshd-сервером и dssh-сервером `dssh` вместо `dssh -72 vnc.server.with.sshd.dssh` лучше `dssh -j72 -J host.dssh.sshd`.
+19. Как на [8.17](#8.17) или [8.18](#8.18) для VNC где на Показывающий с адресом direct.accesible.dssh `dssh` а на Наблюдателе `dssh --vnc 5500 -j direct.accesible.dssh` или `dssh --vnc 0 -j direct.accesible.dssh` или короче `dssh -70 -j direct.accesible.dssh` или `dssh -j70`. Это сработает и за NAT если роутер с WAN адресом direct.accesible.dssh переносит порт 2200 с WAN на LAN адрес vnc.server.with.dssh:2200. И через LAN `dssh -70 -j vnc.server.with.dssh`.<div id=8.20>
+20. Для наблюдения за Показывающим на vnc.server.with.sshd:2 с sshd-сервером `dssh -72 vnc.server.with.sshd`.
+21. Для наблюдения за Показывающим на vnc.server.with.sshd.dssh:2 c sshd-сервером и dssh-сервером `dssh` вместо `dssh -72 vnc.server.with.sshd.dssh` лучше `dssh -j72 -J host.dssh.sshd`.
+22. Режим посредника на dssh-сервере с direct.accesible.dssh `dssh`. Приятно, что посредник ssh-j.com используется только при подключении. После подключения трафик через него не идёт. 
+22.1 Отдадим локальную последовательную консоль `dssh -js`.
+22.2 Используем отданную последовательную консоль `dssh -jHH` или через веб (например в Windows 7) `dssh -jHH -88`.
+22.3 Отдадим локальный интерпретатора команд bash `dssh -jsHbash`.
+22.4 Используем отданный интерпретатора команд `dssh -jHH` или через веб (например в Windows 7) `dssh -jHH -88`.
+22.5 Отдадим локальный Наблюдатель vncviewer `dssh -js70` это то же что `vncviewer -listen 5500&&dssh -jNR127.0.0.1:5500:127.0.0.1:5500`.
+22.6 Используем отданный Наблюдатель для наблюдения за Показывающим `dssh -j70`.
 
 # 9. Удалённый доступ к последовательной консоли на хосте с [RouterOS](#0.10) или с [ser2net](#0.8) или с [hub4com](#0.9):
 1. Подключаем USB2serial переходник в USB порт устройства под управлением RouterOS.

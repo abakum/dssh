@@ -320,44 +320,50 @@ func main() {
 
 	autoDirectJump := ""
 	ctx, cancel := context.WithCancel(context.Background())
-	// -j  Это автообход посредника для dssh-сервера с внешним IP и `dssh +`
-	adj := func(once, u string) (s string) {
-		s = "."
-		if once == s {
-			// Уже пробовал и не успешно
-			return
-		}
-		to, toC := context.WithTimeout(ctx, time.Second*3)
-		defer toC()
-		cgi := exec.CommandContext(to, repo, "-Tl", u, ":", repo, "-j")
-		cgi.Stdin = os.Stdin
-		cgi.Stderr = os.Stderr
-		output, err := cgi.Output()
-		so := string(output)
-		Println(so, err)
-		if so == "" {
-			return
-		}
-		ips := strings.Split(so, SEP)
-		for _, ip := range ips {
-			if ip != "" && ip != LH && isHP(JoinHostPort(ip, PORTS)) {
-				return ip
-			}
-		}
-		return
-	}
+	// -j  Это автообход посредника для dssh-сервера с внешним IP и `dssh`
+	// adj := func(once, u string) (s string) {
+	// 	s = "."
+	// 	if once == s {
+	// 		// Уже пробовал и не успешно
+	// 		return
+	// 	}
+	// 	to, toC := context.WithTimeout(ctx, time.Second*3)
+	// 	defer toC()
+	// 	cgi := exec.CommandContext(to, repo, "-Tl", u, ":", repo, "-j", ":")
+	// 	cgi.Stdin = os.Stdin
+	// 	cgi.Stderr = os.Stderr
+	// 	output, err := cgi.Output()
+	// 	so := string(output)
+	// 	Println(so, err)
+	// 	so, portS := SplitHostPort(so, "", PORTS)
+	// 	if so == "" {
+	// 		return
+	// 	}
+	// 	ips := strings.Split(so, SEP)
+	// 	for _, ip := range ips {
+	// 		hp := net.JoinHostPort(ip, portS)
+	// 		if ip != "" && ip != LH && isHP(hp) {
+	// 			return hp
+	// 		}
+	// 	}
+	// 	return
+	// }
 
-	if args.DirectJump && args.Destination == "" {
-		autoDirectJump = adj(autoDirectJump, setU(""))
+	if args.DirectJump && isDssh() {
+		autoDirectJump = ADJ(ctx, autoDirectJump, setU(""))
 		if autoDirectJump == "." {
 			Println(fmt.Errorf("auto -j failed - без посредника не обойтись"))
 			// -j ~> .
+			// -j :~> :
 			args.DirectJump = false
+			if args.Destination == "" {
+				args.Destination = autoDirectJump
+			}
 		} else {
 			Println("auto -j success - Дальше через", autoDirectJump)
 			// -j ~> -j autoDirectJump
+			args.Destination = autoDirectJump
 		}
-		args.Destination = autoDirectJump
 	}
 
 	u, h, p := ParseDestination(args.Destination) //tssh
@@ -365,7 +371,8 @@ func main() {
 	s2, dial := host2LD(h)
 	u = setU(u)
 	tmpU := filepath.Join(tmp, u)
-	dot := psPrint(filepath.Base(exe), "", 0, PrintNil) > 1 && isFileExist(tmpU)
+	// dot := psPrint(filepath.Base(exe), "", 0, PrintNil) > 1 && isFileExist(tmpU)
+	dot := isFileExist(tmpU)
 	portT := portOB(args.Ser2net, PORTT)
 	portW := portOB(args.Ser2web, PORTW)
 	portV := portOB(args.VNC, PORTV)
@@ -425,7 +432,7 @@ func main() {
 	if vncDirect && isDssh() {
 		// -70 :
 		// -70 .
-		autoDirectJump = adj(autoDirectJump, u)
+		autoDirectJump = ADJ(ctx, autoDirectJump, u)
 		if autoDirectJump == "." {
 			Println(fmt.Errorf("let's not abuse the kindness of - не будем злоупотреблять добротой %s", JumpHost))
 			vncDirect = false
@@ -997,16 +1004,17 @@ Host ` + SSHJ + ` :
 					eip, m, err = GetExternalIP(time.Second, "stun.sipnet.ru:3478", "stun.l.google.com:19302", "stun.fitauto.ru:3478")
 					if err == nil {
 						Println(m)
-						ehp := eip + ":" + p
+						ehp := net.JoinHostPort(eip, p)
 						if p != listen {
 							eip = ehp
 						}
-						if isHP(ehp) {
+						if strings.HasPrefix(CGIj(ctx, u, ehp), net.JoinHostPort(strings.Join(ips, SEP), p)) {
+							// Это я к себе подключился
 							ss = fmt.Sprintf("или WAN "+j, eip)
 							// Список слушающих IP для CGI -j
 							eips = append(eips, eip)
 						} else {
-							Println(fmt.Errorf("the router does not forward - роутер не переносит %s~>%s", ehp, ips[0]))
+							Println(fmt.Errorf("the router does not forward - роутер не переносит %s~>%s", ehp, net.JoinHostPort(ips[0], p)))
 						}
 					}
 				}
@@ -1049,7 +1057,7 @@ Host ` + SSHJ + ` :
 									continue
 								}
 								// Показывающий на `dssh` или `dssh +`, подключись ко мне. Я Наблюдатель на `dssh _` жду тебя на порту portV на адресе ip
-								cgi := exec.CommandContext(ctx, repo, "-Tl", u, ":", repo, "--vnc", JoinHostPort(ip, portV))
+								cgi := exec.CommandContext(ctx, repo, "-Tl", u, ":", repo, "--vnc", strconv.Itoa(portV), "-j", net.JoinHostPort(ip, p))
 								cgi.Stdin = os.Stdin
 								cgi.Stderr = os.Stderr
 								createNewConsole(cgi)
@@ -1085,6 +1093,7 @@ Host ` + SSHJ + ` :
 				time.Sleep(TOR)
 			}
 		})
+		os.MkdirAll(tmp, DIRMODE)
 		if os.WriteFile(tmpU, []byte{}, FILEMODE) == nil {
 			closer.Bind(func() { os.Remove(tmpU) })
 		}
@@ -2071,4 +2080,41 @@ func shp(s string, base int) (h string, i int) {
 	return
 	// 1, 5500
 	// 1, 5502
+}
+
+func ADJ(ctx context.Context, once, u string) (s string) {
+	s = "."
+	if once == s {
+		// Уже пробовал и не успешно
+		return
+	}
+	so, portS := SplitHostPort(CGIj(ctx, u, ":"), "", PORTS)
+	if so == "" {
+		return
+	}
+	ips := strings.Split(so, SEP)
+	for _, ip := range ips {
+		hp := net.JoinHostPort(ip, portS)
+		if ip != "" && ip != LH && isHP(hp) {
+			return hp
+		}
+	}
+	return
+}
+
+func CGIj(ctx context.Context, u, dest string) (s string) {
+	to, toC := context.WithTimeout(ctx, time.Second*3)
+	defer toC()
+	var cgi *exec.Cmd
+	if dest == ":" || dest == "." {
+		cgi = exec.CommandContext(to, repo, "-Tl", u, ":", repo, "-j", dest)
+	} else {
+		cgi = exec.CommandContext(to, repo, "-Tl", u, "-j", dest, repo, "-j", ".")
+	}
+	cgi.Stdin = os.Stdin
+	cgi.Stderr = os.Stderr
+	output, err := cgi.Output()
+	s = string(output)
+	Println(s, err)
+	return
 }

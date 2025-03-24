@@ -33,8 +33,8 @@ type cgiArgs struct {
 	Restart    bool   `arg:"-r,--restart" help:"restart daemon"`
 	Debug      bool   `arg:"-v,--debug" help:"verbose mode for debugging, similar to ssh's -v"`
 	Unix       bool   `arg:"-z,--unix" help:"zero new window"`
-	VNC        string `arg:"--vnc" placeholder:"hostname[:vncViewerListen]" help:"address of direct accesible dssh with vncviewer -listen [vncViewerListen]"`
-	DirectJump bool   `arg:"-j,--" help:"get csv of listen ip"`
+	VNC        int    `arg:"-7,--vnc" placeholder:"vncViewerListenPort" help:"port of reverse vnc-client from 'vncviewer -listen [vncViewerListenPort]'" default:"-1"`
+	DirectJump string `arg:"-j,--" placeholder:"host[:port]" help:"if ':' then send csv of listen ip else host[:port] of direct accesible dssh"`
 }
 
 var Exit string
@@ -46,8 +46,8 @@ var Exit string
 // authorizedKeys замки разрешённых пользователей,
 // CertCheck имя разрешённого пользователя в сертификате.
 func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Print func(v ...any)) string { //, authorizedKeys []gl.PublicKey
-	if isHP(net.JoinHostPort(s2, p)) {
-		return fmt.Sprintf("Already used - Уже используется %s:%s", s2, p)
+	if isHP(net.JoinHostPort(h, p)) {
+		return fmt.Sprintf("Already used - Уже используется %s:%s", h, p)
 	}
 	Println(ToExitPress, "<^C>")
 
@@ -177,88 +177,20 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 				p(a...)
 			}
 		}
-		if args.DirectJump {
-			csv := strings.Join(eips, SEP)
+
+		if args.DirectJump == ":" || args.DirectJump == "." {
+			xs := eips[:]
+			if args.DirectJump == "." {
+				xs = ips[:]
+			}
+			csv := net.JoinHostPort(strings.Join(xs, SEP), p)
 			print(csv)
 			s.Write([]byte(csv))
 			return
 		}
 		// dssh --vnc 5500.
-		// dssh --vnc viewer:5500.
-		vncViewerHP, doStop, disconn := func() (vncViewerHP string, doStop bool, disconn *exec.Cmd) {
-			if args.VNC == "" {
-				return
-			}
-			h, p := SplitHostPort(args.VNC, "", PORTV)
-			lhp := LH + ":" + p
-			if h != "" {
-				forw := exec.CommandContext(s.Context(), repo, "-NL"+lhp+":"+lhp, "-j", h)
-				err := forw.Start()
-				print(forw, err)
-				if err != nil {
-					return
-				}
-				go func() {
-					forw.Wait()
-				}()
-				time.Sleep(time.Second)
-			}
-			var start, conn, killall *exec.Cmd
-			switch runtime.GOOS {
-			case "windows":
-				if vncserver == "" {
-					vncserver = vncserverWindows
-				}
-				psCount := psPrint(vncserver, "", 0, PrintNil)
-				if psCount < 1 {
-					start = exec.Command(vncserver, "-start")
-					err := start.Run()
-					print(start, err)
-					if err != nil {
-						return
-					}
-					doStop = true
-				}
-				conn = exec.CommandContext(s.Context(), vncserver, "-controlservice", "-connect", lhp)
-				disconn = exec.Command(vncserver, "-controlservice", "-disconnectall")
-			default:
-				if vncserver == "" {
-					vncserver = vncserverEtc
-				}
-				if vncSecurityTypes == "" {
-					vncSecurityTypes = vncSecurityTypesEtc
-				}
-				optSecurityTypes := []string{"-SecurityTypes", vncSecurityTypes}
-				display := ":" + strconv.Itoa(Atoi(p, PORTV)-PORTV)
-				optDisplay := []string{"-display", display}
-				start = exec.Command(vncserver, append(optSecurityTypes, display)...)
-				err := start.Run()
-				print(start, err)
-				vncconnect, err := exec.LookPath("vncconnect")
-				if err == nil {
-					conn = exec.CommandContext(s.Context(), vncconnect, append(optDisplay, lhp)...)
-				} else {
-					conn = exec.CommandContext(s.Context(), "vncconfig", append(optDisplay, "-connect", lhp)...)
-					killall = exec.Command("killall", "tigervncconfig")
-				}
-				disconn = exec.Command(vncserver, "-kill", display)
-			}
-			err := conn.Start()
-			print(conn, err)
-			if err != nil {
-				return
-			}
-			go func() {
-				conn.Wait()
-			}()
-			if killall != nil {
-				print(killall, killall.Run())
-			} else {
-				time.Sleep(time.Second)
-			}
-			vncViewerHP = lhp
-			return
-		}()
+		// dssh -j viewer.at.dssh --vnc 0.
+		vncViewerHP, doStop, disconn := showVNC(s.Context(), portOB(args.VNC, PORTV), args.DirectJump)
 		if doStop {
 			defer func() {
 				stop := exec.Command(vncserver, "-stop")
@@ -643,4 +575,78 @@ func SessionRequestCallback(s gl.Session, requestType string) bool {
 	}
 	Println(s.RemoteAddr(), requestType, s.RawCommand())
 	return true
+}
+
+func showVNC(ctx context.Context, portV int, directJump string) (vncViewerHP string, doStop bool, disconn *exec.Cmd) {
+	if portV < 0 {
+		return
+	}
+	lhp := JoinHostPort(LH, portV)
+	if directJump != "" {
+		forw := exec.CommandContext(ctx, repo, "-NL"+lhp+":"+lhp, "-j", directJump)
+		err := forw.Start()
+		print(forw, err)
+		if err != nil {
+			return
+		}
+		go func() {
+			forw.Wait()
+		}()
+		time.Sleep(time.Second)
+	}
+	var start, conn, killall *exec.Cmd
+	switch runtime.GOOS {
+	case "windows":
+		if vncserver == "" {
+			vncserver = vncserverWindows
+		}
+		psCount := psPrint(vncserver, "", 0, PrintNil)
+		if psCount < 1 {
+			start = exec.Command(vncserver, "-start")
+			err := start.Run()
+			print(start, err)
+			if err != nil {
+				return
+			}
+			doStop = true
+		}
+		conn = exec.CommandContext(ctx, vncserver, "-controlservice", "-connect", lhp)
+		disconn = exec.Command(vncserver, "-controlservice", "-disconnectall")
+	default:
+		if vncserver == "" {
+			vncserver = vncserverEtc
+		}
+		if vncSecurityTypes == "" {
+			vncSecurityTypes = vncSecurityTypesEtc
+		}
+		optSecurityTypes := []string{"-SecurityTypes", vncSecurityTypes}
+		display := ":" + strconv.Itoa(portV-PORTV)
+		optDisplay := []string{"-display", display}
+		start = exec.Command(vncserver, append(optSecurityTypes, display)...)
+		err := start.Run()
+		print(start, err)
+		vncconnect, err := exec.LookPath("vncconnect")
+		if err == nil {
+			conn = exec.CommandContext(ctx, vncconnect, append(optDisplay, lhp)...)
+		} else {
+			conn = exec.CommandContext(ctx, "vncconfig", append(optDisplay, "-connect", lhp)...)
+			killall = exec.Command("killall", "tigervncconfig")
+		}
+		disconn = exec.Command(vncserver, "-kill", display)
+	}
+	err := conn.Start()
+	print(conn, err)
+	if err != nil {
+		return
+	}
+	go func() {
+		conn.Wait()
+	}()
+	if killall != nil {
+		print(killall, killall.Run())
+	} else {
+		time.Sleep(time.Second)
+	}
+	vncViewerHP = lhp
+	return
 }
