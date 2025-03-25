@@ -420,7 +420,7 @@ func main() {
 			// -70 -j autoDirectJump
 		}
 	}
-	if (args.Share || args.Use) && portV > 0 {
+	if portV > 0 && (args.Share || args.Use) {
 		if !vncDirect {
 			Println(fmt.Errorf("let's not abuse the kindness of - не будем злоупотреблять добротой %s", JumpHost))
 			return
@@ -430,29 +430,24 @@ func main() {
 			return
 		}
 		vncViewerHP, doStop, disconn := showVNC(ctx, portV, args.DirectJump, args.Destination, args.LoginName, Println)
-		if doStop {
-			closer.Bind(func() {
+		closer.Bind(func() {
+			if doStop {
 				stop := exec.Command(vncserver, "-stop")
 				Println(stop, stop.Run())
-			})
-		}
-		if vncViewerHP != "" {
-			go func() {
-				switch runtime.GOOS {
-				case "windows", "linux":
-					established(ctx, vncViewerHP, true, Println)
-				default:
-					watchDarwin(ctx, nil, vncViewerHP, Println)
-				}
-				closer.Close()
-			}()
-			if !doStop {
-				closer.Bind(func() {
-					Println(disconn, disconn.Run())
-				})
+			} else if vncViewerHP != "" {
+				Println(disconn, disconn.Run())
 			}
+		})
+		if vncViewerHP != "" {
 			Println("To stop VNC - Чтоб остановить VNC нажми <^C>")
-			closer.Hold()
+			switch runtime.GOOS {
+			case "windows", "linux":
+				established(ctx, vncViewerHP, true, Println)
+			default:
+				watchDarwin(ctx, nil, vncViewerHP, Println)
+			}
+			cancel()
+			closer.Close()
 		} else {
 			Println(fmt.Errorf("не удалось показать по VNC"))
 		}
