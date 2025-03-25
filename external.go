@@ -60,16 +60,19 @@ func notPuttyNewConsole(bin string, cmd *exec.Cmd) {
 }
 
 // dssh on args.Destination
-func isDssh() bool {
+func isDssh(or bool) bool {
+	if or {
+		return true
+	}
 	switch args.Destination {
 	case ".", repo, ":", SSHJ:
 		return true
 	}
-	return false //args.DirectJump
+	return false
 }
 
 func externalClient(external *bool, exe string) (signers []ssh.Signer, err error) {
-	if isDssh() && *external {
+	if isDssh(false) && *external {
 		s := "-u"
 		if args.Telnet {
 			s = "-Z"

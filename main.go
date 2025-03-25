@@ -321,35 +321,7 @@ func main() {
 	autoDirectJump := ""
 	ctx, cancel := context.WithCancel(context.Background())
 	// -j  Это автообход посредника для dssh-сервера с внешним IP и `dssh`
-	// adj := func(once, u string) (s string) {
-	// 	s = "."
-	// 	if once == s {
-	// 		// Уже пробовал и не успешно
-	// 		return
-	// 	}
-	// 	to, toC := context.WithTimeout(ctx, time.Second*3)
-	// 	defer toC()
-	// 	cgi := exec.CommandContext(to, repo, "-Tl", u, ":", repo, "-j", ":")
-	// 	cgi.Stdin = os.Stdin
-	// 	cgi.Stderr = os.Stderr
-	// 	output, err := cgi.Output()
-	// 	so := string(output)
-	// 	Println(so, err)
-	// 	so, portS := SplitHostPort(so, "", PORTS)
-	// 	if so == "" {
-	// 		return
-	// 	}
-	// 	ips := strings.Split(so, SEP)
-	// 	for _, ip := range ips {
-	// 		hp := net.JoinHostPort(ip, portS)
-	// 		if ip != "" && ip != LH && isHP(hp) {
-	// 			return hp
-	// 		}
-	// 	}
-	// 	return
-	// }
-
-	if args.DirectJump && (isDssh() || args.Destination == "") {
+	if args.DirectJump && isDssh(args.Destination == "") {
 		autoDirectJump = ADJ(ctx, autoDirectJump, setU(""))
 		if autoDirectJump == "." {
 			Println(fmt.Errorf("auto -j failed - без посредника не обойтись"))
@@ -380,8 +352,8 @@ func main() {
 	argsShare := args.Share
 	if args.Share {
 		// Отдаём свою консоль через dssh-сервер
-		portT, portW = optS(portT, portW)
-		if args.Destination == "" || isDssh() {
+		portT, portW = optS(portT, portW, portV)
+		if isDssh(args.Destination == "") {
 			// -s
 			// -s .
 			// -s :
@@ -394,8 +366,8 @@ func main() {
 	}
 	emptyCommand := args.Command == "" && !args.NoCommand
 	if args.Use {
-		if args.Destination == "" || isDssh() {
-			portT, portW = optS(portT, portW)
+		if isDssh(args.Destination == "") {
+			portT, portW = optS(portT, portW, portV)
 			// Используем консоль dssh-сервера
 			// -0
 			// -0 .
@@ -408,7 +380,7 @@ func main() {
 			if emptyCommand {
 				// -0 X
 				// Используем консоль sshd-сервера X
-				portT, portW = optS(portT, portW)
+				portT, portW = optS(portT, portW, portV)
 				// X dssh -HH -UU -22 -88
 
 			} else {
@@ -429,7 +401,7 @@ func main() {
 	loc := localHost(args.Destination)
 	vncDirect := portV > 0 && !loc
 	// Если loc то dssh-сервер без посредника и `dssh -T : dssh host.dssh:portV``
-	if vncDirect && isDssh() {
+	if vncDirect && isDssh(false) {
 		// -70 :
 		// -70 .
 		autoDirectJump = ADJ(ctx, autoDirectJump, u)
@@ -447,6 +419,44 @@ func main() {
 			// Println(repo, "-j", args.Destination)
 			// -70 -j autoDirectJump
 		}
+	}
+	if (args.Share || args.Use) && portV > 0 {
+		if !vncDirect {
+			Println(fmt.Errorf("let's not abuse the kindness of - не будем злоупотреблять добротой %s", JumpHost))
+			return
+		}
+		if args.Use {
+			viewVNC(ctx, portV, args.DirectJump, args.Destination, args.LoginName, Println)
+			return
+		}
+		vncViewerHP, doStop, disconn := showVNC(ctx, portV, args.DirectJump, args.Destination, args.LoginName, Println)
+		if doStop {
+			closer.Bind(func() {
+				stop := exec.Command(vncserver, "-stop")
+				Println(stop, stop.Run())
+			})
+		}
+		if vncViewerHP != "" {
+			go func() {
+				switch runtime.GOOS {
+				case "windows", "linux":
+					established(ctx, vncViewerHP, true, Println)
+				default:
+					watchDarwin(ctx, nil, vncViewerHP, Println)
+				}
+				closer.Close()
+			}()
+			if !doStop {
+				closer.Bind(func() {
+					Println(disconn, disconn.Run())
+				})
+			}
+			Println("To stop VNC - Чтоб остановить VNC нажми <^C>")
+			closer.Hold()
+		} else {
+			Println(fmt.Errorf("не удалось показать по VNC"))
+		}
+		return
 	}
 
 	optL(portT, &args, s2, loc, dot)
@@ -479,7 +489,7 @@ func main() {
 				}
 			}
 		}
-		if isDssh() {
+		if isDssh(false) {
 			// -HH .~>-20 .
 			// -HH :~>-20 :
 			args.Serial = ""
@@ -1065,9 +1075,11 @@ Host ` + SSHJ + ` :
 								Println(cgi, err)
 								if err == nil {
 									Println(cgi, cgi.Wait(), "done")
-									return
+									break
+									// return
 								}
 							}
+							closer.Close()
 						}()
 					})
 				}
@@ -1102,7 +1114,7 @@ Host ` + SSHJ + ` :
 			psPrint(filepath.Base(exe), "", 0, Println)
 			// exit := server(s2, p, repo, s2, signer, Println, Print)
 			// Доступ к сервисам на dssh-сервере через LH
-			exit := server(s2, p, repo, LH, signer, Println, Print)
+			exit := server(u, s2, p, repo, LH, signer, Println, Print)
 			KidsDone(os.Getpid())
 			if exit == "" {
 				Println("the daemon will restart after - сервер перезапустится через", TOR)
@@ -1114,6 +1126,7 @@ Host ` + SSHJ + ` :
 				return
 			}
 			time.Sleep(TOR)
+			ips = ser2net.Ints()
 		}
 	} // Сервис
 
@@ -1207,7 +1220,7 @@ Host ` + SSHJ + ` :
 	}
 	if vncDirect {
 		// --vnc 0
-		if isDssh() {
+		if isDssh(false) {
 			startViewer(portV, true)
 		} else if args.Destination != "" && emptyCommand {
 			// -70 vnc.server.with.sshd
@@ -1267,7 +1280,7 @@ Host ` + SSHJ + ` :
 				if ser == "" {
 					Println(ErrNotFoundFreeSerial)
 				} else {
-					portT, portW = optS(portT, portW)
+					portT, portW = optS(portT, portW, portV)
 				}
 			}
 			// Println("share", "serial", serial, "args.Baud", args.Baud, "portT", portT, "portW", portW)
@@ -1306,7 +1319,7 @@ Host ` + SSHJ + ` :
 			}
 		}
 		// Println(args.Destination, isDssh(), args.Share)
-		if isDssh() {
+		if isDssh(false) {
 			if args.Share {
 				share()
 			} else {
@@ -1987,8 +2000,8 @@ func swSerial(s string, local bool) (ser, sw, h string, p int) {
 }
 
 // Для win7 используем веб интерфейс вместо кривой консоли
-func optS(portT, portW int) (t, w int) {
-	if portT < 0 && portW < 0 {
+func optS(portT, portW, portV int) (t, w int) {
+	if portT < 0 && portW < 0 && portV < 0 {
 		if Win7 && !Cygwin {
 			return portT, PORTW
 			// -80
@@ -2105,12 +2118,13 @@ func ADJ(ctx context.Context, once, u string) (s string) {
 func CGIj(ctx context.Context, u, dest string) (s string) {
 	to, toC := context.WithTimeout(ctx, time.Second*3)
 	defer toC()
-	var cgi *exec.Cmd
+	opts := []string{"-Tl", u}
 	if dest == ":" || dest == "." {
-		cgi = exec.CommandContext(to, repo, "-Tl", u, ":", repo, "-j", dest)
+		opts = append(opts, ":", repo, "-j", dest)
 	} else {
-		cgi = exec.CommandContext(to, repo, "-Tl", u, "-j", dest, repo, "-j", ".")
+		opts = append(opts, "-j", dest, repo, "-j", ".")
 	}
+	cgi := exec.CommandContext(to, repo, opts...)
 	cgi.Stdin = os.Stdin
 	cgi.Stderr = os.Stderr
 	output, err := cgi.Output()

@@ -21,6 +21,7 @@ import (
 	"github.com/abakum/winssh"
 	gl "github.com/gliderlabs/ssh"
 	"github.com/trzsz/go-arg"
+	"github.com/xlab/closer"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -45,9 +46,9 @@ var Exit string
 // signer ключ ЦС,
 // authorizedKeys замки разрешённых пользователей,
 // CertCheck имя разрешённого пользователя в сертификате.
-func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Print func(v ...any)) string { //, authorizedKeys []gl.PublicKey
+func server(u, h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Print func(v ...any)) string { //, authorizedKeys []gl.PublicKey
 	if isHP(net.JoinHostPort(h, p)) {
-		return fmt.Sprintf("Already used - Уже используется %s:%s", h, p)
+		return fmt.Sprintf("Already used - Уже используется %s@%s:%s", u, h, p)
 	}
 	Println(ToExitPress, "<^C>")
 
@@ -190,7 +191,7 @@ func server(h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Pr
 		}
 		// dssh --vnc 5500.
 		// dssh -j viewer.at.dssh --vnc 0.
-		vncViewerHP, doStop, disconn := showVNC(s.Context(), portOB(args.VNC, PORTV), args.DirectJump)
+		vncViewerHP, doStop, disconn := showVNC(s.Context(), portOB(args.VNC, PORTV), true, args.DirectJump, u, print)
 		if doStop {
 			defer func() {
 				stop := exec.Command(vncserver, "-stop")
@@ -577,22 +578,34 @@ func SessionRequestCallback(s gl.Session, requestType string) bool {
 	return true
 }
 
-func showVNC(ctx context.Context, portV int, directJump string) (vncViewerHP string, doStop bool, disconn *exec.Cmd) {
-	if portV < 0 {
+// Показывает vnc-клиенту через порт 127.0.0.1:portV или через `dssh -l u -j destination` или `dssh -l u destination` или `dssh destination`
+func showVNC(ctx context.Context, portV int, directJump bool, destination, u string, print func(a ...any)) (vncViewerHP string, doStop bool, disconn *exec.Cmd) {
+	if portV < 0 || (directJump && destination == "") {
 		return
 	}
 	lhp := JoinHostPort(LH, portV)
-	if directJump != "" {
-		forw := exec.CommandContext(ctx, repo, "-NL"+lhp+":"+lhp, "-j", directJump)
-		err := forw.Start()
-		print(forw, err)
-		if err != nil {
-			return
+	if destination != "" {
+		if isHP(lhp) {
+			print(fmt.Errorf("already used - уже используется %s", lhp))
+		} else {
+			opts := []string{"-NL" + lhp + ":" + lhp}
+			if u != "" {
+				opts = append(opts, "-l", u)
+			}
+			if directJump {
+				opts = append(opts, "-j")
+			}
+			forw := exec.CommandContext(ctx, repo, append(opts, destination)...)
+			err := forw.Start()
+			print(forw, err)
+			if err != nil {
+				return
+			}
+			go func() {
+				forw.Wait()
+			}()
+			time.Sleep(time.Second)
 		}
-		go func() {
-			forw.Wait()
-		}()
-		time.Sleep(time.Second)
 	}
 	var start, conn, killall *exec.Cmd
 	switch runtime.GOOS {
@@ -649,4 +662,48 @@ func showVNC(ctx context.Context, portV int, directJump string) (vncViewerHP str
 	}
 	vncViewerHP = lhp
 	return
+}
+
+// Ожидает подключения  vnc-сервера через порт 127.0.0.1:portV или через `dssh -l u -j destination` или `dssh -l u destination` или `dssh destination`
+func viewVNC(ctx context.Context, portV int, directJump bool, destination, u string, print func(a ...any)) {
+	if portV < 0 || (directJump && destination == "") {
+		return
+	}
+	lhp := JoinHostPort(LH, portV)
+	if vncviewer == "" {
+		vncviewer = vncviewerEtc
+		if runtime.GOOS == "windows" {
+			vncviewer = vncviewerWindows
+		}
+	}
+	if !isHP(lhp) {
+		vnc := exec.Command(vncviewer, "-listen", strconv.Itoa(portV))
+		err := vnc.Start()
+		Println(vnc, err)
+		if err != nil {
+			return
+		}
+		time.Sleep(time.Second)
+		vnc.Process.Release()
+	}
+	if destination != "" {
+		opts := []string{"-NR" + lhp + ":" + lhp}
+		if u != "" {
+			opts = append(opts, "-l", u)
+		}
+		if directJump {
+			opts = append(opts, "-j")
+		}
+		forw := exec.CommandContext(ctx, repo, append(opts, destination)...)
+		err := forw.Start()
+		print(forw, err)
+		if err != nil {
+			return
+		}
+		go func() {
+			forw.Wait()
+		}()
+		Println("To stop VNC - Чтоб остановить VNC нажми <^C>")
+		closer.Hold()
+	}
 }
