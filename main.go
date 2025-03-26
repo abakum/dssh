@@ -1116,12 +1116,6 @@ Host ` + SSHJ + ` :
 			Println(fmt.Errorf("не удалось подключится напрямую к %s", repo))
 			return
 		}
-		// Println(args.LoginName, args.Destination)
-		if djh != "" && djp != "" {
-			args.LoginName = u
-			args.Destination = net.JoinHostPort(djh, djp)
-		}
-		// Println(args.LoginName, args.Destination)
 		if args.Use {
 			useVNC(portV)
 		}
