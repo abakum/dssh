@@ -320,6 +320,10 @@ func main() {
 
 	autoDirectJump := ""
 	ctx, cancel := context.WithCancel(context.Background())
+	defer closer.Close()
+	closer.Bind(cleanup)
+	closer.Bind(cancel)
+
 	// -j  Это автообход посредника для dssh-сервера с внешним IP и `dssh`
 	if args.DirectJump && isDssh(args.Destination == "") {
 		autoDirectJump = getHP(ctx, autoDirectJump, setU(""))
@@ -680,9 +684,9 @@ func main() {
 	// Println(fmt.Sprintf("args %+v", args))
 	Println(os.Args[0], a2s, args.Command)
 
-	defer closer.Close()
-	closer.Bind(cleanup)
-	closer.Bind(cancel)
+	// defer closer.Close()
+	// closer.Bind(cleanup)
+	// closer.Bind(cancel)
 
 	args.StdioForward = ser2net.LocalPort(args.StdioForward)
 	if args.StdioForward != "" && args.Destination == "" {
@@ -1030,7 +1034,7 @@ Host ` + SSHJ + ` :
 				if portV > 0 && !lhListen {
 					once.Do(func() {
 						// dssh --vnc 0 _
-						startViewer(portV, false, Println)
+						startViewer(portV, false)
 						go func() {
 							for _, ip := range eips {
 								if ip == LH {
@@ -1112,6 +1116,12 @@ Host ` + SSHJ + ` :
 			Println(fmt.Errorf("не удалось подключится напрямую к %s", repo))
 			return
 		}
+		// Println(args.LoginName, args.Destination)
+		if djh != "" && djp != "" {
+			args.LoginName = u
+			args.Destination = net.JoinHostPort(djh, djp)
+		}
+		// Println(args.LoginName, args.Destination)
 		if args.Use {
 			useVNC(portV)
 		}
@@ -1205,10 +1215,10 @@ Host ` + SSHJ + ` :
 	if vncDirect {
 		// --vnc 0
 		if isDssh(false) {
-			startViewer(portV, true, Println)
+			startViewer(portV, true)
 		} else if args.Destination != "" && emptyCommand {
 			// -70 vnc.server.with.sshd
-			startViewer(portV, true, Println)
+			startViewer(portV, true)
 			args.Argument = []string{}
 			lhp := JoinHostPort(LH, portV)
 			switch goos(args.Destination) {
@@ -2097,20 +2107,25 @@ func cgiJ(ctx context.Context, u, dest string) (s string) {
 
 // Ожидает подключения  vnc-сервера через порт 127.0.0.1:portV или через `dssh -l u -j destination` или `dssh -l u destination` или `dssh destination`
 func useVNC(portV int) {
-	if portV < 0 || (args.DirectJump && args.Destination == "") {
-		return
+	// if portV < 0 || (args.DirectJump && args.Destination == "") {
+	// 	return
+	// }
+	err := startViewer(portV, false)
+	if err != nil {
+		Println(err)
 	}
-	startViewer(portV, false, Println)
+	Println("To stop vncviewer press - Чтоб остановить vncviewer нажми <^C>")
 	if args.Destination == "" {
+		closer.Hold()
 		return
 	}
 	args.NoCommand = true
 	lhp := JoinHostPort(LH, portV)
 	s4 := lhp + ":" + lhp
-	print("-R", s4)
+	Println("-R", s4)
 	args.RemoteForward.UnmarshalText([]byte(s4))
-	print("To stop forwarding press - Чтоб остановить перенос нажми <^C>")
-	print("tssh", Tssh(&args))
+	// Println("To stop forwarding press - Чтоб остановить перенос нажми <^C>")
+	Println("tssh", Tssh(&args))
 	// return
 
 	// opts := []string{"-NR" + lhp + ":" + lhp}
@@ -2130,9 +2145,9 @@ func useVNC(portV int) {
 	// forw.Wait()
 }
 
-func startViewer(portV int, R bool, print func(a ...any)) {
+func startViewer(portV int, R bool) (err error) {
 	if portV < 0 {
-		return
+		return fmt.Errorf("no port")
 	}
 	lhp := JoinHostPort(LH, portV)
 	vncViewerP := strconv.Itoa(portV)
@@ -2145,8 +2160,8 @@ func startViewer(portV int, R bool, print func(a ...any)) {
 	if !isHP(lhp) {
 		// Если не запущен то запускаем
 		vnc := exec.Command(vncviewer, "-listen", vncViewerP)
-		err := vnc.Start()
-		print(vnc, err)
+		err = vnc.Start()
+		Println(vnc, err)
 		if err != nil {
 			return
 		}
@@ -2158,8 +2173,9 @@ func startViewer(portV int, R bool, print func(a ...any)) {
 	}
 	args.Argument = append(args.Argument, "--vnc", vncViewerP)
 	s4 := lhp + ":" + lhp
-	print("-R", s4)
+	Println("-R", s4)
 	args.RemoteForward.UnmarshalText([]byte(s4))
+	return
 }
 
 func shareVNC(ctx context.Context, ca context.CancelFunc, portV int) {
