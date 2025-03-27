@@ -167,7 +167,7 @@ func showVNC(ctx context.Context, portV int, directJump bool, destination, u str
 			go func() {
 				forw.Wait()
 			}()
-			// time.Sleep(time.Second)
+			time.Sleep(time.Second)
 		}
 	}
 	if !isHP(lhp) {
