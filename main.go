@@ -356,7 +356,7 @@ func main() {
 	argsShare := args.Share
 	if args.Share {
 		if portV > 0 && args.Destination == "" && !args.DirectJump {
-			shareVNC(ctx, cancel, portV, "", "")
+			shareVNC(ctx, portV, "", "")
 			return
 		}
 		// Отдаём свою консоль через dssh-сервер
@@ -1127,7 +1127,7 @@ Host ` + SSHJ + ` :
 			useVNC(portV, u, dj)
 		}
 		if args.Share {
-			shareVNC(ctx, cancel, portV, u, dj)
+			shareVNC(ctx, portV, u, dj)
 		}
 		return
 	}

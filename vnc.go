@@ -108,7 +108,7 @@ func startViewer(portV int, R bool) (err error) {
 	return
 }
 
-func shareVNC(ctx context.Context, ca context.CancelFunc, portV int, u, dj string) {
+func shareVNC(ctx context.Context, portV int, u, dj string) {
 	d := args.Destination
 	l := args.LoginName
 	if dj != "" {
@@ -137,7 +137,6 @@ func shareVNC(ctx context.Context, ca context.CancelFunc, portV int, u, dj strin
 	default:
 		watchDarwin(ctx, nil, vncViewerHP, Println)
 	}
-	ca()
 }
 
 // Показывает vnc-клиенту через порт 127.0.0.1:portV или через `dssh -l u -j destination` или `dssh -l u destination` или `dssh destination`
