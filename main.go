@@ -353,12 +353,14 @@ func main() {
 	portW := portOB(args.Ser2web, PORTW)
 	portV := portOB(args.VNC, PORTV)
 
+	if portV > 0 && args.Destination == "" && !args.DirectJump {
+		// -70~> -s70
+		Println(repo, "-s7", portV)
+		shareVNC(ctx, portV, "", "")
+		return
+	}
 	argsShare := args.Share
 	if args.Share {
-		if portV > 0 && args.Destination == "" && !args.DirectJump {
-			shareVNC(ctx, portV, "", "")
-			return
-		}
 		// Отдаём свою консоль через dssh-сервер
 		portT, portW = optS(portT, portW, portV)
 		if isDssh(args.Destination == "") {

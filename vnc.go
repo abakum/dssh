@@ -127,7 +127,6 @@ func shareVNC(ctx context.Context, portV int, u, dj string) {
 		}()
 	}
 	if vncViewerHP == "" {
-		Println(fmt.Errorf("не удалось показать по VNC"))
 		return
 	}
 	Println(ToExitPress, "<^C>")
@@ -150,7 +149,7 @@ func showVNC(ctx context.Context, portV int, directJump bool, destination, u str
 	lhp := JoinHostPort(LH, portV)
 	if destination != "" {
 		if isHP(lhp) {
-			print(fmt.Errorf("already used - уже используется %s", lhp))
+			print(fmt.Errorf("already used - %s уже используется", lhp))
 		} else {
 			opts := []string{"-NL" + lhp + ":" + lhp}
 			if u != "" {
@@ -168,8 +167,12 @@ func showVNC(ctx context.Context, portV int, directJump bool, destination, u str
 			go func() {
 				forw.Wait()
 			}()
-			time.Sleep(time.Second)
+			// time.Sleep(time.Second)
 		}
+	}
+	if !isHP(lhp) {
+		print(fmt.Errorf("address not binding - %s не готов для подключения ", lhp))
+		return
 	}
 	var start, conn, killall *exec.Cmd
 	switch runtime.GOOS {
