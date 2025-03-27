@@ -1012,7 +1012,11 @@ Host ` + SSHJ + ` :
 				if hp == ":" {
 					lan = "local - локально "
 				}
-				Println(fmt.Sprintf("%s `%s .` "+lan+j, prox, imag, hp), ss)
+				Println(fmt.Sprintf("%s `%s .`", prox, imag))
+				Println(fmt.Sprintf(lan+j, hp))
+				if ss != "" {
+					Println(ss)
+				}
 				j = "\t`" + imag + "  -u%s`"
 				if ss != "" {
 					ss = fmt.Sprintf(j, "j "+eip)
@@ -1216,6 +1220,7 @@ Host ` + SSHJ + ` :
 	if vncDirect {
 		// --vnc 0
 		if isDssh(false) {
+			// -70 .
 			startViewer(portV, true)
 		} else if args.Destination != "" && emptyCommand {
 			// -70 vnc.server.with.sshd

@@ -141,7 +141,9 @@ func shareVNC(ctx context.Context, portV int, u, dj string) {
 
 // Показывает vnc-клиенту через порт 127.0.0.1:portV или через `dssh -l u -j destination` или `dssh -l u destination` или `dssh destination`
 func showVNC(ctx context.Context, portV int, directJump bool, destination, u string, print func(a ...any)) (vncViewerHP string, stop, disconn *exec.Cmd) {
-	if portV < 0 || (directJump && destination == "") {
+	// -70 -j x
+	// -70
+	if portV < 0 {
 		// Для CGI
 		return
 	}
