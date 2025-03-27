@@ -356,7 +356,7 @@ func main() {
 	argsShare := args.Share
 	if args.Share {
 		if portV > 0 && args.Destination == "" && !args.DirectJump {
-			shareVNC(ctx, cancel, portV)
+			shareVNC(ctx, cancel, portV, "", "")
 			return
 		}
 		// Отдаём свою консоль через dssh-сервер
@@ -375,7 +375,7 @@ func main() {
 	emptyCommand := args.Command == "" && !args.NoCommand
 	if args.Use {
 		if portV > 0 && args.Destination == "" && !args.DirectJump {
-			useVNC(portV)
+			useVNC(portV, "", "")
 			return
 		}
 		if isDssh(args.Destination == "") {
@@ -1105,10 +1105,17 @@ Host ` + SSHJ + ` :
 	} // Сервис
 
 	// Клиенты
+	dj := ""
 	if djh != "" && djp != "" {
-		client(signer, signers, local(djh, djp, repo)+sshj+sshJ(JumpHost, u, djh, djp), repo, SSHJ)
+		client(signer, signers,
+			local(djh, djp, repo)+
+				sshj+sshJ(JumpHost, u, djh, djp),
+			repo, SSHJ)
+		dj = net.JoinHostPort(djh, djp)
 	} else {
-		client(signer, signers, sshj+sshJ(JumpHost, u, "", p), repo, SSHJ)
+		client(signer, signers,
+			sshj+sshJ(JumpHost, u, "", p),
+			repo, SSHJ)
 	}
 
 	if portV > 0 && (args.Share || args.Use) {
@@ -1117,10 +1124,10 @@ Host ` + SSHJ + ` :
 			return
 		}
 		if args.Use {
-			useVNC(portV)
+			useVNC(portV, u, dj)
 		}
 		if args.Share {
-			shareVNC(ctx, cancel, portV)
+			shareVNC(ctx, cancel, portV, u, dj)
 		}
 		return
 	}
@@ -2097,112 +2104,4 @@ func cgiJ(ctx context.Context, u, dest string) (s string) {
 	s = string(output)
 	Println(s, err)
 	return
-}
-
-// Ожидает подключения  vnc-сервера через порт 127.0.0.1:portV или через `dssh -l u -j destination` или `dssh -l u destination` или `dssh destination`
-func useVNC(portV int) {
-	// if portV < 0 || (args.DirectJump && args.Destination == "") {
-	// 	return
-	// }
-	err := startViewer(portV, false)
-	if err != nil {
-		Println(err)
-	}
-	Println("To stop vncviewer press - Чтоб остановить vncviewer нажми <^C>")
-	if args.Destination == "" {
-		closer.Hold()
-		return
-	}
-	args.NoCommand = true
-	lhp := JoinHostPort(LH, portV)
-	s4 := lhp + ":" + lhp
-	Println("-R", s4)
-	args.RemoteForward.UnmarshalText([]byte(s4))
-	// Println("To stop forwarding press - Чтоб остановить перенос нажми <^C>")
-	Println("tssh", Tssh(&args))
-	// return
-
-	// opts := []string{"-NR" + lhp + ":" + lhp}
-	// if args.LoginName != "" {
-	// 	opts = append(opts, "-l", args.LoginName)
-	// }
-	// if args.DirectJump {
-	// 	opts = append(opts, "-j")
-	// }
-	// forw := exec.CommandContext(ctx, repo, append(opts, args.Destination)...)
-	// err := forw.Start()
-	// print(forw, err)
-	// if err != nil {
-	// 	return
-	// }
-	// Println("To stop forwarding press - Чтоб остановить перенос нажми <^C>")
-	// forw.Wait()
-}
-
-func startViewer(portV int, R bool) (err error) {
-	if portV < 0 {
-		return fmt.Errorf("no port")
-	}
-	lhp := JoinHostPort(LH, portV)
-	vncViewerP := strconv.Itoa(portV)
-	if vncviewer == "" {
-		vncviewer = vncviewerEtc
-		if runtime.GOOS == "windows" {
-			vncviewer = vncviewerWindows
-		}
-	}
-	if !isHP(lhp) {
-		// Если не запущен то запускаем
-		vnc := exec.Command(vncviewer, "-listen", vncViewerP)
-		err = vnc.Start()
-		Println(vnc, err)
-		if err != nil {
-			return
-		}
-		time.Sleep(time.Second)
-		vnc.Process.Release()
-	}
-	if !R {
-		return
-	}
-	args.Argument = append(args.Argument, "--vnc", vncViewerP)
-	s4 := lhp + ":" + lhp
-	Println("-R", s4)
-	args.RemoteForward.UnmarshalText([]byte(s4))
-	return
-}
-
-func shareVNC(ctx context.Context, ca context.CancelFunc, portV int) {
-	vncViewerHP, doStop, disconn := showVNC(ctx, portV, args.DirectJump, args.Destination, args.LoginName, Println)
-	if doStop || vncViewerHP != "" {
-		// closer.Bind(func() {
-		// 	if doStop {
-		// 		stop := exec.Command(vncserver, "-stop")
-		// 		Println(stop, stop.Run())
-		// 	} else if vncViewerHP != "" {
-		// 		Println(disconn, disconn.Run())
-		// 	}
-		// })
-		defer func() {
-			if doStop {
-				stop := exec.Command(vncserver, "-stop")
-				Println(stop, stop.Run())
-			} else if vncViewerHP != "" {
-				Println(disconn, disconn.Run())
-			}
-		}()
-	}
-	if vncViewerHP == "" {
-		Println(fmt.Errorf("не удалось показать по VNC"))
-		return
-	}
-	Println("To stop VNC - Чтоб остановить VNC нажми <^C>")
-	switch runtime.GOOS {
-	case "windows", "linux":
-		established(ctx, vncViewerHP, true, Println)
-	default:
-		watchDarwin(ctx, nil, vncViewerHP, Println)
-	}
-	ca()
-	// closer.Close()
 }
