@@ -263,7 +263,7 @@ func server(u, h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any),
 			// dssh -UU :
 			print(cons(s.Context(), s, ser, args.Baud, args.Exit, ps...))
 		case vncViewerHP != "":
-			lss.Println("Press any key to stop - Нажми любую клавишу чтоб остановить VNC")
+			lss.Println(ToExitPress, "any key - любую клавишу")
 			go func() {
 				_, _ = s.Read([]byte{0})
 				s.Close()

@@ -1225,47 +1225,7 @@ Host ` + SSHJ + ` :
 		} else if args.Destination != "" && emptyCommand {
 			// -70 vnc.server.with.sshd
 			startViewer(portV, true)
-			args.Argument = []string{}
-			lhp := JoinHostPort(LH, portV)
-			switch goos(args.Destination) {
-			case "windows":
-				if vncserver == "" {
-					vncserver = vncserverWindows
-				}
-				vncserver = strings.TrimSuffix(strings.ToLower(vncserver), ".exe")
-				args.Command = fmt.Sprintf(
-					"sc query %s|findstr RUNNING&&(%s -controlservice -connect %s&set/p p=Press Enter to disconnect&%s -controlservice -disconnectall&exit)&"+
-						"%s -start&%s -controlservice -connect %s&set/p p=Press Enter to stop&%s -stop",
-					vncserver, vncserver, lhp, vncserver,
-					vncserver, vncserver, lhp, vncserver)
-			default:
-				if vncserver == "" {
-					vncserver = vncserverEtc
-				}
-				if vncSecurityTypes == "" {
-					vncSecurityTypes = vncSecurityTypesEtc
-				}
-				display := ":" + strconv.Itoa(portV-PORTV)
-				args.Command = fmt.Sprintf(
-					"%s -SecurityTypes %s %s;"+
-						"which vncconnect&&vncconnect -display %s %s||"+
-						"which vncconfig&&vncconfig -display %s -connect %s&&killall tigervncconfig;"+
-						"echo Press Enter to kill;read -rn1;%s -kill %s",
-					vncserver, vncSecurityTypes, display,
-					display, lhp,
-					display, lhp,
-					vncserver, display)
-			}
-			Println(args.Command)
-			time.AfterFunc(time.Second, func() {
-				switch runtime.GOOS {
-				case "windows", "linux":
-					established(ctx, lhp, true, Println)
-				default:
-					watchDarwin(ctx, nil, lhp, Println)
-				}
-				closer.Close()
-			})
+			sshVNC(ctx, portV)
 		}
 	}
 	// dssh -HH :
