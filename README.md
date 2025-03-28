@@ -190,43 +190,13 @@ dssh:=(tssh from trzsz)+(CA key with embed-encrypt)+(sshd from gliderlabs)+(acce
 
 # 12. Параметры для VNC доступа. Передавать VNC трафик можно и через посредника, но не будем злоупотреблять его добротой - лучше использовать VNC напрямую:
 
-1. Если на sshd.lan запущен sshd и установлен vnc-сервер то увидеть рабочий стол можно с vncviewer.lan на котором установлен vnc-клиент командой `dssh -77 sshd.lan` или сначала на vncviewer.lan запустить `dssh -077 sshd.lan` а потом на sshd.lan запустить `dssh -77` или сначала на vncviewer.lan запустить `dssh -077` а потом на sshd.lan запустить `dssh -s77 vncviewer.lan`.
-2. Если на dssh.lan запущен `dssh` и установлен vnc-сервер то увидеть рабочий стол можно с vncviewer.lan на котором установлен vnc-клиент командой `dssh -77 -j dssh.lan` или сначала на vncviewer.lan запустить `dssh -077 -j dssh.lan` а потом на dssh.lan запустить `dssh -77` или сначала на vncviewer.lan запустить `dssh -077` а потом на dssh.lan запустить `dssh -s77 vncviewer.lan`.
+1. Если на sshd.lan запущен sshd и установлен vnc-сервер то увидеть рабочий стол можно с vncviewer.lan на котором установлены dssh и vnc-клиент командой `dssh -77 sshd.lan` или если на sshd.lan установлен dssh то `dssh -077 sshd.lan dssh -77`. 
+2. Если на dssh.lan запущен `dssh` и установлен vnc-сервер то увидеть рабочий стол можно с vncviewer.lan на котором установлены dssh и vnc-клиент командой `dssh -77 -j dssh.lan` или `dssh -077 -j dssh.lan dssh -77`.
 3. Если роутер настроен для переноса порта 22 c sshd.wan на sshd.lan:22 и на нём запущен sshd и установлен vnc-сервер то увидеть рабочий стол c vncviewer.wan можно командой `dssh -77 sshd.wan`.
-4. Если роутер настроен для переноса порта 2200 c dssh.wan на dssh.lan:2200 и на нём запущен `dssh` и установлен vnc-сервер то увидеть рабочий стол c vncviewer.wan можно командой `dssh -77 .` или `dssh -j77`.
-5. Если роутер настроен для переноса порта 2200 c vncviewer.wan на vncviewer.lan:2200 и на нём установлен vnc-клиент, а на dssh.wan запущен `dssh` и установлен vnc-сервер то увидеть рабочий стол можно c vncviewer.lan командой `dssh -77 .` - магия.
-6. Если роутер настроен для переноса порта 22 c sshd.wan на sshd.lan:22 и на нём запущен sshd то c vncviewer.wan запустите `dssh -077 sshd.wan` а с vncserver.wan запустите `dssh -s77 sshd.wan`.
-7. Если роутер настроен для переноса порта 2200 c dssh.wan на dssh.lan:2200 и на нём запущен `dssh` то c vncviewer.wan запустите `dssh -077 .` а с vncserver.wan запустите `dssh -s77 .`.
-
-
-1.1 Показывающий (vnc-сервер) стартует dssh-сервер c доступом через посредника `dssh`.
-1.2 Наблюдатель (vnc-клиент) запускает слушающего vnc-клиента `cd /d c:\Program Files\TightVNC&tvnviewer -listen` или `cd /d c:\Program Files (x86)\RealVNC\VNC Viewer&vncviewer -listen`. Мне нравятся версии 5.
-1.3 Стартует локальный dssh-сервер c доступом напрямую `dssh _` если нет DDNS запоминает внешний IP - например [host](#host).
-1.4 В новой консоле подключается к dssh-серверу Показывающего через посредника `dssh :`.
-1.5 Стартует перенос порта 5500 с Показывающего хоста на свой хост через внешний IP `dssh -NL:127.0.0.1:5500:127.0.0.1:5500 -j host`.
-1.6 В новой консоле подключается к dssh-серверу Показывающего через посредника `dssh :`. Если Показывающий на Windows то `cd /d c:\Program Files\TightVNC`.
-1.7 Если Показывающий на Windows и vnc-сервер остановлен то запускает его `tvnserver -start`. Если Показывающий на Linux запускает vnc-сервер `vncserver -SecurityTypes None :2`. 
-1.8 Подключает его к своему слушающему vnc-клиенту на Windows `tvnserver -controlservice -connect 127.0.0.1`. На Linux для TigerVNC `vncconfig -display :2 -connect 127.0.0.1` для TightVNC `vncconnect -display :2 127.0.0.1`
-1.9 Останавливает vnc-сервер на Windows если не был запущен `tvnserver -stop` или отключает Наблюдателей `tvnserver -controlservice -disconnectall`. На Linux `vncserver -kill :2`.
-1.10 Останавливает слушающего vnc-клиента `taskkill /F /IM tvnviewer.exe` или `taskkill /F /IM vncviewer.exe`.
-1.11 Перезапускает dssh-сервер на vnc-сервере чтоб остановить перенос порта 5500 `dssh --restart :`.
-1.12 Останавливает локальный dssh-сервер c доступом через WAN  `dssh --stop .`.<div id=12.2>
-
-2. Вот [скрипт](viewWindowsServerOverDirectClient.bat) для VNC где Наблюдатель с адресом direct.accesible.dssh на Windows и Показывающий это TightVNC на Windows.<div id=12.3>
-3. Вот [скрипт](viewLinuxServerOverDirectClient.bat) для VNC где Наблюдатель с адресом direct.accesible.dssh на Windows а Показывающий это TigerVNC на Linux.
-4. Как на [12.2](#12.2) или [12.3](#12.3) для VNC где на Показывающем `dssh` а на Наблюдателе с адресом direct.accesible.dssh `dssh --vnc 5500 _` или `dssh --vnc 0 _` или короче `dssh -70 _` или `dssh -j70`. Это сработает и за NAT если роутер с WAN адресом direct.accesible.dssh переносит порт 2200 на LAN адрес vnc.viewer.with.dssh:2200.<div id=12.5>
-5. Вот [скрипт](viewWindowsServerDirect.bat) для VNC где Показывающий с адресом direct.accesible.dssh это TightVNC на Windows и Наблюдатель на Windows.<div id=12.6>
-6. Вот [скрипт](viewLinuxServerDirect.bat) для VNC где Показывающий с адресом direct.accesible.dssh это TigerVNC на Linux а Наблюдатель на Windows.<div id=12.7>
-7. Как на [12.5](#12.5) или [12.6](#12.6) для VNC где на Показывающий с адресом direct.accesible.dssh `dssh` а на Наблюдателе `dssh --vnc 5500 -j direct.accesible.dssh` или `dssh --vnc 0 -j direct.accesible.dssh` или короче `dssh -70 -j direct.accesible.dssh` или `dssh -j70`. Это сработает и за NAT если роутер с WAN адресом direct.accesible.dssh переносит порт 2200 с WAN на LAN адрес vnc.server.with.dssh:2200. И через LAN `dssh -70 -j vnc.server.with.dssh`.<div id=12.8>
-8. Для наблюдения за Показывающим на vnc.server.with.sshd:2 с sshd-сервером `dssh -72 vnc.server.with.sshd`.
-9. Для наблюдения за Показывающим на vnc.server.with.sshd.dssh:2 c sshd-сервером и dssh-сервером `dssh` вместо `dssh -72 vnc.server.with.sshd.dssh` лучше `dssh -j72 -J host.dssh.sshd`.
-10. Режим посредника на dssh-сервере с direct.accesible.dssh `dssh`. Приятно, что посредник ssh-j.com используется только при подключении. После подключения трафик через него не идёт. 
-10.1 Запустим Наблюдателя vncviewer локально 127.0.0.1:2 `dssh -072` 
-10.2 Подключим Показывающего к перенесённому Наблюдателю `dssh -s72`.
-10.3 С любого хоста запустим Наблюдателя c переносом на dssh-сервер `dssh -j072` это то же что [10.1] `dssh -072` + `dssh -jNR127.0.0.1:5502:127.0.0.1:5502`.
-10.4 С любого хоста подключим Показывающего к перенесённому Наблюдателю `dssh -js70` это то же что [10.2] `dssh -s72` + `dssh -jNR127.0.0.1:5502:127.0.0.1:5502`.
-10.5 С любого хоста запустим Наблюдателя c переносом на sshd-сервер sshd:2  `dssh -072 sshd` это то же что [10.1] `dssh -072` + `dssh -NR127.0.0.1:5502:127.0.0.1:5502 sshd`.
-10.6 С любого хоста подключим Показывающего к перенесённому Наблюдателю на sshd:2 `dssh -s72 sshd` это то же что [10.2] `dssh -s72` + `dssh -NR127.0.0.1:5502:127.0.0.1:5502 sshd`.
+4. Если роутер настроен для переноса порта 2200 c dssh.wan на dssh.lan:2200 и на нём запущен `dssh` и установлен vnc-сервер то увидеть рабочий стол c vncviewer.wan можно командой `dssh -77 .` или `dssh -j77`. Примерно как в [viewWindowsServerDirect](viewWindowsServerDirect.bat) [viewLinuxServerDirect](viewLinuxServerDirect.bat).
+5. Если роутер настроен для переноса порта 2200 c vncviewer.wan на vncviewer.lan:2200 и на нём установлен dssh и vnc-клиент, а на dssh.wan запущен `dssh` и установлен vnc-сервер то увидеть рабочий стол можно c vncviewer.lan командой `dssh -77 .` - магия. Примерно как в [viewWindowsServerOverDirectClient](viewWindowsServerOverDirectClient.bat) [viewLinuxServerOverDirectClient](viewLinuxServerOverDirectClient.bat).
+6. Если роутер настроен для переноса порта 22 c sshd.wan на sshd.lan:22 и на нём запущен sshd то чтоб увидень рабочий стол vncserver.wan на vncviewer.wan запустите `dssh -077 sshd.wan` а на vncserver.wan запустите `dssh -s77 sshd.wan`.
+7. Если роутер настроен для переноса порта 2200 c dssh.wan на dssh.lan:2200 и на нём запущен `dssh` то чтоб увидень рабочий стол vncserver.wan на vncviewer.wan запустите `dssh -077 .` а на vncserver.wan запустите `dssh -s77 .`.
 
 # 13. Что делать если запутались в параметрах.
 1. Читать исходники. Иногда исходники и коментарии понятней руководств.

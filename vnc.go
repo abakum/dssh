@@ -44,7 +44,7 @@ func useVNC(portV int, u, dj string) {
 	}
 	lhp := JoinHostPort(LH, portV)
 	s4 := lhp + ":" + lhp
-	args.NoCommand = true
+	args.NoCommand = args.Command == ""
 	args.RemoteForward.UnmarshalText([]byte(s4))
 
 	opts := []string{repo}
@@ -60,6 +60,12 @@ func useVNC(portV int, u, dj string) {
 		}
 		if args.Destination != "" {
 			opts = append(opts, args.Destination)
+		}
+	}
+	if args.Command != "" {
+		opts = append(opts, args.Command)
+		if len(args.Argument) > 0 {
+			opts = append(opts, args.Argument...)
 		}
 	}
 	forw := strings.Join(opts, " ")
@@ -97,13 +103,16 @@ func startViewer(portV int, R bool) (err error) {
 		}
 		time.Sleep(time.Second)
 		vnc.Process.Release()
+		if !isHP(lhp) {
+			return fmt.Errorf("not waiting for connection %s не ожидает подключения", vnc)
+		}
 	}
 	if !R {
 		return
 	}
 	args.Argument = append(args.Argument, "--vnc", vncViewerP)
 	s4 := lhp + ":" + lhp
-	Println("-R", s4)
+	Println(repo, "-R", s4, args.Destination, repo, "--vnc", vncViewerP)
 	args.RemoteForward.UnmarshalText([]byte(s4))
 	return
 }
@@ -171,7 +180,7 @@ func showVNC(ctx context.Context, portV int, directJump bool, destination, u str
 		}
 	}
 	if !isHP(lhp) {
-		print(fmt.Errorf("address not binding - %s не готов для подключения ", lhp))
+		print(fmt.Errorf("not waiting for connection %s не ожидает подключения", lhp))
 		return
 	}
 	var start, conn, killall *exec.Cmd

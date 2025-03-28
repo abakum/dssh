@@ -254,15 +254,12 @@ func main() {
 
 	args.Command = ""
 	args.Argument = []string{}
-	if len(lasts) > 0 {
+	if len(lasts) > 0 && !args.NoCommand {
 		// args.Command = as[0]
 		// args.Argument = as[1:]
 
 		// Так в Linux подставляются переменные среды
 		args.Command = strings.Join(lasts, " ")
-		// if args.ForceTTY {
-		// 	setRaw(&once)
-		// }
 	}
 
 	// log.SetFlags(lf.Flags() | log.Lmicroseconds)
@@ -374,7 +371,6 @@ func main() {
 			}
 		}
 	}
-	emptyCommand := args.Command == "" && !args.NoCommand
 	if args.Use {
 		if portV > 0 && args.Destination == "" && !args.DirectJump {
 			useVNC(portV, "", "")
@@ -391,15 +387,15 @@ func main() {
 				// -20 :
 			}
 		} else {
-			if emptyCommand {
+			if args.Command == "" {
 				// -0 X
 				// Используем консоль sshd-сервера X
 				portT, portW = optS(portT, portW, portV)
 				// X dssh -HH -UU -22 -88
 
-			} else {
+			} else if portV < 0 {
 				args.Use = false
-				Println(fmt.Errorf("option -0 only used without command - ключ -0 используется только если нет команды"))
+				Println(fmt.Errorf("option `--use` disabled by presence of command `%s %v` наличие команды отменяет ключ `--use`", args.Command, args.Argument))
 				// X command
 			}
 		}
@@ -996,7 +992,7 @@ Host ` + SSHJ + ` :
 						}
 						if strings.HasPrefix(cgiJ(ctx, u, ehp), net.JoinHostPort(strings.Join(ips, SEP), p)) {
 							// Удалось подключиться к себе значит перенос в роутере настроен
-							ss = fmt.Sprintf("или WAN "+j, eip)
+							ss = fmt.Sprintf("over - через WAN "+j, eip)
 							// Список слушающих IP для CGI -j
 							eips = append(eips, eip)
 						} else {
@@ -1224,10 +1220,17 @@ Host ` + SSHJ + ` :
 		if isDssh(false) {
 			// -70 .
 			startViewer(portV, true)
-		} else if args.Destination != "" && emptyCommand {
-			// -70 vnc.server.with.sshd
-			startViewer(portV, true)
-			sshVNC(ctx, portV)
+		} else if args.Destination != "" {
+			if args.Command == "" {
+				// -70 vnc.server.with.sshd
+				startViewer(portV, true)
+				sshVNC(ctx, portV)
+			} else {
+				args.VNC = -1
+				portV = portOB(args.VNC, PORTV)
+				vncDirect = false
+				Println(fmt.Errorf("option `--vnc` disabled by presence of command `%s %v` наличие команды отменяет ключ `--vnc`", args.Command, args.Argument))
+			}
 		}
 	}
 	// dssh -HH :
@@ -1288,7 +1291,7 @@ Host ` + SSHJ + ` :
 				cgi(ctx, portT, portW, &args, ser, exit)
 			}
 		} else {
-			if args.Destination != "" && emptyCommand && args.Use {
+			if args.Destination != "" && args.Command == "" && args.Use {
 				// -0 X
 				cgi(ctx, portT, portW, &args, ser, "")
 			} else {
