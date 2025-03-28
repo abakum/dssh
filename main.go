@@ -350,7 +350,7 @@ func main() {
 	portW := portOB(args.Ser2web, PORTW)
 	portV := portOB(args.VNC, PORTV)
 
-	if portV > 0 && args.Destination == "" && !args.DirectJump {
+	if portV > 0 && args.Destination == "" && !args.DirectJump && !args.Use {
 		// -70~> -s70
 		Println(repo, "-s7", portV)
 		shareVNC(ctx, portV, "", "")
