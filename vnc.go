@@ -126,15 +126,13 @@ func shareVNC(ctx context.Context, portV int, u, dj string) {
 	}
 
 	vncViewerHP, stop, disconn := showVNC(ctx, portV, dj != "", d, l, Println)
-	if stop != nil || (vncViewerHP != "" && disconn != nil) {
-		defer func() {
-			if stop != nil {
-				Println(stop, stop.Run())
-			} else if vncViewerHP != "" && disconn != nil {
-				Println(disconn, disconn.Run())
-			}
-		}()
-	}
+	closer.Bind(func() {
+		if stop != nil {
+			Println(stop, stop.Run())
+		} else if vncViewerHP != "" && disconn != nil {
+			Println(disconn, disconn.Run())
+		}
+	})
 	if vncViewerHP == "" {
 		return
 	}

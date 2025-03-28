@@ -2056,7 +2056,7 @@ func getHP(ctx context.Context, once, u string) (s string) {
 // dest=":" Получаем список адресов dssh-сервера через посредника.
 // Иначе получаем список локальных адресов dssh-сервера напрямую.
 func cgiJ(ctx context.Context, u, dest string) (s string) {
-	to, toC := context.WithTimeout(ctx, time.Second*3)
+	to, toC := context.WithTimeout(ctx, time.Second*4)
 	defer toC()
 	opts := []string{"-Tl", u}
 	if dest == ":" || dest == "." {
