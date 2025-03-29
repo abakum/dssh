@@ -318,7 +318,14 @@ func main() {
 	autoDirectJump := ""
 	ctx, cancel := context.WithCancel(context.Background())
 	defer closer.Close()
-	closer.Bind(cleanup)
+	closer.Bind(func() {
+		// winssh.KidsDone(os.Getpid())
+		// time.Sleep(time.Millisecond * 111)
+		Println("\r\ncleanup")
+		<-ctx.Done()
+		KidsDone(os.Getpid())
+		Println("cleanup done" + DECTCEM + EL) // показать курсор, очистить строку
+	})
 	closer.Bind(cancel)
 
 	// -j  Это автообход посредника для dssh-сервера с внешним IP и `dssh`
@@ -1358,13 +1365,6 @@ func isFileExist(path string) bool {
 		return false
 	}
 	return true
-}
-
-func cleanup() {
-	// winssh.KidsDone(os.Getpid())
-	time.Sleep(time.Millisecond * 111)
-	KidsDone(os.Getpid())
-	Println("cleanup done" + DECTCEM + EL) // показать курсор, очистить строку
 }
 
 func FingerprintSHA256(pubKey ssh.PublicKey) string {
