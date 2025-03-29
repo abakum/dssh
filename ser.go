@@ -32,7 +32,9 @@ var (
 	ErrNotSerial          = fmt.Errorf("this is not a serial port - это не последовательный порт")
 )
 
-// Ищем первый USB порт
+// Возвращаем имя первого не занятого порта.
+// Список всех портов.
+// Режим найденног порта.
 func getFirstSerial(isUSB bool, Baud string) (name, list string, mode serial.Mode) {
 	detailedPorts, err := enumerator.GetDetailedPortsList()
 	if err != nil || len(detailedPorts) == 0 {
@@ -91,6 +93,8 @@ func getMode(name string) (mode serial.Mode) {
 	return
 }
 
+// Ищем первый не занятый USB порт.
+// Выводим список всех портов.
 func getFirstUsbSerial(serialPort, Baud string, print func(v ...any)) (ser string, mode serial.Mode) {
 	ser = serialPort
 	mode = ser2net.DefaultMode

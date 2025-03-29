@@ -1774,6 +1774,7 @@ func KidsDone(ppid int) {
 // Даже если параметр --2217 не задан.
 func comm(serial, s2 string, portT, portW int) int {
 	if serial == "" {
+		// Занят
 		port := portT
 		url := "telnet"
 		if portW > 0 {
@@ -1785,11 +1786,7 @@ func comm(serial, s2 string, portT, portW int) int {
 			portT = PORTT
 			port = PORTT
 		}
-		if serial != "" {
-			Println(fmt.Sprintf("we will try to use %q over - будем пробовать использовать %s через %s://%s:%d", serial, serial, url, s2, port))
-		} else {
-			Println(fmt.Sprintf("we will try to use - будем пробовать использовать %s://%s:%d", url, s2, port))
-		}
+		Println(fmt.Sprintf("we will try to use - будем пробовать использовать %s://%s:%d", url, s2, port))
 	}
 	return portT
 }
@@ -2057,7 +2054,7 @@ func getHP(ctx context.Context, once, u string) (s string) {
 // dest=":" Получаем список адресов dssh-сервера через посредника.
 // Иначе получаем список локальных адресов dssh-сервера напрямую.
 func cgiJ(ctx context.Context, u, dest string) (s string) {
-	to, toC := context.WithTimeout(ctx, time.Second*4)
+	to, toC := context.WithTimeout(ctx, time.Second*3)
 	defer toC()
 	opts := []string{"-Tl", u}
 	if dest == ":" || dest == "." {
