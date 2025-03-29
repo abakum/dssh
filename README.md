@@ -197,6 +197,7 @@ dssh:=(tssh from trzsz)+(CA key with embed-encrypt)+(sshd from gliderlabs)+(acce
 5. Если роутер настроен для переноса порта 2200 c vncviewer.wan на vncviewer.lan:2200 и на нём установлен dssh и vnc-клиент, а на dssh.wan запущен `dssh` и установлен vnc-сервер то увидеть рабочий стол можно c vncviewer.lan командой `dssh -77 .` или `dssh -j77` - магия. Примерно как в [viewWindowsServerOverDirectClient](viewWindowsServerOverDirectClient.bat) [viewLinuxServerOverDirectClient](viewLinuxServerOverDirectClient.bat).
 6. Если на sshd.lan запущен sshd то чтоб увидень рабочий стол vncserver.lan на vncviewer.lan запустите `dssh -077 sshd.lan` а на vncserver.wan запустите `dssh -s77 sshd.lan`. Режим sshd посредника.
 7. Если роутер настроен для переноса порта 2200 c dssh.wan на dssh.lan:2200 и на нём запущен `dssh` то чтоб увидень рабочий стол vncserver.wan на vncviewer.wan запустите `dssh -077 .` а на vncserver.wan запустите `dssh -s77 .`. Режим dssh посредника.
+8. Можно миксовать запуск vnc-клиента и vnc-сервера. 
 
 # 13. Что делать если запутались в параметрах.
 1. Читать исходники. Иногда исходники и коментарии понятней руководств.

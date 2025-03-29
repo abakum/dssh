@@ -318,10 +318,11 @@ func main() {
 	autoDirectJump := ""
 	ctx, cancel := context.WithCancel(context.Background())
 	defer closer.Close()
+	// cleanup
 	closer.Bind(func() {
 		// winssh.KidsDone(os.Getpid())
 		// time.Sleep(time.Millisecond * 111)
-		Println("\r\ncleanup")
+		Println("cleanup")
 		<-ctx.Done()
 		KidsDone(os.Getpid())
 		Println("cleanup done" + DECTCEM + EL) // показать курсор, очистить строку
