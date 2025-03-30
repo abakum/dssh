@@ -712,7 +712,6 @@ func main() {
 		}
 		if portW > 0 {
 			if portT > 0 {
-				// Println(repo, "-H", ser, "-2", portT)
 				go func() {
 					setRaw(&once)
 					Println(rfc2217(ctx, ioc, ser, s2, portT, args.Baud, exit, Println))
@@ -723,8 +722,8 @@ func main() {
 				ser = JoinHostPort(s2, portT)
 			}
 			if hp := newHostPort(dial, portW, ser); isHP(hp.dest()) {
-				print(repo, "-H", hp.dest())
 				// Подключаемся к существующему сеансу
+				print(repo, "-H", hp.dest())
 				hp.read()
 				Println(hp.String())
 
@@ -733,12 +732,12 @@ func main() {
 				Println(browse(ctx, dial, portW, cancel))
 				return
 			}
-			// Стартуем веб сервер
 			t := time.AfterFunc(time.Second*2, func() {
 				Println(browse(ctx, dial, portW, nil))
 			})
 			defer t.Stop() // Если не успел стартануть то и не надо
 
+			// Стартуем веб сервер
 			setRaw(&once)
 			if portT > 0 {
 				Println(s2w(ctx, nil, nil, ser, s2, portW, args.Baud, "", PrintNil))
@@ -747,7 +746,6 @@ func main() {
 				Println(s2w(ctx, ioc, nil, ser, s2, portW, args.Baud, ". или ^C", Println))
 			}
 		} else {
-			// Println(repo, "-H", ser, "-2", portT)
 			setRaw(&once)
 			Println(rfc2217(ctx, ioc, ser, s2, portT, args.Baud, exit, Println))
 		}

@@ -232,8 +232,6 @@ func server(u, h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any),
 			}
 			if portT > 0 && portW < 0 {
 				// dssh -22 :
-				// p2 := portOB(portT, RFC2217)
-				// dssh -22 :
 				// dssh -22 .
 				print(rfc2217(s.Context(), s, ser, s2, portT, args.Baud, args.Exit, ps...))
 				return
@@ -248,8 +246,8 @@ func server(u, h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any),
 					ser = JoinHostPort(s2, portT)
 				}
 				if hp := newHostPort(s2, portW, ser); isHP(hp.dest()) {
-					print(repo, "-H", hp.dest())
 					// Подключаемся к существующему сеансу
+					print(repo, "-H", hp.dest())
 					hp.read()
 					print(hp.String())
 
