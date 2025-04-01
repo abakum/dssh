@@ -993,6 +993,7 @@ Host ` + SSHJ + ` :
 			}
 			var once sync.Once
 			for {
+				// Перезапуск ssh-клиента для ssh-j
 				ss, eip, m := "", "", ""
 				eips = []string{}
 				j := "\t`" + imag + " -j %s`"
@@ -1074,6 +1075,8 @@ Host ` + SSHJ + ` :
 						}()
 					})
 				}
+				// Println(ToExitPress, CtrC)
+				Println(ToExitPress, Enter)
 				if !lhListen {
 					return
 				}
@@ -1100,7 +1103,12 @@ Host ` + SSHJ + ` :
 		if os.WriteFile(tmpU, []byte{}, FILEMODE) == nil {
 			closer.Bind(func() { os.Remove(tmpU) })
 		}
+		go func() {
+			os.Stdin.Read([]byte{0})
+			closer.Close()
+		}()
 		for {
+			// Перезапуск dssh-сервера
 			Println(fmt.Sprintf("%s daemon waiting on - сервер ожидает на %s:%s -l %s", repo, h, p, u))
 			psPrint(filepath.Base(exe), "", 0, Println)
 			// exit := server(s2, p, repo, s2, signer, Println, Print)

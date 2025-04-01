@@ -28,7 +28,13 @@ var (
 	vncviewer        = os.Getenv("VNC_VIEWER")
 )
 
-// Ожидает подключения  vnc-сервера через порт 127.0.0.1:portV или через `dssh -l u -j destination` или `dssh -l u destination` или `dssh destination`
+// Ожидает подключения  vnc-сервера через порт 127.0.0.1:portV или
+//
+//	через `dssh -l u -j destination` или
+//
+// `dssh -l u destination` или
+// `dssh destination`.
+// -077
 func useVNC(portV int, u, dj string) {
 	err := startViewer(portV, false)
 	if err != nil {
@@ -67,7 +73,13 @@ func useVNC(portV int, u, dj string) {
 	}
 	forw := strings.Join(opts, " ")
 	Println(forw)
-	Println(ToExitPress, CtrC)
+	// Println(ToExitPress, CtrC)
+	go func() {
+		Println(ToExitPress, Enter)
+		os.Stdin.Read([]byte{0})
+		closer.Close()
+	}()
+
 	Println(forw, tssh.Tssh(&args), "done")
 
 	// forw := exec.CommandContext(ctx, repo, opts...)
@@ -116,7 +128,9 @@ func startViewer(portV int, R bool) (err error) {
 	return
 }
 
-// Запускает vnc-сервер и мониторит 127.0.0.1:portV
+// Запускает vnc-сервер
+// мониторит 127.0.0.1:portV
+// или Enter
 func shareVNC(ctx context.Context, portV int, u, dj string) {
 	d := args.Destination
 	l := args.LoginName
@@ -136,7 +150,13 @@ func shareVNC(ctx context.Context, portV int, u, dj string) {
 	if vncViewerHP == "" {
 		return
 	}
-	Println(ToExitPress, CtrC)
+	// Println(ToExitPress, CtrC)
+	go func() {
+		Println(ToExitPress, Enter)
+		os.Stdin.Read([]byte{0})
+		closer.Close()
+	}()
+
 	switch runtime.GOOS {
 	case "windows", "linux":
 		established(ctx, vncViewerHP, true, Println)
@@ -148,7 +168,7 @@ func shareVNC(ctx context.Context, portV int, u, dj string) {
 // Показывает vnc-клиенту через порт 127.0.0.1:portV
 // или через `dssh -l u -j destination`
 // или `dssh -l u destination`
-// или `dssh destination`
+// или `dssh destination`.
 func showVNC(ctx context.Context, portV int, directJump bool, destination, u string, print func(a ...any)) (vncViewerHP string, stop, disconn *exec.Cmd) {
 	// -70 -j x
 	// -70

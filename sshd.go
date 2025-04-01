@@ -50,8 +50,6 @@ func server(u, h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any),
 	if isHP(net.JoinHostPort(h, p)) {
 		return fmt.Sprintf("Already used - Уже используется %s:%s -l %s", h, p, u)
 	}
-	tt = time.AfterFunc(time.Second, func() { Println(ToExitPress, CtrC) })
-	defer tt.Stop()
 
 	authorizedKeys := FileToAuthorized(filepath.Join(SshUserDir, "authorized_keys"), signer.PublicKey())
 
