@@ -30,16 +30,13 @@ var (
 
 // Ожидает подключения  vnc-сервера через порт 127.0.0.1:portV или через `dssh -l u -j destination` или `dssh -l u destination` или `dssh destination`
 func useVNC(portV int, u, dj string) {
-	// if portV < 0 || (args.DirectJump && args.Destination == "") {
-	// 	return
-	// }
 	err := startViewer(portV, false)
 	if err != nil {
 		Println(err)
 	}
-	Println(ToExitPress, CtrC)
 	if args.Destination == "" {
-		closer.Hold()
+		Println(ToExitPress, Enter)
+		os.Stdin.Read([]byte{0})
 		return
 	}
 	lhp := JoinHostPort(LH, portV)
@@ -70,6 +67,7 @@ func useVNC(portV int, u, dj string) {
 	}
 	forw := strings.Join(opts, " ")
 	Println(forw)
+	Println(ToExitPress, CtrC)
 	Println(forw, tssh.Tssh(&args), "done")
 
 	// forw := exec.CommandContext(ctx, repo, opts...)

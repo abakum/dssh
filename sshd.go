@@ -50,7 +50,8 @@ func server(u, h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any),
 	if isHP(net.JoinHostPort(h, p)) {
 		return fmt.Sprintf("Already used - Уже используется %s:%s -l %s", h, p, u)
 	}
-	Println(ToExitPress, CtrlC)
+	tt = time.AfterFunc(time.Second, func() { Println(ToExitPress, CtrC) })
+	defer tt.Stop()
 
 	authorizedKeys := FileToAuthorized(filepath.Join(SshUserDir, "authorized_keys"), signer.PublicKey())
 
@@ -63,13 +64,6 @@ func server(u, h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any),
 		Addr: net.JoinHostPort(h, p),
 		// next for ssh -R host:port:x:x
 		ReversePortForwardingCallback: gl.ReversePortForwardingCallback(func(ctx gl.Context, host string, port uint32) bool {
-			// if host == LH {
-			// 	// Когда dssh-сервер и dssh-клиент на одном хосте
-			// 	if hp := newHostPort(host, int(port), ""); hp.read() == nil && hp.Path == "" {
-			// 		Println("Attempt to bind - Начать слушать", host, port, "denied - отказанно")
-			// 		return false
-			// 	}
-			// }
 			Println("Attempt to bind - Начать слушать", host, port, "granted - позволено")
 			return true
 		}),

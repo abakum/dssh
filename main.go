@@ -1284,6 +1284,7 @@ Host ` + SSHJ + ` :
 					nw(LH, LH)
 					closer.Close()
 				})
+				defer tt.Stop()
 			} else if sw == "t" {
 				Println("Remote console - Консоль", ser, "через", args.Destination)
 				lhp := JoinHostPort(LH, sp)
@@ -1329,7 +1330,8 @@ Host ` + SSHJ + ` :
 			Println("tssh exit with code:", code)
 			if argsShare && tt != nil {
 				Println("Local console - Локальная консоль", ser)
-				closer.Hold()
+				Println(ToExitPress, Enter)
+				os.Stdin.Read([]byte{0})
 			}
 		}
 	}
