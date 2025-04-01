@@ -37,7 +37,7 @@ func useVNC(portV int, u, dj string) {
 	if err != nil {
 		Println(err)
 	}
-	Println(ToExitPress, "<^C>")
+	Println(ToExitPress, CtrC)
 	if args.Destination == "" {
 		closer.Hold()
 		return
@@ -138,7 +138,7 @@ func shareVNC(ctx context.Context, portV int, u, dj string) {
 	if vncViewerHP == "" {
 		return
 	}
-	Println(ToExitPress, "<^C>")
+	Println(ToExitPress, CtrC)
 	switch runtime.GOOS {
 	case "windows", "linux":
 		established(ctx, vncViewerHP, true, Println)

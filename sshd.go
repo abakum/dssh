@@ -33,7 +33,9 @@ type cgiArgs struct {
 	Debug      bool   `arg:"-v,--debug" help:"verbose mode for debugging, similar to ssh's -v"`
 	Unix       bool   `arg:"-z,--unix" help:"zero new window"`
 	VNC        int    `arg:"-7,--vnc" placeholder:"vncViewerListenPort" help:"port of reverse vnc-client from 'vncviewer -listen [vncViewerListenPort]'" default:"-1"`
-	DirectJump string `arg:"-j,--" placeholder:"host[:port]" help:"if ':' then send csv of listen ip else host[:port] of direct accesible dssh"`
+	DirectJump string `arg:"-j,--" placeholder:"host[:port]" help:"direct accesible dssh"`
+	Eips       bool   `arg:"--eips" help:"send csv external ip and local ips"`
+	Ips        bool   `arg:"--ips" help:"send csv local ips"`
 }
 
 var Exit string
@@ -48,7 +50,7 @@ func server(u, h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any),
 	if isHP(net.JoinHostPort(h, p)) {
 		return fmt.Sprintf("Already used - Уже используется %s:%s -l %s", h, p, u)
 	}
-	Println(ToExitPress, "<^C>")
+	Println(ToExitPress, CtrlC)
 
 	authorizedKeys := FileToAuthorized(filepath.Join(SshUserDir, "authorized_keys"), signer.PublicKey())
 
@@ -177,9 +179,9 @@ func server(u, h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any),
 			}
 		}
 
-		if args.DirectJump == ":" || args.DirectJump == "." {
+		if args.Eips || args.Ips {
 			xs := eips[:]
-			if args.DirectJump == "." {
+			if args.Ips {
 				xs = ips[:]
 			}
 			csv := net.JoinHostPort(strings.Join(xs, SEP), p)
@@ -266,7 +268,7 @@ func server(u, h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any),
 			// dssh -UU :
 			print(cons(s.Context(), s, ser, args.Baud, args.Exit, ps...))
 		case vncViewerHP != "":
-			lss.Println(ToExitPress, "any key - любую клавишу")
+			lss.Println(ToExitPress, Enter)
 			go func() {
 				_, _ = s.Read([]byte{0})
 				s.Close()

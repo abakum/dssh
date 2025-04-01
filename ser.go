@@ -179,7 +179,7 @@ func (w *sideWriter) Write(pp []byte) (int, error) {
 			p = []byte{BackSpace}
 		}
 		w.Write1(p)
-		return 0, fmt.Errorf(`<Enter>%c. was pressed`, w.t)
+		return 0, fmt.Errorf(Enter+`%c. was pressed`, w.t)
 	case w.name != "" && bytes.Contains(p, []byte{'\r', w.t}):
 		// w.println(mess("", w.exit))
 		fmt.Fprint(os.Stderr, "\a")
@@ -257,7 +257,7 @@ func mess(exit, serial string) string {
 	}
 	l1 := "(" + serial + ") " + ToExitPress + " " + exit
 	esc := ""
-	if strings.HasPrefix(exit, "<Enter>") {
+	if strings.HasPrefix(exit, Enter) {
 		esc = exit[:8]
 	}
 	if strings.Contains(serial, "$") || serial == "" {

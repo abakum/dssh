@@ -102,6 +102,8 @@ const (
 	PORTV    = 5500
 	LockFile = "lockfile"
 	SEP      = ","
+	Enter    = "<Enter>"
+	CtrC     = "<^C>"
 )
 
 var (
@@ -123,7 +125,7 @@ var (
 	ZerroNewWindow = os.Getenv("SSH_CONNECTION") != ""
 	tmp            = filepath.Join(os.TempDir(), repo)
 	ips            = ser2net.Ints()
-	EED            = "<Enter>~."
+	EED            = Enter + "~."
 	EEDE           = EED
 	ioc            = ser2net.ReadWriteCloser{Reader: os.Stdin, WriteCloser: os.Stdout, Cygwin: Cygwin}
 	listen         = strconv.Itoa(PORTS)
@@ -283,6 +285,7 @@ func main() {
 	}
 
 	cli := fmt.Sprint(args.Option) != "{map[]}"
+	// cli, daemon := cliDaemon()
 	enableTrzsz := "yes"
 	switch strings.ToLower(args.EscapeChar) {
 	case "":
@@ -293,7 +296,7 @@ func main() {
 	}
 	args.Option.UnmarshalText([]byte("EscapeChar=" + args.EscapeChar))
 
-	EED = "<Enter>" + args.EscapeChar + "."
+	EED = Enter + args.EscapeChar + "."
 	exit := " или <^D>"
 	if Windows {
 		exit = " или <^Z>"
@@ -318,15 +321,13 @@ func main() {
 	autoDirectJump := ""
 	ctx, cancel := context.WithCancel(context.Background())
 	defer closer.Close()
-	// cleanup
-	closer.Bind(func() {
-		// winssh.KidsDone(os.Getpid())
-		// time.Sleep(time.Millisecond * 111)
+	cleanup := func() {
 		Println("cleanup")
 		<-ctx.Done()
 		KidsDone(os.Getpid())
 		Println("cleanup done" + DECTCEM + EL) // показать курсор, очистить строку
-	})
+	}
+	closer.Bind(cleanup)
 	closer.Bind(cancel)
 
 	// -j  Это автообход посредника для dssh-сервера с внешним IP и `dssh`
@@ -728,7 +729,7 @@ func main() {
 				Println(hp.String())
 
 				go cancelByFile(ctx, cancel, hp.name(), TOW)
-				Println(ToExitPress, "<^C>")
+				Println(ToExitPress, CtrC)
 				Println(browse(ctx, dial, portW, cancel))
 				return
 			}
@@ -831,9 +832,9 @@ Host ` + SSHJ + ` :
 							if bin == BUSYBOX {
 								ec = "e"
 							}
-							exit := "<^Q>" + ec + "<Enter>"
+							exit := "<^Q>" + ec + Enter
 							if Cygwin && !Win7 {
-								exit = "<^C>"
+								exit = CtrC
 							}
 							Println(cmdRun(cmd, ctx, nil, false, ser, s2, portT, args.Baud, exit, PrintNil))
 							return
@@ -870,7 +871,7 @@ Host ` + SSHJ + ` :
 					cmd.Stderr = os.Stdout
 					cmd.Stdin = os.Stdin
 					// Println("-u || -zu || extSer")
-					exit := "<^C>"
+					exit := CtrC
 					switch bin {
 					case PUTTY:
 						if Win7 && Cygwin {
@@ -994,7 +995,7 @@ Host ` + SSHJ + ` :
 			for {
 				ss, eip, m := "", "", ""
 				eips = []string{}
-				j := "`" + imag + " -j %s`"
+				j := "\t`" + imag + " -j %s`"
 				if ips[0] != LH && (s2 == ALL || s2 == ips[0]) {
 					// Есть Сеть и слушаем не только на лупбэке
 					eip, m, err = GetExternalIP(time.Second, "stun.sipnet.ru:3478", "stun.l.google.com:19302", "stun.fitauto.ru:3478")
@@ -1006,7 +1007,7 @@ Host ` + SSHJ + ` :
 						}
 						if strings.HasPrefix(cgiJ(ctx, u, ehp), net.JoinHostPort(strings.Join(ips, SEP), p)) {
 							// Удалось подключиться к себе значит перенос в роутере настроен
-							ss = fmt.Sprintf("over - через WAN "+j, eip)
+							ss = fmt.Sprintf("\t%s\t\t\t\t\t\t"+j+" over - через WAN", imag, eip)
 							// Список слушающих IP для CGI -j
 							eips = append(eips, eip)
 						} else {
@@ -1020,12 +1021,12 @@ Host ` + SSHJ + ` :
 					eips = append(eips, s2)
 				}
 				Println("to connect use - чтоб подключится используй:")
-				lan := "over - через LAN "
+				lan := " over - через LAN"
 				if hp == ":" {
-					lan = "local - локально "
+					lan = " local - локально"
 				}
-				Println(fmt.Sprintf("%s `%s .`", prox, imag))
-				Println(fmt.Sprintf(lan+j, hp))
+				Println(fmt.Sprintf("\t%s\t`%s .` %s", imag, imag, prox))
+				Println(fmt.Sprintf("\t%s\t\t"+j+lan, imag, hp))
 				if ss != "" {
 					Println(ss)
 				}
@@ -1202,7 +1203,7 @@ Host ` + SSHJ + ` :
 				}
 			} else {
 				// dssh -u :
-				Println(ToExitPress, "<^C>")
+				Println(ToExitPress, CtrC)
 				run()
 				return
 			}
@@ -1563,6 +1564,7 @@ func cygpath(path string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
+// Завершает процесс с pid
 func PidDone(pid int) {
 	Process, err := os.FindProcess(pid)
 	if err == nil {
@@ -1892,7 +1894,7 @@ func localHost(host string) (ok bool) {
 		return true
 	}
 	for _, ip := range append(ips, "", LH, "_", ALL, "+") {
-		if ip == args.Destination {
+		if ip == host {
 			ok = true
 			return
 		}
@@ -2063,10 +2065,13 @@ func cgiJ(ctx context.Context, u, dest string) (s string) {
 	to, toC := context.WithTimeout(ctx, time.Second*3)
 	defer toC()
 	opts := []string{"-Tl", u}
-	if dest == ":" || dest == "." {
-		opts = append(opts, ":", repo, "-j", dest)
-	} else {
-		opts = append(opts, "-j", dest, repo, "-j", ".")
+	switch dest {
+	case ":":
+		opts = append(opts, ":", repo, "--eips")
+	case ".":
+		opts = append(opts, ":", repo, "--ips")
+	default:
+		opts = append(opts, "-j", dest, repo, "--ips")
 	}
 	cgi := exec.CommandContext(to, repo, opts...)
 	cgi.Stdin = os.Stdin
@@ -2075,7 +2080,65 @@ func cgiJ(ctx context.Context, u, dest string) (s string) {
 	}
 	// createNewConsole(cgi)
 	output, err := cgi.Output()
+	if args.Debug {
+		Println(output, err)
+	}
 	s = string(output)
 	Println(s, err)
 	return
+}
+
+func cliDaemon() (cli, daemon bool) {
+	if args.Daemon { // dssh -d x
+		return false, true
+	}
+
+	_, h, _ := ParseDestination(args.Destination)
+	cli = args.Command != "" ||
+		args.ForwardAgent ||
+		args.NoForwardAgent ||
+		args.DisableTTY ||
+		args.ForceTTY ||
+		args.IPv4Only ||
+		args.IPv6Only ||
+		args.Gateway ||
+		args.Background ||
+		args.NoCommand ||
+		// args.Port != 0 ||
+		// args.LoginName != "" ||
+		fmt.Sprint(args.Identity) != "{[]}" ||
+		args.CipherSpec != "" ||
+		args.ConfigFile != "" ||
+		args.ProxyJump != "" ||
+		fmt.Sprint(args.Option) != "{map[]}" ||
+		args.StdioForward != "" ||
+		fmt.Sprint(args.DynamicForward) != "{[]}" ||
+		fmt.Sprint(args.LocalForward) != "{[]}" ||
+		fmt.Sprint(args.RemoteForward) != "{[]}" ||
+		args.X11Untrusted ||
+		args.NoX11Forward ||
+		args.X11Trusted ||
+		args.Reconnect ||
+		args.DragFile ||
+		args.TraceLog ||
+		args.Relay ||
+		args.Zmodem ||
+		args.Putty ||
+		// args.Baud != "" ||
+		// args.Serial != "" ||
+		// args.Ser2net != -1 ||
+		// args.Ser2web != -1 ||
+		// args.Stop ||
+		// args.Restart ||
+		// args.Unix ||
+		// args.Telnet ||
+		args.EscapeChar != "" ||
+		args.Socks5 ||
+		args.DirectJump ||
+		// args.Share ||
+		// args.Use ||
+		// args.VNC != -1 ||
+		!localHost(h) || // dssh {_ + local LH ALL ""}
+		false
+	return cli, !cli
 }
