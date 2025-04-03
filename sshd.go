@@ -46,15 +46,13 @@ var Exit string
 // signer ключ ЦС,
 // authorizedKeys замки разрешённых пользователей,
 // CertCheck имя разрешённого пользователя в сертификате.
-func server(u, h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Print func(v ...any)) string { //, authorizedKeys []gl.PublicKey
+func server(ctx context.Context, cancel context.CancelFunc, u, h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Print func(v ...any)) string { //, authorizedKeys []gl.PublicKey
+	defer cancel()
 	if isHP(net.JoinHostPort(h, p)) {
 		return fmt.Sprintf("Already used - Уже используется %s:%s -l %s", h, p, u)
 	}
 
 	authorizedKeys := FileToAuthorized(filepath.Join(SshUserDir, "authorized_keys"), signer.PublicKey())
-
-	ctxRWE, caRW := context.WithCancel(context.Background())
-	defer caRW()
 
 	ForwardedTCPHandler := &gl.ForwardedTCPHandler{}
 
@@ -203,7 +201,7 @@ func server(u, h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any),
 		portW := portOB(args.Ser2web, PORTW)
 		switch {
 		case args.Restart:
-			caRW()
+			cancel()
 		case args.Baud != "" || args.Serial != "" || portT > 0 || portW > 0:
 			// Покажу клиенту и на сервере протокол на стороне сервера
 			ser, _ := getFirstUsbSerial(args.Serial, args.Baud, lss.Print)
@@ -261,10 +259,11 @@ func server(u, h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any),
 			print(cons(s.Context(), s, ser, args.Baud, args.Exit, ps...))
 		case vncViewerHP != "":
 			lss.Println(ToExitPress, Enter)
-			go func() {
-				_, _ = s.Read([]byte{0})
-				s.Close()
-			}()
+			go holdSession(s)
+			// go func() {
+			// 	_, _ = s.Read([]byte{0})
+			// 	s.Close()
+			// }()
 			switch runtime.GOOS {
 			case "windows", "linux":
 				established(s.Context(), vncViewerHP, true, Println)
@@ -275,7 +274,7 @@ func server(u, h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any),
 				print(disconn, disconn.Run())
 			}
 		case args.Exit != "":
-			caRW()
+			cancel()
 			Exit = args.Exit
 		}
 	})
@@ -288,17 +287,17 @@ func server(u, h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any),
 	switch runtime.GOOS {
 	case "windows", "linux":
 		go func() {
-			watch(ctxRWE, caRW, sa, Print)
-			Println("local done")
+			watch(ctx, cancel, sa, Print)
+			// Println(sa, "done")
 			server.Close()
 		}()
 		if !all {
-			go established(ctxRWE, sa, false, Print)
+			go established(ctx, sa, false, Print)
 		}
 	case "darwin":
 		go func() {
-			watchDarwin(ctxRWE, caRW, sa, Print)
-			Println("local done")
+			watchDarwin(ctx, cancel, sa, Print)
+			// Println(sa, "done")
 			server.Close()
 		}()
 		noidle()
@@ -570,4 +569,9 @@ func SessionRequestCallback(s gl.Session, requestType string) bool {
 	}
 	Println(s.RemoteAddr(), requestType, s.RawCommand())
 	return true
+}
+
+func holdSession(s gl.Session) {
+	s.Read([]byte{0})
+	s.Close()
 }

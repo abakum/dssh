@@ -41,8 +41,9 @@ func useVNC(portV int, u, dj string) {
 		Println(err)
 	}
 	if args.Destination == "" {
-		Println(ToExitPress, Enter)
-		os.Stdin.Read([]byte{0})
+		// Println(ToExitPress, Enter)
+		// os.Stdin.Read([]byte{0})
+		holdClose(false)
 		return
 	}
 	lhp := JoinHostPort(LH, portV)
@@ -73,12 +74,12 @@ func useVNC(portV int, u, dj string) {
 	}
 	forw := strings.Join(opts, " ")
 	Println(forw)
-	// Println(ToExitPress, CtrC)
-	go func() {
-		Println(ToExitPress, Enter)
-		os.Stdin.Read([]byte{0})
-		closer.Close()
-	}()
+	go holdClose(true)
+	// go func() {
+	// 	Println(ToExitPress, Enter)
+	// 	os.Stdin.Read([]byte{0})
+	// 	closer.Close()
+	// }()
 
 	Println(forw, tssh.Tssh(&args), "done")
 
@@ -128,9 +129,9 @@ func startViewer(portV int, R bool) (err error) {
 	return
 }
 
-// Запускает vnc-сервер
-// мониторит 127.0.0.1:portV
-// или Enter
+// Запускает vnc-сервер.
+// Завершает работу по отсутствии связи с 127.0.0.1:portV.
+// Завершает работу по вводу Enter.
 func shareVNC(ctx context.Context, portV int, u, dj string) {
 	d := args.Destination
 	l := args.LoginName
@@ -150,12 +151,12 @@ func shareVNC(ctx context.Context, portV int, u, dj string) {
 	if vncViewerHP == "" {
 		return
 	}
-	// Println(ToExitPress, CtrC)
-	go func() {
-		Println(ToExitPress, Enter)
-		os.Stdin.Read([]byte{0})
-		closer.Close()
-	}()
+	go holdClose(true)
+	// go func() {
+	// 	Println(ToExitPress, Enter)
+	// 	os.Stdin.Read([]byte{0})
+	// 	closer.Close()
+	// }()
 
 	switch runtime.GOOS {
 	case "windows", "linux":
@@ -210,7 +211,7 @@ func showVNC(ctx context.Context, portV int, directJump bool, destination, u str
 		if vncserver == "" {
 			vncserver = vncserverWindows
 		}
-		psCount := psPrint(vncserver, "", 0, PrintNil)
+		psCount := psPrint(vncserver, "", 0, print)
 		if psCount < 1 {
 			start = exec.Command(vncserver, "-start")
 			err := start.Run()
@@ -261,8 +262,9 @@ func showVNC(ctx context.Context, portV int, directJump bool, destination, u str
 	return
 }
 
-// Готовит команду для запуска на стороне sshd
-// и мониторит 127.0.0.1:portV
+// Готовит команду для запуска на стороне sshd.
+// Завершает работу по отсутствии связи с 127.0.0.1:portV.
+// Завершает работу по вводу Enter.
 func sshVNC(ctx context.Context, portV int) {
 	args.Argument = []string{}
 	lhp := JoinHostPort(LH, portV)
@@ -305,4 +307,12 @@ func sshVNC(ctx context.Context, portV int) {
 		}
 		closer.Close()
 	})
+}
+
+func holdClose(close bool) {
+	Println(ToExitPress, Enter)
+	os.Stdin.Read([]byte{0})
+	if close {
+		closer.Close()
+	}
 }

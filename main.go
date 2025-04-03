@@ -45,6 +45,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/abakum/embed-encrypt/encryptedfs"
 	"github.com/abakum/go-ser2net/pkg/ser2net"
@@ -104,6 +105,7 @@ const (
 	SEP      = ","
 	Enter    = "<Enter>"
 	CtrC     = "<^C>"
+	AnyKey   = "Any key - Любую клавишу"
 )
 
 var (
@@ -778,13 +780,7 @@ Host ` + SSHJ + ` :
 				args.Argument = append(args.Argument, RESTART)
 			}
 			if args.Stop {
-				s := winssh.UserName()
-				hostname, err := os.Hostname()
-				if err == nil {
-					s += "@" + hostname
-				}
-				s += " " + winssh.Banner()
-				args.Argument = append(args.Argument, "--exit", s)
+				args.Argument = append(args.Argument, "--exit", userNameAtHostname())
 			}
 		} else {
 			// Println("-UU || -HH || -22 || -88")
@@ -956,6 +952,36 @@ Host ` + SSHJ + ` :
 	// Сервис.
 	if args.Daemon || !cli && daemon {
 		args.Daemon = true
+		os.MkdirAll(tmp, DIRMODE)
+		if os.WriteFile(tmpU, []byte{}, FILEMODE) == nil {
+			closer.Bind(func() { os.Remove(tmpU) })
+		}
+
+		var ctxRWE context.Context
+		var caRWE context.CancelFunc
+		stopped := false
+		holdR := func() {
+			b := make([]byte, 4096)
+			// reader := bufio.NewReader(os.Stdin)
+			for {
+				_, err := os.Stdin.Read(b)
+				// s, err := reader.ReadString('\n')
+				if err != nil {
+					break
+				}
+				// r, _ := utf8.DecodeRuneInString(s)
+				r, _ := utf8.DecodeRune(b)
+				switch r {
+				case 'r', 'R', 'к', 'К':
+					caRWE()
+					continue
+				}
+				break
+			}
+			stopped = true
+			caRWE()
+			// closer.Close()
+		}
 		hh := dial
 		h = s2
 		if p == listen {
@@ -991,97 +1017,98 @@ Host ` + SSHJ + ` :
 					Println(fmt.Errorf("not compatible - не совместимы `--vnc %d  %s`", portV, s2))
 				}
 			}
-			var once sync.Once
-			for {
-				// Перезапуск ssh-клиента для ssh-j
-				ss, eip, m := "", "", ""
-				eips = []string{}
-				j := "\t`" + imag + " -j %s`"
-				if ips[0] != LH && (s2 == ALL || s2 == ips[0]) {
-					// Есть Сеть и слушаем не только на лупбэке
-					eip, m, err = GetExternalIP(time.Second, "stun.sipnet.ru:3478", "stun.l.google.com:19302", "stun.fitauto.ru:3478")
-					if err == nil {
-						Println(m)
-						ehp := net.JoinHostPort(eip, p)
-						if p != listen {
-							eip = ehp
+			// var once sync.Once
+			ss, eip, m := "", "", ""
+			eips = []string{}
+			j := "\t`" + imag + " -j %s`"
+			if ips[0] != LH && (s2 == ALL || s2 == ips[0]) {
+				// Есть Сеть и слушаем не только на лупбэке
+				eip, m, err = GetExternalIP(time.Second, "stun.sipnet.ru:3478", "stun.l.google.com:19302", "stun.fitauto.ru:3478")
+				if err == nil {
+					Println(m)
+					ehp := net.JoinHostPort(eip, p)
+					if p != listen {
+						eip = ehp
+					}
+					if strings.HasPrefix(cgiJ(ctx, u, ehp), net.JoinHostPort(strings.Join(ips, SEP), p)) {
+						// Удалось подключиться к себе значит перенос в роутере настроен
+						ss = fmt.Sprintf("\t%s\t\t\t\t\t\t"+j+" over - через WAN", imag, eip)
+						// Список слушающих IP для CGI -j
+						eips = append(eips, eip)
+					} else {
+						Println(fmt.Errorf("the router does not forward - роутер не переносит %s~>%s", ehp, net.JoinHostPort(ips[0], p)))
+					}
+				}
+			}
+			if s2 == ALL {
+				eips = append(eips, ips...)
+			} else {
+				eips = append(eips, s2)
+			}
+			Println("to connect use - чтоб подключится используй:")
+			lan := " over - через LAN"
+			if hp == ":" {
+				lan = " local - локально"
+			}
+			Println(fmt.Sprintf("\t%s\t`%s .` %s", imag, imag, prox))
+			Println(fmt.Sprintf("\t%s\t\t"+j+lan, imag, hp))
+			if ss != "" {
+				Println(ss)
+			}
+			j = "\t`" + imag + "  -u%s`"
+			if ss != "" {
+				ss = fmt.Sprintf(j, "j "+eip)
+			}
+			Println(fmt.Sprintf("\tPuTTY"+j+j, " .", "j "+hp) + ss)
+			j = "\t`" + imag + " -uz%s`"
+			if ss != "" {
+				ss = fmt.Sprintf(j, "j "+eip)
+			}
+			Println(fmt.Sprintf("\tplink"+j+j, " .", "j "+hp) + ss)
+			j = "\t`" + imag + "  -Z%s`"
+
+			if ss != "" {
+				// WAN
+				ss = fmt.Sprintf(j, "j "+eip)
+			}
+
+			Println(fmt.Sprintf("\tssh"+j+j, " .", "j "+hp) + ss)
+			// Println(ToExitPress, CtrC)
+			Println(ToExitPress, Enter)
+			Println("For restart press - Для перезапуска нажми R" + Enter)
+			if !lhListen {
+				if portV > 0 {
+					// dssh -77 .
+					// dssh -77 _
+					startViewer(portV, false)
+					for _, ip := range eips {
+						if ip == LH {
+							continue
 						}
-						if strings.HasPrefix(cgiJ(ctx, u, ehp), net.JoinHostPort(strings.Join(ips, SEP), p)) {
-							// Удалось подключиться к себе значит перенос в роутере настроен
-							ss = fmt.Sprintf("\t%s\t\t\t\t\t\t"+j+" over - через WAN", imag, eip)
-							// Список слушающих IP для CGI -j
-							eips = append(eips, eip)
-						} else {
-							Println(fmt.Errorf("the router does not forward - роутер не переносит %s~>%s", ehp, net.JoinHostPort(ips[0], p)))
+						// Показывающий на `dssh` или `dssh +`, подключись ко мне. Я Наблюдатель на `dssh _` жду тебя на порту portV на адресе ip
+						cgi := exec.CommandContext(ctx, repo, "-Tl", u, ":", repo, "--vnc", strconv.Itoa(portV), "-j", net.JoinHostPort(ip, p))
+						cgi.Stdin = os.Stdin
+						cgi.Stderr = os.Stderr
+						createNewConsole(cgi)
+						err := cgi.Start()
+						Println(cgi, err)
+						if err == nil {
+							go func() {
+								Println(cgi, cgi.Wait(), "done")
+								closer.Close()
+							}()
+							break
 						}
 					}
 				}
-				if s2 == ALL {
-					eips = append(eips, ips...)
-				} else {
-					eips = append(eips, s2)
-				}
-				Println("to connect use - чтоб подключится используй:")
-				lan := " over - через LAN"
-				if hp == ":" {
-					lan = " local - локально"
-				}
-				Println(fmt.Sprintf("\t%s\t`%s .` %s", imag, imag, prox))
-				Println(fmt.Sprintf("\t%s\t\t"+j+lan, imag, hp))
-				if ss != "" {
-					Println(ss)
-				}
-				j = "\t`" + imag + "  -u%s`"
-				if ss != "" {
-					ss = fmt.Sprintf(j, "j "+eip)
-				}
-				Println(fmt.Sprintf("\tPuTTY"+j+j, " .", "j "+hp) + ss)
-				j = "\t`" + imag + " -uz%s`"
-				if ss != "" {
-					ss = fmt.Sprintf(j, "j "+eip)
-				}
-				Println(fmt.Sprintf("\tplink"+j+j, " .", "j "+hp) + ss)
-				j = "\t`" + imag + "  -Z%s`"
-
-				if ss != "" {
-					// WAN
-					ss = fmt.Sprintf(j, "j "+eip)
-				}
-
-				Println(fmt.Sprintf("\tssh"+j+j, " .", "j "+hp) + ss)
-				if portV > 0 && !lhListen {
-					once.Do(func() {
-						// dssh --vnc 0 _
-						startViewer(portV, false)
-						go func() {
-							for _, ip := range eips {
-								if ip == LH {
-									continue
-								}
-								// Показывающий на `dssh` или `dssh +`, подключись ко мне. Я Наблюдатель на `dssh _` жду тебя на порту portV на адресе ip
-								cgi := exec.CommandContext(ctx, repo, "-Tl", u, ":", repo, "--vnc", strconv.Itoa(portV), "-j", net.JoinHostPort(ip, p))
-								cgi.Stdin = os.Stdin
-								cgi.Stderr = os.Stderr
-								createNewConsole(cgi)
-								err := cgi.Start()
-								Println(cgi, err)
-								if err == nil {
-									Println(cgi, cgi.Wait(), "done")
-									break
-									// return
-								}
-							}
-							closer.Close()
-						}()
-					})
-				}
-				// Println(ToExitPress, CtrC)
-				Println(ToExitPress, Enter)
-				if !lhListen {
-					return
-				}
-				client(signer, signers, local(hh, p, repo)+sshj+sshJ(JumpHost, u, hh, p))
-				args.Destination = JumpHost
+				holdR()
+				return
+			}
+			go holdR()
+			client(signer, signers, local(hh, p, repo)+sshj+sshJ(JumpHost, u, hh, p))
+			args.Destination = JumpHost
+			for {
+				// Перезапуск ssh-клиента для ssh-j
 				// dssh
 				// dssh +
 				Println(s, "has been started - запущен")
@@ -1091,7 +1118,12 @@ Host ` + SSHJ + ` :
 					i = 0
 				} else {
 					Println(fmt.Errorf("%s %d", s, code))
-					if i > 3 || i == 0 {
+					if i == 0 {
+						Println("первая попытка не удачна дальше не пробуем")
+						return
+					}
+					if i > 3 {
+						Println("3 попытки подряд не удачны дальше не пробуем")
 						return
 					}
 					i++
@@ -1099,21 +1131,17 @@ Host ` + SSHJ + ` :
 				time.Sleep(TOR)
 			}
 		})
-		os.MkdirAll(tmp, DIRMODE)
-		if os.WriteFile(tmpU, []byte{}, FILEMODE) == nil {
-			closer.Bind(func() { os.Remove(tmpU) })
-		}
-		go func() {
-			os.Stdin.Read([]byte{0})
-			closer.Close()
-		}()
 		for {
+			ctxRWE, caRWE = context.WithCancel(ctx)
 			// Перезапуск dssh-сервера
 			Println(fmt.Sprintf("%s daemon waiting on - сервер ожидает на %s:%s -l %s", repo, h, p, u))
 			psPrint(filepath.Base(exe), "", 0, Println)
-			// exit := server(s2, p, repo, s2, signer, Println, Print)
+			// exit := server(ctxRWE, caRWE, s2, p, repo, s2, signer, Println, Print)
 			// Доступ к сервисам на dssh-сервере через LH
-			exit := server(u, s2, p, repo, LH, signer, Println, Print)
+			exit := server(ctxRWE, caRWE, u, s2, p, repo, LH, signer, Println, Print)
+			if stopped {
+				exit = userNameAtHostname()
+			}
 			KidsDone(os.Getpid())
 			if exit == "" {
 				Println("the daemon will restart after - сервер перезапустится через", TOR)
@@ -1125,7 +1153,6 @@ Host ` + SSHJ + ` :
 				return
 			}
 			time.Sleep(TOR)
-			ips = ser2net.Ints()
 		}
 	} // Сервис
 
@@ -1338,8 +1365,9 @@ Host ` + SSHJ + ` :
 			Println("tssh exit with code:", code)
 			if argsShare && tt != nil {
 				Println("Local console - Локальная консоль", ser)
-				Println(ToExitPress, Enter)
-				os.Stdin.Read([]byte{0})
+				// Println(ToExitPress, Enter)
+				// os.Stdin.Read([]byte{0})
+				holdClose(false)
 			}
 		}
 	}
@@ -2151,4 +2179,14 @@ func cliDaemon() (cli, daemon bool) {
 		!localHost(h) || // dssh {_ + local LH ALL ""}
 		false
 	return cli, !cli
+}
+
+func userNameAtHostname() (s string) {
+	s = winssh.UserName() + "@"
+	hostname, err := os.Hostname()
+	if err == nil {
+		s += hostname
+	}
+	s += " " + winssh.Banner()
+	return
 }
