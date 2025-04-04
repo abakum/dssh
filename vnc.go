@@ -275,8 +275,13 @@ func sshVNC(ctx context.Context, portV int) {
 		}
 		vncserver = strings.TrimSuffix(strings.ToLower(vncserver), ".exe")
 		args.Command = fmt.Sprintf(
-			"sc query %s|findstr RUNNING&&(%s -controlservice -connect %s&set/p p=Press Enter to disconnect&%s -controlservice -disconnectall&exit)&"+
-				"%s -start&%s -controlservice -connect %s&set/p p=Press Enter to stop&%s -stop",
+			"where %s&&%s -7%d||("+
+				"sc query %s|findstr RUNNING&&("+
+				"%s -controlservice -connect %s&set/p p=Press Enter to disconnect&%s -controlservice -disconnectall"+
+				")||("+
+				"%s -start&%s -controlservice -connect %s&set/p p=Press Enter to stop&%s -stop"+
+				"))",
+			repo, repo, portV-PORTV,
 			vncserver, vncserver, lhp, vncserver,
 			vncserver, vncserver, lhp, vncserver)
 	default:
@@ -288,10 +293,13 @@ func sshVNC(ctx context.Context, portV int) {
 		}
 		display := ":" + strconv.Itoa(portV-PORTV)
 		args.Command = fmt.Sprintf(
-			"%s -SecurityTypes %s %s;"+
+			"which %s&&%s -7%d||("+
+				"%s -SecurityTypes %s %s;"+
 				"which vncconnect&&vncconnect -display %s %s||"+
 				"which vncconfig&&vncconfig -display %s -connect %s&&killall tigervncconfig;"+
-				"echo Press Enter to kill;read -rn1;%s -kill %s",
+				"echo Press Enter to kill;read -rn1;%s -kill %s"+
+				")",
+			repo, repo, portV-PORTV,
 			vncserver, vncSecurityTypes, display,
 			display, lhp,
 			display, lhp,

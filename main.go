@@ -704,9 +704,9 @@ func main() {
 		forwardSTDio(ctx, ioc, args.StdioForward, EEDE, Println)
 		return
 	}
-	nw := func(s2, dial string) {
+	portTW := func(bind, dial string) {
 		if portT > 0 {
-			if hp := JoinHostPort(s2, portT); isHP(hp) {
+			if hp := JoinHostPort(bind, portT); isHP(hp) {
 				Println(repo, "-H", hp)
 			} else {
 				Println(repo, "-H", ser, "-2", portT)
@@ -716,12 +716,12 @@ func main() {
 			if portT > 0 {
 				go func() {
 					setRaw(&once)
-					Println(rfc2217(ctx, ioc, ser, s2, portT, args.Baud, exit, Println))
+					Println(rfc2217(ctx, ioc, ser, bind, portT, args.Baud, exit, Println))
 					closer.Close()
 				}()
 				// Даже если -H: это может быть set2net или hub4com или RouterOS позволяющие только одного клиента
 				time.Sleep(time.Second)
-				ser = JoinHostPort(s2, portT)
+				ser = JoinHostPort(bind, portT)
 			}
 			if hp := newHostPort(dial, portW, ser); isHP(hp.dest()) {
 				// Подключаемся к существующему сеансу
@@ -742,14 +742,14 @@ func main() {
 			// Стартуем веб сервер
 			setRaw(&once)
 			if portT > 0 {
-				Println(s2w(ctx, nil, nil, ser, s2, portW, args.Baud, "", PrintNil))
+				Println(s2w(ctx, nil, nil, ser, bind, portW, args.Baud, "", PrintNil))
 			} else {
 				Println(repo, "-H", ser, "-8", portW)
-				Println(s2w(ctx, ioc, nil, ser, s2, portW, args.Baud, ". или ^C", Println))
+				Println(s2w(ctx, ioc, nil, ser, bind, portW, args.Baud, ". или ^C", Println))
 			}
 		} else {
 			setRaw(&once)
-			Println(rfc2217(ctx, ioc, ser, s2, portT, args.Baud, exit, Println))
+			Println(rfc2217(ctx, ioc, ser, bind, portT, args.Baud, exit, Println))
 		}
 	}
 
@@ -886,7 +886,7 @@ Host ` + SSHJ + ` :
 				// !external && loc
 				if portT > 0 || portW > 0 {
 					// Println("portT > 0 || portW > 0")
-					nw(bind, dial)
+					portTW(bind, dial)
 					return
 				}
 				// Println("-HH || -Hcmd | -H:")
@@ -1136,7 +1136,6 @@ Host ` + SSHJ + ` :
 			// Перезапуск dssh-сервера
 			Println(fmt.Sprintf("%s daemon waiting on - сервер ожидает на %s:%s -l %s", repo, h, p, u))
 			psPrint(filepath.Base(exe), "", 0, Println)
-			// exit := server(ctxRWE, caRWE, s2, p, repo, s2, signer, Println, Print)
 			// Доступ к сервисам на dssh-сервере через LH
 			exit := server(ctxServer, cancelServer, u, bind, p, repo, LH, signer, Println, Print)
 			if stopped {
@@ -1316,11 +1315,10 @@ Host ` + SSHJ + ` :
 					Println("-R", s4)
 					args.RemoteForward.UnmarshalText([]byte(s4))
 				}
-				tt = time.AfterFunc(time.Second, func() {
-					nw(LH, LH)
+				time.AfterFunc(time.Second, func() {
+					portTW(LH, LH)
 					closer.Close()
 				})
-				defer tt.Stop()
 			} else if sw == "t" {
 				Println("Remote console - Консоль", ser, "через", args.Destination)
 				lhp := JoinHostPort(LH, sp)
@@ -1335,7 +1333,7 @@ Host ` + SSHJ + ` :
 				})
 			}
 		}
-		// Println(args.Destination, isDssh(), args.Share)
+		// Println(args.Destination, isDssh(false), args.Share)
 		if isDssh(false) {
 			if args.Share {
 				share()
@@ -1706,7 +1704,7 @@ func cgi(ctx context.Context, portT, portW int, args *SshArgs, serial, exit stri
 	}
 }
 
-func optL(port int, args *SshArgs, s2 string, loc, dot bool) {
+func optL(port int, args *SshArgs, bind string, loc, dot bool) {
 	if port < 0 || loc || args.Share {
 		return
 	}
@@ -1721,7 +1719,7 @@ func optL(port int, args *SshArgs, s2 string, loc, dot bool) {
 			return
 		}
 		// -22 : Используем консоль dssh-сервера
-		s4 := JoinHostPort(LH, port) + ":" + JoinHostPort(s2, port)
+		s4 := JoinHostPort(LH, port) + ":" + JoinHostPort(bind, port)
 		Println("-L", s4)
 		args.LocalForward.UnmarshalText([]byte(s4))
 	}
@@ -1819,7 +1817,7 @@ func KidsDone(ppid int) {
 
 // Если serial занят то запускаем web-сервер или telnet-сервер.
 // Даже если параметр --2217 не задан.
-func comm(serial, s2 string, portT, portW int) int {
+func comm(serial, bind string, portT, portW int) int {
 	if serial == "" {
 		// Занят
 		port := portT
@@ -1833,7 +1831,7 @@ func comm(serial, s2 string, portT, portW int) int {
 			portT = PORTT
 			port = PORTT
 		}
-		Println(fmt.Sprintf("we will try to use - будем пробовать использовать %s://%s:%d", url, s2, port))
+		Println(fmt.Sprintf("we will try to use - будем пробовать использовать %s://%s:%d", url, bind, port))
 	}
 	return portT
 }

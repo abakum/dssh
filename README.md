@@ -1,3 +1,21 @@
+# Copilot's review
+**Purpose of the Repository**
+
+The `dssh` repository aims to combine various functionalities and tools to create a robust SSH-based system for accessing remote and local consoles. It incorporates features from multiple sources such as `tssh`, `embed-encrypt`, `sshd from gliderlabs`, and others to provide secure and versatile access over NAT using jump hosts, and offers support for serial console connections via tools like `ser2net` and `putty`. The README provides detailed instructions on how to access local and remote consoles using different configurations and tools, along with acknowledgments to contributors and projects that inspired or contributed to `dssh`.
+
+**Features and Technologies Used**
+
+The `dssh` repository is implemented primarily in Go, with a small portion in Batchfile. It integrates various technologies and tools to enhance SSH and serial console access functionalities, including:
+- **tssh from trzsz**: Provides foundational SSH functionalities.
+- **embed-encrypt**: Adds certificate authority key management with embedded encryption.
+- **gliderlabs/ssh**: Supplies the SSH server capabilities.
+- **ser2net**: Facilitates serial to network connections, allowing access to serial consoles over the network.
+- **ssh-j.com**: Enables access over NAT using a jump host.
+- **Putty and telnet**: For direct or browser-based connections to serial consoles.
+- **RouterOS and hub4com**: Support for integrating with various hardware and network configurations.
+
+Overall, `dssh` is a comprehensive tool designed for secure and flexible access to consoles, combining multiple open-source projects and technologies to offer a wide range of connectivity options.
+
 # dssh
 
 dssh:=(tssh from trzsz)+(CA key with embed-encrypt)+(sshd from gliderlabs)+(access over NAT using jumphost ssh-j.com)+(ser2net with putty or direct connect to serial console or over browser)
@@ -202,13 +220,13 @@ dssh:=(tssh from trzsz)+(CA key with embed-encrypt)+(sshd from gliderlabs)+(acce
 - vncviewer.sshd.wan - на хосте установлен vnc-клиент и он доступен через WAN как sshd.wan. Наблюдатель глобально через sshd.
 - vncviewer.dssh.wan - на хосте установлен vnc-клиент и он доступен через WAN как dssh.wan. Наблюдатель глобально через dssh.
 
-1. Увидеть рабочий стол vncserver.sshd.lan можно с vncviewer.lan командой `dssh -77 vncserver.sshd.lan`. Если на vncserver.sshd.lan установлен dssh то лучше `dssh -077 vncserver.sshd.lan dssh -77`. 
+1. Увидеть рабочий стол vncserver.sshd.lan можно с vncviewer.lan командой `dssh -77 vncserver.sshd.lan`. Если на vncserver.sshd.lan установлен dssh то используется `dssh -077 vncserver.sshd.lan dssh -77`. 
 2. Увидеть рабочий стол vncserver.dssh.lan можно с vncviewer.lan командой `dssh -077 -j vncserver.dssh.lan dssh -77` или короче `dssh -77 -j vncserver.dssh.lan`.
 3. Если роутер настроен для переноса порта 22 c vncserver.sshd.wan на vncserver.sshd.lan:22 то увидеть его рабочий стол c vncviewer.wan можно командой `dssh -77 vncserver.sshd.wan`.
 4. Если роутер настроен для переноса порта 2200 c vncserver.dssh.wan на vncserver.dssh.lan:2200 то увидеть его рабочий стол c vncviewer.wan можно командой `dssh -77 .`. Примерно как в [viewWindowsServerDirect](viewWindowsServerDirect.bat) [viewLinuxServerDirect](viewLinuxServerDirect.bat).
 5. Если роутер настроен для переноса порта 2200 c vncviewer.dssh.wan на vncviewer.dssh.lan:2200, а на vncserver.dssh.wan запущен `dssh` то увидеть его рабочий стол можно c vncviewer.lan командой `dssh -77 .` - магия. Примерно как в [viewWindowsServerOverDirectClient](viewWindowsServerOverDirectClient.bat) [viewLinuxServerOverDirectClient](viewLinuxServerOverDirectClient.bat).
-6. Чтоб увидеть рабочий стол vncserver.lan запустите на vncviewer.lan `dssh -077 sshd.lan` а на vncserver.lan `dssh -s77 sshd.lan`. Режим локального sshd посредника.
-7. Чтоб увидеть рабочий стол vncserver.dssh.wan запустите на vncviewer.wan `dssh -077 .` а на vncserver.wan `dssh -s77 .`. Режим глобального dssh посредника.
+6. Чтоб увидеть рабочий стол vncserver.lan c vncviewer.lan запустите на vncviewer.lan `dssh -077 sshd.lan` а на vncserver.lan `dssh -s77 sshd.lan`. Режим локального sshd посредника.
+7. Чтоб увидеть рабочий стол vncserver.dssh.wan c vncviewer.wan запустите на vncviewer.wan `dssh -077 .` а на vncserver.wan `dssh -s77 .`. Режим глобального dssh посредника.
 8. Если на vncviewer.sshd.lan запущен sshd то чтоб с vncserver.lan показать свой рабочий стол запустите `dssh vncviewer.sshd.lan dssh -077` а потом `dssh -s77 vncviewer.sshd.lan`. 
 9. Чтоб с vncserver.lan показать свой рабочий стол локальному наблюдателю vncviewer.dssh.lan запустите `dssh -j vncviewer.dssh.lan dssh -077` а потом `dssh -s77 -j vncviewer.dssh.lan`.
 10. Чтоб с vncserver.wan показать свой рабочий стол глобальному наблюдателю vncviewer.dssh.wan запустите `dssh . dssh -077` а потом `dssh -s77 .`.
