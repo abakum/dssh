@@ -41,12 +41,12 @@ type cgiArgs struct {
 var Exit string
 
 // Сервер sshd.
-// h, p хост, порт,
-// repo имя в сертификате,
-// signer ключ ЦС,
-// authorizedKeys замки разрешённых пользователей,
-// CertCheck имя разрешённого пользователя в сертификате.
-func server(ctx context.Context, cancel context.CancelFunc, u, h, p, repo, s2 string, signer ssh.Signer, Println func(v ...any), Print func(v ...any)) string { //, authorizedKeys []gl.PublicKey
+// ctx, cancel для watch established,
+// u, h, - p юзер, хост, порт,
+// repo - имя в сертификате,
+// hTelnet - хост телнета,
+// signer ключ ЦС.
+func server(ctx context.Context, cancel context.CancelFunc, u, h, p, repo, hTelnet string, signer ssh.Signer, Println func(v ...any), Print func(v ...any)) string { //, authorizedKeys []gl.PublicKey
 	defer cancel()
 	if isHP(net.JoinHostPort(h, p)) {
 		return fmt.Sprintf("Already used - Уже используется %s:%s -l %s", h, p, u)
@@ -214,9 +214,9 @@ func server(ctx context.Context, cancel context.CancelFunc, u, h, p, repo, s2 st
 			} else {
 				log.SetOutput(io.Discard)
 			}
-			portT = comm(ser, s2, portT, portW)
+			portT = comm(ser, hTelnet, portT, portW)
 			if portT > 0 {
-				if hp := JoinHostPort(s2, portT); isHP(hp) {
+				if hp := JoinHostPort(hTelnet, portT); isHP(hp) {
 					print(repo, "-H", hp)
 				} else {
 					print(repo, "-H", ser, "-2", portT)
@@ -225,19 +225,19 @@ func server(ctx context.Context, cancel context.CancelFunc, u, h, p, repo, s2 st
 			if portT > 0 && portW < 0 {
 				// dssh -22 :
 				// dssh -22 .
-				print(rfc2217(s.Context(), s, ser, s2, portT, args.Baud, args.Exit, ps...))
+				print(rfc2217(s.Context(), s, ser, hTelnet, portT, args.Baud, args.Exit, ps...))
 				return
 			}
 			if portW > 0 {
 				if portT > 0 {
 					go func() {
-						print(rfc2217(s.Context(), s, ser, s2, portT, args.Baud, args.Exit, ps...))
+						print(rfc2217(s.Context(), s, ser, hTelnet, portT, args.Baud, args.Exit, ps...))
 						s.Close()
 					}()
 					time.Sleep(time.Second)
-					ser = JoinHostPort(s2, portT)
+					ser = JoinHostPort(hTelnet, portT)
 				}
-				if hp := newHostPort(s2, portW, ser); isHP(hp.dest()) {
+				if hp := newHostPort(hTelnet, portW, ser); isHP(hp.dest()) {
 					// Подключаемся к существующему сеансу
 					print(repo, "-H", hp.dest())
 					hp.read()
@@ -248,10 +248,10 @@ func server(ctx context.Context, cancel context.CancelFunc, u, h, p, repo, s2 st
 				}
 
 				if portT > 0 {
-					print(s2w(s.Context(), nil, nil, ser, s2, portW, args.Baud, "", PrintNil))
+					print(s2w(s.Context(), nil, nil, ser, hTelnet, portW, args.Baud, "", PrintNil))
 				} else {
 					print(repo, "-H", ser, "-8", portW)
-					print(s2w(s.Context(), s, nil, ser, s2, portW, args.Baud, ". или <^C>", ps...))
+					print(s2w(s.Context(), s, nil, ser, hTelnet, portW, args.Baud, ". или <^C>", ps...))
 				}
 				return
 			}

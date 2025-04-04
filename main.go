@@ -45,7 +45,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unicode/utf8"
 
 	"github.com/abakum/embed-encrypt/encryptedfs"
 	"github.com/abakum/go-ser2net/pkg/ser2net"
@@ -352,7 +351,7 @@ func main() {
 
 	u, h, p := ParseDestination(args.Destination) //tssh
 	p = portPB(p, PORTS)
-	s2, dial := host2LD(h)
+	bind, dial := host2BD(h)
 	u = setU(u)
 	tmpU := filepath.Join(tmp, u)
 	// dot := psPrint(filepath.Base(exe), "", 0, PrintNil) > 1 && isFileExist(tmpU)
@@ -431,7 +430,7 @@ func main() {
 			vncDirect = false
 			args.Destination = "_"
 			loc = true
-			s2, dial = host2LD(args.Destination)
+			bind, dial = host2BD(args.Destination)
 			// Println(repo, args.Destination)
 			// -70 _
 		} else {
@@ -442,8 +441,8 @@ func main() {
 		}
 	}
 
-	optL(portT, &args, s2, loc, dot)
-	optL(portW, &args, s2, loc, dot)
+	optL(portT, &args, bind, loc, dot)
+	optL(portW, &args, bind, loc, dot)
 
 	external := args.Putty || args.Telnet
 
@@ -528,7 +527,7 @@ func main() {
 		}
 		djh, djp, err = net.SplitHostPort(dj)
 		if err == nil {
-			s2, dial = host2LD(djh)
+			bind, dial = host2BD(djh)
 			djh = dial
 			// if args.Command != "" {
 			// 	args.Command = args.Destination + " " + args.Command
@@ -685,7 +684,7 @@ func main() {
 			ser, sw, _, _ = swSerial(usbSerial, true)
 			SP = ser == "" || sw == "s"
 			BSnw = BSnw || ser != ""
-			portT = comm(ser, s2, portT, portW)
+			portT = comm(ser, bind, portT, portW)
 			BSnw = BSnw || portT > 0 || portW > 0
 		}
 	}
@@ -817,7 +816,7 @@ Host ` + SSHJ + ` :
 							if !ZerroNewWindow && Windows {
 								if !Win7 {
 									createNewConsole(cmd)
-									Println(cmdRun(cmd, ctx, os.Stdin, false, ser, s2, portT, args.Baud, exit, Println))
+									Println(cmdRun(cmd, ctx, os.Stdin, false, ser, bind, portT, args.Baud, exit, Println))
 									return
 								}
 							}
@@ -832,7 +831,7 @@ Host ` + SSHJ + ` :
 							if Cygwin && !Win7 {
 								exit = CtrC
 							}
-							Println(cmdRun(cmd, ctx, nil, false, ser, s2, portT, args.Baud, exit, PrintNil))
+							Println(cmdRun(cmd, ctx, nil, false, ser, bind, portT, args.Baud, exit, PrintNil))
 							return
 						}
 						// !extTel || !args.Telnet
@@ -844,7 +843,7 @@ Host ` + SSHJ + ` :
 								return
 							}
 							// Println("-zu22")
-							Println(cmdRun(cmd, ctx, nil, true, ser, s2, portT, args.Baud, exit, Println))
+							Println(cmdRun(cmd, ctx, nil, true, ser, bind, portT, args.Baud, exit, Println))
 							return
 						}
 						if bin != PUTTY {
@@ -860,7 +859,7 @@ Host ` + SSHJ + ` :
 						if Win7 && Cygwin {
 							exit = "<^Z><^Z>"
 						}
-						Println(cmdRun(cmd, ctx, os.Stdin, false, ser, s2, portT, args.Baud, exit, Println))
+						Println(cmdRun(cmd, ctx, os.Stdin, false, ser, bind, portT, args.Baud, exit, Println))
 						return
 					}
 					cmd.Stdout = os.Stdout
@@ -887,7 +886,7 @@ Host ` + SSHJ + ` :
 				// !external && loc
 				if portT > 0 || portW > 0 {
 					// Println("portT > 0 || portW > 0")
-					nw(s2, dial)
+					nw(bind, dial)
 					return
 				}
 				// Println("-HH || -Hcmd | -H:")
@@ -957,33 +956,35 @@ Host ` + SSHJ + ` :
 			closer.Bind(func() { os.Remove(tmpU) })
 		}
 
-		var ctxRWE context.Context
-		var caRWE context.CancelFunc
+		// var ctxServer context.Context
+		// var cancelServer context.CancelFunc
+		ctxServer, cancelServer := context.WithCancel(ctx)
 		stopped := false
 		holdR := func() {
+			defer func() {
+				stopped = true
+				cancelServer()
+			}()
 			b := make([]byte, 4096)
-			// reader := bufio.NewReader(os.Stdin)
+		restart:
 			for {
-				_, err := os.Stdin.Read(b)
-				// s, err := reader.ReadString('\n')
+				n, err := os.Stdin.Read(b)
 				if err != nil {
-					break
+					return
 				}
-				// r, _ := utf8.DecodeRuneInString(s)
-				r, _ := utf8.DecodeRune(b)
-				switch r {
-				case 'r', 'R', 'к', 'К':
-					caRWE()
-					continue
+				for _, r := range string(b[:n]) {
+					switch r {
+					case 'r', 'R', 'к', 'К':
+						cancelServer()
+						continue restart
+					}
+					return
 				}
-				break
+				return
 			}
-			stopped = true
-			caRWE()
-			// closer.Close()
 		}
 		hh := dial
-		h = s2
+		h = bind
 		if p == listen {
 			if args.Port != 0 {
 				p = strconv.Itoa(args.Port)
@@ -993,7 +994,7 @@ Host ` + SSHJ + ` :
 			s := fmt.Sprintf("`tssh %s`", JumpHost)
 			i := 0
 			h0 := dial
-			if s2 == ALL {
+			if bind == ALL {
 				h0 = ips[0]
 			}
 			hp := h0 + ":" + p
@@ -1010,18 +1011,18 @@ Host ` + SSHJ + ` :
 			}
 
 			prox := "local - локально"
-			lhListen := s2 == LH || s2 == ALL
+			lhListen := bind == LH || bind == ALL
 			if lhListen {
 				prox = "local or over jump host - локально или через посредника"
 				if portV > 0 {
-					Println(fmt.Errorf("not compatible - не совместимы `--vnc %d  %s`", portV, s2))
+					Println(fmt.Errorf("not compatible - не совместимы `--vnc %d  %s`", portV, bind))
 				}
 			}
 			// var once sync.Once
 			ss, eip, m := "", "", ""
 			eips = []string{}
 			j := "\t`" + imag + " -j %s`"
-			if ips[0] != LH && (s2 == ALL || s2 == ips[0]) {
+			if ips[0] != LH && (bind == ALL || bind == ips[0]) {
 				// Есть Сеть и слушаем не только на лупбэке
 				eip, m, err = GetExternalIP(time.Second, "stun.sipnet.ru:3478", "stun.l.google.com:19302", "stun.fitauto.ru:3478")
 				if err == nil {
@@ -1040,10 +1041,10 @@ Host ` + SSHJ + ` :
 					}
 				}
 			}
-			if s2 == ALL {
+			if bind == ALL {
 				eips = append(eips, ips...)
 			} else {
-				eips = append(eips, s2)
+				eips = append(eips, bind)
 			}
 			Println("to connect use - чтоб подключится используй:")
 			lan := " over - через LAN"
@@ -1132,13 +1133,12 @@ Host ` + SSHJ + ` :
 			}
 		})
 		for {
-			ctxRWE, caRWE = context.WithCancel(ctx)
 			// Перезапуск dssh-сервера
 			Println(fmt.Sprintf("%s daemon waiting on - сервер ожидает на %s:%s -l %s", repo, h, p, u))
 			psPrint(filepath.Base(exe), "", 0, Println)
 			// exit := server(ctxRWE, caRWE, s2, p, repo, s2, signer, Println, Print)
 			// Доступ к сервисам на dssh-сервере через LH
-			exit := server(ctxRWE, caRWE, u, s2, p, repo, LH, signer, Println, Print)
+			exit := server(ctxServer, cancelServer, u, bind, p, repo, LH, signer, Println, Print)
 			if stopped {
 				exit = userNameAtHostname()
 			}
@@ -1152,6 +1152,7 @@ Host ` + SSHJ + ` :
 				Println(exit)
 				return
 			}
+			ctxServer, cancelServer = context.WithCancel(ctx)
 			time.Sleep(TOR)
 		}
 	} // Сервис
@@ -1630,7 +1631,7 @@ func TimeDone(after, before time.Time) {
 }
 
 // Резолвит локальные dssh алиасы
-func host2LD(host string) (listen, dial string) {
+func host2BD(host string) (bind, dial string) {
 	switch host {
 	case "_":
 		return ips[0], ips[0]
@@ -2051,7 +2052,7 @@ func shp(s string, base int) (h string, i int) {
 	_, err := strconv.ParseUint(s, 10, 16)
 	if err == nil {
 		// 2, 5500
-		_, h = host2LD("")
+		_, h = host2BD("")
 		i, err = strconv.Atoi(portPB(s, base))
 		if err != nil {
 			i = base
@@ -2065,7 +2066,7 @@ func shp(s string, base int) (h string, i int) {
 	if err != nil {
 		h, p = s, ""
 	}
-	_, h = host2LD(h)
+	_, h = host2BD(h)
 	i, err = strconv.Atoi(portPB(p, base))
 	if err != nil {
 		i = base
