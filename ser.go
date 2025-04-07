@@ -32,7 +32,7 @@ var (
 	ErrNotSerial          = fmt.Errorf("this is not a serial port - это не последовательный порт")
 )
 
-// Возвращаем имя первого не занятого порта.
+// Возвращаем имя первого не занятого порта как COM1 или /dev/ttyUSB0.
 // Список всех портов.
 // Режим найденног порта.
 func getFirstSerial(isUSB bool, Baud string) (name, list string, mode serial.Mode) {
@@ -40,21 +40,20 @@ func getFirstSerial(isUSB bool, Baud string) (name, list string, mode serial.Mod
 	if err != nil || len(detailedPorts) == 0 {
 		return
 	}
-	ok := false
 	for _, port := range detailedPorts {
+		// Println(fmt.Sprintf("%+v", port))
 		list += "\r\n" + serial.PortName(port.Name)
 		if port.IsUSB {
 			list += fmt.Sprintf(" USB Vid_%s&Pid_%s", port.VID, port.PID)
-			SerialNumber := strings.TrimSpace(port.SerialNumber)
-			if SerialNumber != "" {
-				list += " #_" + SerialNumber
+			if s := strings.TrimSpace(port.SerialNumber); s != "" {
+				list += " #_" + s
 			}
 		}
-		Product := strings.TrimSpace(port.Product)
-		if Product != "" {
-			list += " " + Product
+
+		if p := strings.TrimSpace(port.Product); p != "" {
+			list += " " + p
 		}
-		if !ok {
+		if name == "" {
 			if isUSB && !port.IsUSB {
 				continue
 			}
@@ -73,7 +72,6 @@ func getFirstSerial(isUSB bool, Baud string) (name, list string, mode serial.Mod
 				continue
 			}
 			sp.Close()
-			ok = true
 			name = port.Name
 			list += " " + oldMode
 		}
@@ -281,6 +279,7 @@ func SetMode(w *ser2net.SerialWorker, ctx context.Context, r io.Reader, chanByte
 		chanByte = make(chan byte, B16)
 	}
 	prin(press)
+	SetWindowTitle(os.Stderr, w.String())
 	if r != nil {
 		// prin(press)
 		buffer := make([]byte, B16)
@@ -407,6 +406,7 @@ func SetMode(w *ser2net.SerialWorker, ctx context.Context, r io.Reader, chanByte
 				continue
 			}
 			w.SetMode(&mode)
+			SetWindowTitle(os.Stderr, w.String())
 		}
 	}
 }

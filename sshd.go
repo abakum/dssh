@@ -354,14 +354,19 @@ func CutSSH2(s string) string {
 
 }
 
+func SetWindowTitle(w io.Writer, title string) {
+	fmt.Fprintf(w, "%c]0;%s%c", ansiterm.ANSI_ESCAPE_PRIMARY, title, ansiterm.ANSI_BEL)
+}
+
 // Меняю заголовок окна у клиента
 func SetConsoleTitle(s gl.Session) {
 	clientVersion := s.Context().ClientVersion()
 	if s.RawCommand() == "" && !strings.Contains(clientVersion, OSSH) {
 		// Not for OpenSSH_for_Windows
 		time.AfterFunc(time.Millisecond*333, func() {
-			title := fmt.Sprintf("%c]0;%s%c", ansiterm.ANSI_ESCAPE_PRIMARY, CutSSH2(clientVersion)+"@"+CutSSH2(s.Context().ServerVersion()), ansiterm.ANSI_BEL)
-			s.Write([]byte(title))
+			// title := fmt.Sprintf("%c]0;%s%c", ansiterm.ANSI_ESCAPE_PRIMARY, CutSSH2(clientVersion)+"@"+CutSSH2(s.Context().ServerVersion()), ansiterm.ANSI_BEL)
+			// s.Write([]byte(title))
+			SetWindowTitle(s, CutSSH2(clientVersion)+"@"+CutSSH2(s.Context().ServerVersion()))
 		})
 	}
 }

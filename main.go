@@ -792,10 +792,10 @@ Host ` + SSHJ + ` :
 					} else {
 						// mode := getMode(serial, args.Baud)
 						if !existsPuTTY && extSer {
-							opt = fmt.Sprintln(MICROCOM, "-s", mode.BaudRate, ser)
+							opt = fmt.Sprintln(MICROCOM, "-s", mode.BaudRate, serial.DevName(ser))
 							execPath = BUSYBOX
 						} else {
-							opt = fmt.Sprintln("-serial", ser, "-sercfg", fmt.Sprintf("%s,N", ser2net.Mode{Mode: mode}))
+							opt = fmt.Sprintln("-serial", serial.DevName(ser), "-sercfg", fmt.Sprintf("%s,N", ser2net.Mode{Mode: mode}))
 						}
 					}
 
