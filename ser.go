@@ -179,12 +179,13 @@ func (w *sideWriter) Write(pp []byte) (int, error) {
 		w.Write1(p)
 		return 0, fmt.Errorf(Enter+`%c. was pressed`, w.t)
 	case w.name != "" && bytes.Contains(p, []byte{'\r', w.t}):
-		// w.println(mess("", w.exit))
+		if bytes.HasSuffix(p, []byte{'\r', w.t}) {
+			fmt.Fprint(os.Stderr, "\a")
+		}
 		for _, key := range []byte{'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'z', 'Z', 'd', 'D', w.t} {
 			if bytes.Contains(p, []byte{'\r', w.t, key}) {
 				switch key {
 				case w.t:
-					fmt.Fprint(os.Stderr, "\a")
 					if o > 1 {
 						p = bytes.ReplaceAll(p, []byte{'\r', w.t, key}, []byte{key})
 					} else {
@@ -340,7 +341,7 @@ func SetMode(w *ser2net.SerialWorker, ctx context.Context, r io.Reader, wt io.Wr
 			}
 			if msg != "" {
 				if wt != nil {
-					SetWindowTitle(wt, "\a"+w.String())
+					SetWindowTitle(wt, w.String()+"\a")
 				}
 				press = mess(exit, w.String())
 				prin(msg + press)
