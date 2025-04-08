@@ -14,7 +14,7 @@ import (
 
 // Если telnet://host:Ser2net уже слушает подключает к нему s через телнет клиента.
 // Иначе запускает ser2net server на telnet://host:Ser2net и подключает к нему s через телнет клиента.
-func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial, host string, Ser2net int, Baud, exit string, println ...func(v ...any)) (err error) {
+func rfc2217(ctx context.Context, s io.ReadWriteCloser, wt io.Writer, Serial, host string, Ser2net int, Baud, exit string, println ...func(v ...any)) (err error) {
 	print := func(a ...any) {
 		for _, p := range println {
 			p(a...)
@@ -27,7 +27,7 @@ func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial, host string, Ser
 	hp := JoinHostPort(ser2net.LocalPort(host), Ser2net)
 	if isHP(hp) {
 		// Подключаемся к существующему сеансу
-		return cons(ctx, s, hp, args.Baud, exit, println...)
+		return cons(ctx, s, wt, hp, args.Baud, exit, println...)
 	}
 
 	// Новый сеанс
@@ -35,7 +35,7 @@ func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial, host string, Ser
 	chanByte := make(chan byte, B16)
 	chanSerialWorker := make(chan *ser2net.SerialWorker, 1)
 	go func() {
-		chanError <- s2n(ctx, nil, chanByte, chanSerialWorker, Serial, host, Ser2net, Baud, EED+exit, println...)
+		chanError <- s2n(ctx, nil, wt, chanByte, chanSerialWorker, Serial, host, Ser2net, Baud, EED+exit, println...)
 	}()
 	var (
 		w *ser2net.SerialWorker
@@ -82,7 +82,7 @@ func rfc2217(ctx context.Context, s io.ReadWriteCloser, Serial, host string, Ser
 // SetMode использует r или chanByte для смены serial.Mode порта Serial.
 // На консоль клиента println[0] выводит протокол через ssh канал.
 // Локально println[1] выводит протокол.
-func s2n(ctx context.Context, r io.Reader, chanB chan byte, chanW chan *ser2net.SerialWorker, Serial, host string, Ser2net int, Baud, exit string, println ...func(v ...any)) error {
+func s2n(ctx context.Context, r io.Reader, wt io.Writer, chanB chan byte, chanW chan *ser2net.SerialWorker, Serial, host string, Ser2net int, Baud, exit string, println ...func(v ...any)) error {
 	if Serial == "" {
 		return ErrNotFoundFreeSerial
 	}
@@ -108,7 +108,7 @@ func s2n(ctx context.Context, r io.Reader, chanB chan byte, chanW chan *ser2net.
 			chanW <- w
 		}
 		time.Sleep(time.Second)
-		SetMode(w, ctx, r, chanB, exit, Ser2net, println...)
+		SetMode(w, ctx, r, wt, chanB, exit, Ser2net, println...)
 	})
 	defer t.Stop()
 

@@ -11,14 +11,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/abakum/go-ansiterm"
 	"github.com/abakum/menu"
 	"github.com/xlab/closer"
 )
 
 const (
-	EL      = "\033[K"
-	REL     = "\r" + EL
-	DECTCEM = "\033[?25h"
+	EL                     = ansiterm.KEY_ESC_CSI + "K"
+	REL                    = "\r" + EL
+	DECTCEM                = ansiterm.KEY_ESC_CSI + "?25h"
+	ANSI_SGR_INVISIBLE     = ansiterm.KEY_ESC_CSI + "8m"
+	ANSI_SGR_INVISIBLE_OFF = ansiterm.KEY_ESC_CSI + "28m"
 )
 
 var (

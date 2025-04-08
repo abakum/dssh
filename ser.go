@@ -180,11 +180,11 @@ func (w *sideWriter) Write(pp []byte) (int, error) {
 		return 0, fmt.Errorf(Enter+`%c. was pressed`, w.t)
 	case w.name != "" && bytes.Contains(p, []byte{'\r', w.t}):
 		// w.println(mess("", w.exit))
-		fmt.Fprint(os.Stderr, "\a")
 		for _, key := range []byte{'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'z', 'Z', 'd', 'D', w.t} {
 			if bytes.Contains(p, []byte{'\r', w.t, key}) {
 				switch key {
 				case w.t:
+					fmt.Fprint(os.Stderr, "\a")
 					if o > 1 {
 						p = bytes.ReplaceAll(p, []byte{'\r', w.t, key}, []byte{key})
 					} else {
@@ -271,7 +271,7 @@ func mess(exit, serial string) string {
 }
 
 // Через r или напрямую по chanByte управляет режимами последовательного порта w.
-func SetMode(w *ser2net.SerialWorker, ctx context.Context, r io.Reader, chanByte chan byte, exit string, Ser2net int, println ...func(v ...any)) {
+func SetMode(w *ser2net.SerialWorker, ctx context.Context, r io.Reader, wt io.Writer, chanByte chan byte, exit string, Ser2net int, println ...func(v ...any)) {
 	press := mess(exit, w.String())
 	prin := func(a ...any) { println[0](a...) }
 
@@ -279,7 +279,9 @@ func SetMode(w *ser2net.SerialWorker, ctx context.Context, r io.Reader, chanByte
 		chanByte = make(chan byte, B16)
 	}
 	prin(press)
-	SetWindowTitle(os.Stderr, w.String())
+	if wt != nil {
+		SetWindowTitle(wt, w.String())
+	}
 	if r != nil {
 		// prin(press)
 		buffer := make([]byte, B16)
@@ -337,6 +339,9 @@ func SetMode(w *ser2net.SerialWorker, ctx context.Context, r io.Reader, chanByte
 				msg = BaudRate
 			}
 			if msg != "" {
+				if wt != nil {
+					SetWindowTitle(wt, "\a"+w.String())
+				}
 				press = mess(exit, w.String())
 				prin(msg + press)
 				old = mode
@@ -406,7 +411,6 @@ func SetMode(w *ser2net.SerialWorker, ctx context.Context, r io.Reader, chanByte
 				continue
 			}
 			w.SetMode(&mode)
-			SetWindowTitle(os.Stderr, w.String())
 		}
 	}
 }

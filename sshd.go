@@ -225,13 +225,13 @@ func server(ctx context.Context, cancel context.CancelFunc, u, h, p, repo, hTeln
 			if portT > 0 && portW < 0 {
 				// dssh -22 :
 				// dssh -22 .
-				print(rfc2217(s.Context(), s, ser, hTelnet, portT, args.Baud, args.Exit, ps...))
+				print(rfc2217(s.Context(), s, s.Stderr(), ser, hTelnet, portT, args.Baud, args.Exit, ps...))
 				return
 			}
 			if portW > 0 {
 				if portT > 0 {
 					go func() {
-						print(rfc2217(s.Context(), s, ser, hTelnet, portT, args.Baud, args.Exit, ps...))
+						print(rfc2217(s.Context(), s, s.Stderr(), ser, hTelnet, portT, args.Baud, args.Exit, ps...))
 						s.Close()
 					}()
 					time.Sleep(time.Second)
@@ -248,15 +248,15 @@ func server(ctx context.Context, cancel context.CancelFunc, u, h, p, repo, hTeln
 				}
 
 				if portT > 0 {
-					print(s2w(s.Context(), nil, nil, ser, hTelnet, portW, args.Baud, "", PrintNil))
+					print(s2w(s.Context(), nil, nil, nil, ser, hTelnet, portW, args.Baud, "", PrintNil))
 				} else {
 					print(repo, "-H", ser, "-8", portW)
-					print(s2w(s.Context(), s, nil, ser, hTelnet, portW, args.Baud, ". или <^C>", ps...))
+					print(s2w(s.Context(), s, s.Stderr(), nil, ser, hTelnet, portW, args.Baud, ". или <^C>", ps...))
 				}
 				return
 			}
 			// dssh -UU :
-			print(cons(s.Context(), s, ser, args.Baud, args.Exit, ps...))
+			print(cons(s.Context(), s, s.Stderr(), ser, args.Baud, args.Exit, ps...))
 		case vncViewerHP != "":
 			lss.Println(ToExitPress, Enter)
 			go holdSession(s)
@@ -355,7 +355,9 @@ func CutSSH2(s string) string {
 }
 
 func SetWindowTitle(w io.Writer, title string) {
-	fmt.Fprintf(w, "%c]0;%s%c", ansiterm.ANSI_ESCAPE_PRIMARY, title, ansiterm.ANSI_BEL)
+	fmt.Fprint(w, ANSI_SGR_INVISIBLE)
+	fmt.Fprintf(w, "%c%c0%s%s%c", ansiterm.ANSI_ESCAPE_PRIMARY, ansiterm.ANSI_CMD_OSC, ansiterm.ANSI_PARAMETER_SEP, title, ansiterm.ANSI_BEL)
+	fmt.Fprint(w, ANSI_SGR_INVISIBLE_OFF)
 }
 
 // Меняю заголовок окна у клиента

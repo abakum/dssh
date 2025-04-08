@@ -326,7 +326,7 @@ func main() {
 		Println("cleanup")
 		<-ctx.Done()
 		KidsDone(os.Getpid())
-		Println("cleanup done" + DECTCEM + EL) // показать курсор, очистить строку
+		Println("cleanup done" + DECTCEM + ANSI_SGR_INVISIBLE_OFF + EL) // показать курсор, показать текст, очистить строку
 	}
 	closer.Bind(cleanup)
 	closer.Bind(cancel)
@@ -716,7 +716,7 @@ func main() {
 			if portT > 0 {
 				go func() {
 					setRaw(&once)
-					Println(rfc2217(ctx, ioc, ser, bind, portT, args.Baud, exit, Println))
+					Println(rfc2217(ctx, ioc, os.Stderr, ser, bind, portT, args.Baud, exit, Println))
 					closer.Close()
 				}()
 				// Даже если -H: это может быть set2net или hub4com или RouterOS позволяющие только одного клиента
@@ -742,14 +742,14 @@ func main() {
 			// Стартуем веб сервер
 			setRaw(&once)
 			if portT > 0 {
-				Println(s2w(ctx, nil, nil, ser, bind, portW, args.Baud, "", PrintNil))
+				Println(s2w(ctx, nil, nil, nil, ser, bind, portW, args.Baud, "", PrintNil))
 			} else {
 				Println(repo, "-H", ser, "-8", portW)
-				Println(s2w(ctx, ioc, nil, ser, bind, portW, args.Baud, ". или ^C", Println))
+				Println(s2w(ctx, ioc, os.Stderr, nil, ser, bind, portW, args.Baud, ". или ^C", Println))
 			}
 		} else {
 			setRaw(&once)
-			Println(rfc2217(ctx, ioc, ser, bind, portT, args.Baud, exit, Println))
+			Println(rfc2217(ctx, ioc, os.Stderr, ser, bind, portT, args.Baud, exit, Println))
 		}
 	}
 
@@ -816,7 +816,7 @@ Host ` + SSHJ + ` :
 							if !ZerroNewWindow && Windows {
 								if !Win7 {
 									createNewConsole(cmd)
-									Println(cmdRun(cmd, ctx, os.Stdin, false, ser, bind, portT, args.Baud, exit, Println))
+									Println(cmdRun(cmd, ctx, os.Stdin, os.Stderr, false, ser, bind, portT, args.Baud, exit, Println))
 									return
 								}
 							}
@@ -831,7 +831,7 @@ Host ` + SSHJ + ` :
 							if Cygwin && !Win7 {
 								exit = CtrC
 							}
-							Println(cmdRun(cmd, ctx, nil, false, ser, bind, portT, args.Baud, exit, PrintNil))
+							Println(cmdRun(cmd, ctx, nil, nil, false, ser, bind, portT, args.Baud, exit, PrintNil))
 							return
 						}
 						// !extTel || !args.Telnet
@@ -843,7 +843,7 @@ Host ` + SSHJ + ` :
 								return
 							}
 							// Println("-zu22")
-							Println(cmdRun(cmd, ctx, nil, true, ser, bind, portT, args.Baud, exit, Println))
+							Println(cmdRun(cmd, ctx, nil, nil, true, ser, bind, portT, args.Baud, exit, Println))
 							return
 						}
 						if bin != PUTTY {
@@ -859,7 +859,7 @@ Host ` + SSHJ + ` :
 						if Win7 && Cygwin {
 							exit = "<^Z><^Z>"
 						}
-						Println(cmdRun(cmd, ctx, os.Stdin, false, ser, bind, portT, args.Baud, exit, Println))
+						Println(cmdRun(cmd, ctx, os.Stdin, os.Stderr, false, ser, bind, portT, args.Baud, exit, Println))
 						return
 					}
 					cmd.Stdout = os.Stdout
@@ -891,7 +891,7 @@ Host ` + SSHJ + ` :
 				}
 				// Println("-HH || -Hcmd | -H:")
 				setRaw(&once)
-				Println(cons(ctx, ioc, ser, args.Baud, exit, Println))
+				Println(cons(ctx, ioc, os.Stderr, ser, args.Baud, exit, Println))
 				return
 			}
 		}
@@ -1328,7 +1328,7 @@ Host ` + SSHJ + ` :
 				args.NoCommand = true
 				time.AfterFunc(time.Second, func() {
 					setRaw(&once)
-					Println(cons(ctx, ioc, lhp, args.Baud, exit, Println))
+					Println(cons(ctx, ioc, os.Stderr, lhp, args.Baud, exit, Println))
 					closer.Close()
 				})
 			}

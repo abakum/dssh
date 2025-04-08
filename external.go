@@ -139,7 +139,7 @@ func externalClient(external *bool, exe string) (signers []ssh.Signer, err error
 	return
 }
 
-func cmdRun(cmd *exec.Cmd, ctx context.Context, r io.Reader, zu bool, Serial, host string, Ser2net int, Baud string, exit string, println ...func(v ...any)) (err error) {
+func cmdRun(cmd *exec.Cmd, ctx context.Context, r io.Reader, wt io.Writer, zu bool, Serial, host string, Ser2net int, Baud string, exit string, println ...func(v ...any)) (err error) {
 	// PrintLn(3, cmd, r, zu, Z, Serial, host, Ser2net)
 	// time.Sleep(time.Second * 5)
 	run := func() {
@@ -161,7 +161,7 @@ func cmdRun(cmd *exec.Cmd, ctx context.Context, r io.Reader, zu bool, Serial, ho
 				closer.Close()
 			}()
 			setRaw(&once)
-			return cons(ctx, ioc, hp, Baud, exit, println...)
+			return cons(ctx, ioc, os.Stderr, hp, Baud, exit, println...)
 		}
 
 		if !zu {
@@ -198,7 +198,7 @@ func cmdRun(cmd *exec.Cmd, ctx context.Context, r io.Reader, zu bool, Serial, ho
 		chanByte := make(chan byte, B16)
 		// t := time.AfterFunc(time.Millisecond*time.Duration(ser2net.TOopen), func() {
 		t := time.AfterFunc(time.Second, func() {
-			SetMode(w, ctx, nil, chanByte, EED, 0, println...)
+			SetMode(w, ctx, nil, wt, chanByte, EED, 0, println...)
 		})
 		defer t.Stop()
 
@@ -225,7 +225,7 @@ func cmdRun(cmd *exec.Cmd, ctx context.Context, r io.Reader, zu bool, Serial, ho
 			closer.Close()
 		})
 		setRaw(&once)
-		return rfc2217(ctx, ioc, Serial, host, Ser2net, Baud, exit, println...)
+		return rfc2217(ctx, ioc, os.Stderr, Serial, host, Ser2net, Baud, exit, println...)
 	}
 
 	// -zu
@@ -243,7 +243,7 @@ func cmdRun(cmd *exec.Cmd, ctx context.Context, r io.Reader, zu bool, Serial, ho
 	chanByte := make(chan byte, B16)
 	chanSerialWorker := make(chan *ser2net.SerialWorker, 1)
 	go func() {
-		chanError <- s2n(ctx, r, chanByte, chanSerialWorker, Serial, host, Ser2net, Baud, exit, println...)
+		chanError <- s2n(ctx, r, wt, chanByte, chanSerialWorker, Serial, host, Ser2net, Baud, exit, println...)
 	}()
 	select {
 	case <-ctx.Done():

@@ -16,7 +16,7 @@ import (
 
 // Подключаем консоль Serial к сессии ssh или локально через s.
 // Завершение сессии через `<Enter>~.`
-func cons(ctx context.Context, s io.ReadWriteCloser, Serial, Baud, exit string, println ...func(v ...any)) (err error) {
+func cons(ctx context.Context, s io.ReadWriteCloser, wt io.Writer, Serial, Baud, exit string, println ...func(v ...any)) (err error) {
 	if Serial == "" {
 		return ErrNotFoundFreeSerial
 	}
@@ -43,7 +43,7 @@ func cons(ctx context.Context, s io.ReadWriteCloser, Serial, Baud, exit string, 
 
 	// t := time.AfterFunc(time.Millisecond*time.Duration(ser2net.TOopen), func() {
 	t := time.AfterFunc(time.Second, func() {
-		SetMode(w, ctx, nil, chanByte, EED+exit, 0, println...)
+		SetMode(w, ctx, nil, wt, chanByte, EED+exit, 0, println...)
 		w.Stop()
 	})
 	defer t.Stop()
@@ -74,7 +74,7 @@ func cons(ctx context.Context, s io.ReadWriteCloser, Serial, Baud, exit string, 
 // SetMode использует r или chanByte для смены serial.Mode порта Serial.
 // На консоль клиента println[0] выводит протокол через ssh канал.
 // Локально println[1] выводит протокол.
-func s2w(ctx context.Context, r io.Reader, chanB chan byte, Serial, host string, wp int, Baud, exit string, println ...func(v ...any)) error {
+func s2w(ctx context.Context, r io.Reader, wt io.Writer, chanB chan byte, Serial, host string, wp int, Baud, exit string, println ...func(v ...any)) error {
 	if Serial == "" {
 		return ErrNotFoundFreeSerial
 	}
@@ -85,7 +85,7 @@ func s2w(ctx context.Context, r io.Reader, chanB chan byte, Serial, host string,
 
 	// t := time.AfterFunc(time.Millisecond*time.Duration(ser2net.TOopen), func() {
 	t := time.AfterFunc(time.Second, func() {
-		SetMode(w, ctx, r, chanB, exit, wp, println...)
+		SetMode(w, ctx, r, wt, chanB, exit, wp, println...)
 		w.Stop()
 	})
 	defer t.Stop()
