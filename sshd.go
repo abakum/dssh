@@ -355,9 +355,9 @@ func CutSSH2(s string) string {
 }
 
 func SetWindowTitle(w io.Writer, title string) {
-	fmt.Fprint(w, ANSI_SGR_INVISIBLE)
+	// fmt.Fprint(w, ANSI_SGR_INVISIBLE)
 	fmt.Fprintf(w, "%c%c0%s%s%c", ansiterm.ANSI_ESCAPE_PRIMARY, ansiterm.ANSI_CMD_OSC, ansiterm.ANSI_PARAMETER_SEP, title, ansiterm.ANSI_BEL)
-	fmt.Fprint(w, ANSI_SGR_INVISIBLE_OFF)
+	// fmt.Fprint(w, ANSI_SGR_INVISIBLE_OFF)
 }
 
 // Меняю заголовок окна у клиента

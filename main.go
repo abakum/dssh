@@ -326,7 +326,7 @@ func main() {
 		Println("cleanup")
 		<-ctx.Done()
 		KidsDone(os.Getpid())
-		Println("cleanup done" + DECTCEM + ANSI_SGR_INVISIBLE_OFF + EL) // показать курсор, показать текст, очистить строку
+		Println("cleanup done" + DECTCEM + EL) // показать курсор, показать текст, очистить строку
 	}
 	closer.Bind(cleanup)
 	closer.Bind(cancel)
