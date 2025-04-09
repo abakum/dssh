@@ -39,6 +39,11 @@ import (
 	"github.com/xlab/closer"
 )
 
+const (
+	ctrlZ = 0x1A // ^Z SUBSTITUTE
+	ctrlD = 0x04 // ^D END OF TRANSMISSION
+)
+
 var outputWaitGroup sync.WaitGroup
 
 func writeAll(dst io.Writer, data []byte) error {
@@ -55,7 +60,7 @@ func writeAll(dst io.Writer, data []byte) error {
 }
 
 // Заменяем разделители строк для Windows.
-// Не реагируем на  ^Z.
+// Реагируем на  ^Z и ^D.
 func wrapStdIO(serverIn io.WriteCloser, serverOut io.Reader, serverErr io.Reader, tty bool, escapeChar string) {
 	win := runtime.GOOS == "windows"
 	forwardIO := func(reader io.Reader, writer io.WriteCloser, input bool) {
@@ -70,29 +75,33 @@ func wrapStdIO(serverIn io.WriteCloser, serverOut io.Reader, serverErr io.Reader
 			n, err := reader.Read(buffer)
 			if n > 0 {
 				buf := buffer[:n]
-				if win && !tty {
-					if input {
-						buf = bytes.ReplaceAll(buf, []byte("\r\n"), []byte("\n"))
-					} else {
-						buf = bytes.ReplaceAll(buf, []byte("\n"), []byte("\r\n"))
+				if win && isTerminal && tty && input && n == 1 && buf[0] == ctrlD {
+					err = fmt.Errorf(`<^D> was pressed`)
+				} else {
+					if win && !tty {
+						if input {
+							buf = bytes.ReplaceAll(buf, []byte("\r\n"), []byte("\n"))
+						} else {
+							buf = bytes.ReplaceAll(buf, []byte("\n"), []byte("\r\n"))
+						}
 					}
-				}
-				if err := writeAll(writer, buf); err != nil {
-					warning("wrap stdio write failed: %v", err)
-					return
+					if err := writeAll(writer, buf); err != nil {
+						warning("wrap stdio write failed: %v", err)
+						return
+					}
 				}
 			}
 			if err != nil {
 				if err == io.EOF && win && isTerminal && tty && input {
-					_, _ = writer.Write([]byte{0x1A}) // ctrl + z
-					continue
+					// _, _ = writer.Write([]byte{ctrlZ})
+					// continue
+					err = fmt.Errorf(`<^Z> was pressed`)
 				}
 				if input {
 					if strings.HasSuffix(err.Error(), "was pressed") {
 						debug("%v", err)
 						time.AfterFunc(time.Millisecond*222, func() {
 							onExitFuncs.Cleanup()
-							// fmt.Fprintln(os.Stderr, "To exit press - Чтоб выйти нажми <^C>")
 							closer.Close()
 						})
 					}
