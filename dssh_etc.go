@@ -13,6 +13,8 @@ import (
 	"github.com/abakum/winssh"
 )
 
+const win = false
+
 var (
 	PuTTY       = winssh.UserHomeDirs(".putty")
 	Sessions    = path.Join(PuTTY, "sessions")

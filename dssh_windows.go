@@ -15,6 +15,8 @@ import (
 	"golang.org/x/sys/windows/registry"
 )
 
+const win = true
+
 var (
 	PuTTY       = `SOFTWARE\SimonTatham\PuTTY`        //root
 	Sessions    = filepath.Join(PuTTY, "Sessions")    //dir

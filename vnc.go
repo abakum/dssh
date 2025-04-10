@@ -101,7 +101,7 @@ func startViewer(portV int, R bool) (err error) {
 	vncViewerP := strconv.Itoa(portV)
 	if vncviewer == "" {
 		vncviewer = vncviewerEtc
-		if runtime.GOOS == "windows" {
+		if win {
 			vncviewer = vncviewerWindows
 		}
 	}

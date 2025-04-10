@@ -40,7 +40,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -118,9 +117,9 @@ var (
 	repo       = base()     // Имя репозитория `dssh` оно же имя алиаса в .ssh/config
 	rev        = revision() // Имя для посредника.
 	imag       string       // Имя исполняемого файла `dssh` его можно изменить чтоб не указывать имя для посредника.
-	Windows    = runtime.GOOS == "windows"
-	Cygwin     = isatty.IsCygwinTerminal(os.Stdin.Fd())
-	Win7       = isWin7() // Windows 7 не поддерживает ENABLE_VIRTUAL_TERMINAL_INPUT и ENABLE_VIRTUAL_TERMINAL_PROCESSING
+	// win        = runtime.GOOS == "windows"
+	Cygwin = isatty.IsCygwinTerminal(os.Stdin.Fd())
+	Win7   = isWin7() // Windows 7 не поддерживает ENABLE_VIRTUAL_TERMINAL_INPUT и ENABLE_VIRTUAL_TERMINAL_PROCESSING
 	once,
 	SP bool
 	ZerroNewWindow = os.Getenv("SSH_CONNECTION") != ""
@@ -299,9 +298,9 @@ func main() {
 
 	EED = Enter + args.EscapeChar + "."
 	exit := " или <^D>"
-	if Windows {
-		exit = " или <^Z>"
-	}
+	// if win {
+	// 	exit = " или <^Z>"
+	// }
 	EEDE = EED + exit
 
 	// `dssh` как `dssh -d`
@@ -323,10 +322,11 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer closer.Close()
 	cleanup := func() {
+		Std.WriteString("\n" + DECTCEM + REL)
 		Println("cleanup")
 		<-ctx.Done()
 		KidsDone(os.Getpid())
-		Println("cleanup done" + DECTCEM + EL) // показать курсор, показать текст, очистить строку
+		Println("cleanup done") // показать курсор, показать текст, очистить строку
 	}
 	closer.Bind(cleanup)
 	closer.Bind(cancel)
@@ -600,7 +600,7 @@ func main() {
 			bins = append(bins, TELNET)
 		}
 
-		if !Windows {
+		if !win {
 			_, err := exec.LookPath(BUSYBOX)
 			if err == nil {
 				if SP && !args.Telnet {
@@ -813,7 +813,7 @@ Host ` + SSHJ + ` :
 					cmd.Stderr = os.Stdout
 					if portT > 0 {
 						if extTel && args.Telnet {
-							if !ZerroNewWindow && Windows {
+							if !ZerroNewWindow && win {
 								if !Win7 {
 									createNewConsole(cmd)
 									Println(cmdRun(cmd, ctx, os.Stdin, os.Stderr, false, ser, bind, portT, args.Baud, exit, Println))
@@ -1539,7 +1539,9 @@ func setRaw(already *bool) {
 	if err == nil {
 		err = current.SetRaw()
 		if err == nil {
-			closer.Bind(func() { current.Reset() })
+			closer.Bind(func() {
+				current.Reset()
+			})
 			PrintLn(3, "Set raw by go")
 			return
 		}
@@ -1550,7 +1552,9 @@ func setRaw(already *bool) {
 		if err == nil {
 			err = sttyMakeRaw()
 			if err == nil {
-				closer.Bind(func() { sttyReset(settings) })
+				closer.Bind(func() {
+					sttyReset(settings)
+				})
 				PrintLn(3, "Set raw by stty")
 				return
 			}

@@ -60,8 +60,9 @@ func writeAll(dst io.Writer, data []byte) error {
 }
 
 // Заменяем разделители строк для Windows.
-// Реагируем на  ^Z и ^D.
+// Реагируем на ^D но не на ^Z.
 func wrapStdIO(serverIn io.WriteCloser, serverOut io.Reader, serverErr io.Reader, tty bool, escapeChar string) {
+	debug("wrapStdIO")
 	win := runtime.GOOS == "windows"
 	forwardIO := func(reader io.Reader, writer io.WriteCloser, input bool) {
 		done := true
@@ -75,7 +76,7 @@ func wrapStdIO(serverIn io.WriteCloser, serverOut io.Reader, serverErr io.Reader
 			n, err := reader.Read(buffer)
 			if n > 0 {
 				buf := buffer[:n]
-				if win && isTerminal && tty && input && n == 1 && buf[0] == ctrlD {
+				if isTerminal && tty && input && bytes.Equal(buf, []byte{ctrlD}) {
 					err = fmt.Errorf(`<^D> was pressed`)
 				} else {
 					if win && !tty {
@@ -93,9 +94,9 @@ func wrapStdIO(serverIn io.WriteCloser, serverOut io.Reader, serverErr io.Reader
 			}
 			if err != nil {
 				if err == io.EOF && win && isTerminal && tty && input {
-					// _, _ = writer.Write([]byte{ctrlZ})
-					// continue
-					err = fmt.Errorf(`<^Z> was pressed`)
+					_, _ = writer.Write([]byte{ctrlZ})
+					continue
+					// err = fmt.Errorf(`<^Z> was pressed`)
 				}
 				if input {
 					if strings.HasSuffix(err.Error(), "was pressed") {
@@ -115,9 +116,6 @@ func wrapStdIO(serverIn io.WriteCloser, serverOut io.Reader, serverErr io.Reader
 				time.Sleep(100 * time.Millisecond)
 				continue
 			}
-			// if err != nil {
-			// 	return
-			// }
 		}
 	}
 	if serverIn != nil {
@@ -231,6 +229,7 @@ type tildaReader struct {
 }
 
 func newTildaReader(r io.Reader, escapeChar string) *tildaReader {
+	debug("newTildaReader")
 	var t byte
 	switch strings.ToLower(escapeChar) {
 	case "none", "":

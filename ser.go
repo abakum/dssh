@@ -66,7 +66,7 @@ func getFirstSerial(isUSB bool, Baud string) (name, list string, mode serial.Mod
 			sp, err := serial.Open(port.Name, &mode)
 			if err != nil {
 				list += fmt.Sprintf(" %s", err)
-				if strings.HasSuffix(err.Error(), "Permission denied") && !Windows {
+				if strings.HasSuffix(err.Error(), "Permission denied") && !win {
 					list += fmt.Sprintf(" try run `sudo usermod -a -G dialout %s` then reboot", winssh.UserName())
 				}
 				continue
@@ -155,13 +155,13 @@ func (w *sideWriter) Write(pp []byte) (int, error) {
 	o := len(pp)
 	p := append(w.l, pp...) //+2
 	switch {
-	case Windows && bytes.Contains(p, []byte{CtrlZ}):
-		if w.chanByte != nil {
-			w.chanByte <- CtrlZ
-		}
-		w.Write1(p)
-		return 0, fmt.Errorf(`<^Z> was pressed`)
-	case !Windows && bytes.Contains(p, []byte{CtrlD}):
+	// case win && bytes.Contains(p, []byte{CtrlZ}):
+	// 	if w.chanByte != nil {
+	// 		w.chanByte <- CtrlZ
+	// 	}
+	// 	w.Write1(p)
+	// 	return 0, fmt.Errorf(`<^Z> was pressed`)
+	case bytes.Equal(pp, []byte{CtrlD}):
 		if w.chanByte != nil {
 			w.chanByte <- CtrlD
 		}
@@ -295,11 +295,11 @@ func SetMode(w *ser2net.SerialWorker, ctx context.Context, r io.Reader, wt io.Wr
 				default:
 					n, err := r.Read(buffer)
 					if err != nil {
-						if Windows {
-							chanByte <- CtrlZ
-						} else {
-							chanByte <- CtrlD
-						}
+						// if win {
+						// 	chanByte <- CtrlZ
+						// } else {
+						chanByte <- CtrlD
+						// }
 						return
 					}
 					for _, b := range buffer[:n] {

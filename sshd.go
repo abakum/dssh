@@ -281,7 +281,7 @@ func server(ctx context.Context, cancel context.CancelFunc, u, h, p, repo, hTeln
 
 	sa := server.Addr
 	all := strings.HasPrefix(sa, ALL) || strings.HasPrefix(sa, ":")
-	if runtime.GOOS != "windows" && all {
+	if win && all {
 		sa = "::" + strings.TrimPrefix(sa, ALL)
 	}
 	switch runtime.GOOS {
