@@ -856,9 +856,9 @@ Host ` + SSHJ + ` :
 							}
 						}
 						// Println("-u22")
-						if Win7 && Cygwin {
-							exit = "<^Z><^Z>"
-						}
+						// if Win7 && Cygwin {
+						// 	exit = "<^Z><^Z>"
+						// }
 						Println(cmdRun(cmd, ctx, os.Stdin, os.Stderr, false, ser, bind, portT, args.Baud, exit, Println))
 						return
 					}
