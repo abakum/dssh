@@ -281,23 +281,21 @@ func server(ctx context.Context, cancel context.CancelFunc, u, h, p, repo, hTeln
 
 	sa := server.Addr
 	all := strings.HasPrefix(sa, ALL) || strings.HasPrefix(sa, ":")
-	if win && all {
+	if all {
 		sa = "::" + strings.TrimPrefix(sa, ALL)
 	}
 	switch runtime.GOOS {
 	case "windows", "linux":
+		if win || !all {
+			go established(ctx, server.Addr, false, Print)
+		}
 		go func() {
 			watch(ctx, cancel, sa, Print)
-			// Println(sa, "done")
 			server.Close()
 		}()
-		if !all {
-			go established(ctx, sa, false, Print)
-		}
 	case "darwin":
 		go func() {
 			watchDarwin(ctx, cancel, sa, Print)
-			// Println(sa, "done")
 			server.Close()
 		}()
 		noidle()
