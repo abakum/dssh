@@ -286,13 +286,14 @@ func main() {
 
 	cli := fmt.Sprint(args.Option) != "{map[]}"
 	// cli, daemon := cliDaemon()
-	enableTrzsz := "yes"
+	enableTrzsz := "no"
 	switch strings.ToLower(args.EscapeChar) {
 	case "":
 		args.EscapeChar = "~"
 	case "none":
-	default:
-		enableTrzsz = "no"
+		enableTrzsz = "yes"
+		// default:
+		// enableTrzsz = "no"
 	}
 	args.Option.UnmarshalText([]byte("EscapeChar=" + args.EscapeChar))
 
