@@ -286,8 +286,8 @@ func server(ctx context.Context, cancel context.CancelFunc, u, h, p, repo, hTeln
 	}
 	switch runtime.GOOS {
 	case "windows", "linux":
-		if win || !all {
-			go established(ctx, server.Addr, false, Print)
+		if !all {
+			go established(ctx, sa, false, Print)
 		}
 		go func() {
 			watch(ctx, cancel, sa, Print)
@@ -441,6 +441,7 @@ func watchDarwin(ctx context.Context, ca context.CancelFunc, dest string, Print 
 
 // Что там с подключениями к dest
 func established(ctx context.Context, dest string, exit bool, Print func(v ...any)) {
+	Println("------------------------")
 	old := 0
 	ste_ := ""
 	t := time.NewTicker(TOW)
