@@ -49,7 +49,6 @@ import (
 	"github.com/abakum/go-ser2net/pkg/ser2net"
 	"github.com/abakum/go-serial"
 	"github.com/abakum/go-stun/stun"
-	"github.com/abakum/menu"
 	"github.com/abakum/winssh"
 	"github.com/containerd/console"
 	"github.com/mattn/go-isatty"
@@ -113,7 +112,6 @@ var (
 	Cfg        = filepath.Join(SshUserDir, "config")
 	KnownHosts = filepath.Join(SshUserDir, "known_hosts")
 	args       SshArgs
-	Std        = menu.Std
 	repo       = base()     // Имя репозитория `dssh` оно же имя алиаса в .ssh/config
 	rev        = revision() // Имя для посредника.
 	imag       string       // Имя исполняемого файла `dssh` его можно изменить чтоб не указывать имя для посредника.
@@ -323,11 +321,12 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer closer.Close()
 	cleanup := func() {
-		Std.WriteString("\n" + DECTCEM + REL)
-		Println("cleanup")
+		Std.WriteString("\n" + DECTCEM + REL) // показать курсор, очистить строку
+		Debug("cleanup")
 		<-ctx.Done()
-		KidsDone(os.Getpid())
-		Println("cleanup done") // показать курсор, показать текст, очистить строку
+		if !KidsDone(os.Getpid()) {
+			Println("cleanup done")
+		}
 	}
 	closer.Bind(cleanup)
 	closer.Bind(cancel)
@@ -1802,7 +1801,7 @@ func browse(ctx context.Context, dial string, port int, cancel context.CancelFun
 }
 
 // Завершает дочерние процессы
-func KidsDone(ppid int) {
+func KidsDone(ppid int) (done bool) {
 	if ppid < 1 {
 		return
 	}
@@ -1816,8 +1815,10 @@ func KidsDone(ppid int) {
 		}
 		if p.PPid() == ppid && p.Pid() != ppid {
 			PidDone(p.Pid())
+			done = true
 		}
 	}
+	return
 }
 
 // Если serial занят то запускаем web-сервер или telnet-сервер.
@@ -2122,9 +2123,7 @@ func cgiJ(ctx context.Context, u, dest string) (s string) {
 	}
 	// createNewConsole(cgi)
 	output, err := cgi.Output()
-	if args.Debug {
-		Println(output, err)
-	}
+	Debug(output, err)
 	s = string(output)
 	Println(s, err)
 	return
@@ -2193,4 +2192,10 @@ func userNameAtHostname() (s string) {
 	}
 	s += " " + winssh.Banner()
 	return
+}
+
+func Debug(v ...any) {
+	if args.Debug {
+		PrintLn(3, v...)
+	}
 }

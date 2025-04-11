@@ -441,7 +441,6 @@ func watchDarwin(ctx context.Context, ca context.CancelFunc, dest string, Print 
 
 // Что там с подключениями к dest
 func established(ctx context.Context, dest string, exit bool, Print func(v ...any)) {
-	Println("------------------------")
 	old := 0
 	ste_ := ""
 	t := time.NewTicker(TOW)

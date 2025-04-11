@@ -25,6 +25,7 @@ const (
 )
 
 var (
+	Std = menu.Std
 	lef = log.New(Std, "\r"+menu.BUG, log.Lshortfile)
 	le  = log.New(Std, "\r"+menu.BUG, 0)
 	lf  = log.New(Std, "\r"+menu.GT, log.Lshortfile)
@@ -143,10 +144,8 @@ func PrintLn(level int, v ...any) {
 	}
 	if ok {
 		lf.Output(level, fmt.Sprintln(anys...))
-		// fmt.Fprint(l.Writer(), "\r")
 	} else {
 		lef.Output(level, fmt.Sprintln(anys...))
-		// fmt.Fprint(le.Writer(), "\r")
 	}
 }
 
