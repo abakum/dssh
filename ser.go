@@ -155,7 +155,7 @@ func (w *sideWriter) Write(pp []byte) (int, error) {
 	o := len(pp)
 	p := append(w.l, pp...) //+2
 	switch {
-	// case win && bytes.Contains(p, []byte{CtrlZ}):
+	// case bytes.Equal(pp, []byte{CtrlZ}):
 	// 	if w.chanByte != nil {
 	// 		w.chanByte <- CtrlZ
 	// 	}

@@ -283,24 +283,25 @@ func main() {
 	}
 
 	cli := fmt.Sprint(args.Option) != "{map[]}"
-	// cli, daemon := cliDaemon()
+
 	enableTrzsz := "no"
+	exit := " или <^D>"
+	EED = Enter + args.EscapeChar + "."
+	EEDE = EED + exit
+
 	switch strings.ToLower(args.EscapeChar) {
 	case "":
 		args.EscapeChar = "~"
 	case "none":
+		exit = "<^D>"
+		if win {
+			exit = "<^Z>"
+		}
+		EED = ""
+		EEDE = exit
 		enableTrzsz = "yes"
-		// default:
-		// enableTrzsz = "no"
 	}
 	args.Option.UnmarshalText([]byte("EscapeChar=" + args.EscapeChar))
-
-	EED = Enter + args.EscapeChar + "."
-	exit := " или <^D>"
-	// if win {
-	// 	exit = " или <^Z>"
-	// }
-	EEDE = EED + exit
 
 	// `dssh` как `dssh -d`
 	// `foo` как `dssh foo@` как `dssh -dl foo`
