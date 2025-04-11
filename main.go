@@ -286,8 +286,6 @@ func main() {
 
 	enableTrzsz := "no"
 	exit := " или <^D>"
-	EED = Enter + args.EscapeChar + "."
-	EEDE = EED + exit
 
 	switch strings.ToLower(args.EscapeChar) {
 	case "":
@@ -298,9 +296,11 @@ func main() {
 			exit = "<^Z>"
 		}
 		EED = ""
-		EEDE = exit
 		enableTrzsz = "yes"
+	default:
+		EED = Enter + args.EscapeChar + "."
 	}
+	EEDE = EED + exit
 	args.Option.UnmarshalText([]byte("EscapeChar=" + args.EscapeChar))
 
 	// `dssh` как `dssh -d`
