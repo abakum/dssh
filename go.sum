@@ -148,6 +148,8 @@ github.com/ncruces/rethinkraw v0.10.7 h1:6CG7cJmCpahlffegBI8y4k3TLhq2eIguTWgXuid
 github.com/ncruces/rethinkraw v0.10.7/go.mod h1:yeLF3pJPIm1SUWHyxTK0PlEZuzasTGLP0tXPoopRSHU=
 github.com/ncruces/zenity v0.10.10 h1:V/rtAhr5QLdDThahOkm7EYlnw4RuEsf7oN+Xb6lz1j0=
 github.com/ncruces/zenity v0.10.10/go.mod h1:k3k4hJ4Wt1MUbeV48y+Gbl7Fp9skfGszN/xtKmuvhZk=
+github.com/nyaosorg/go-windows-su v0.2.1 h1:5V0XavLyjOqPUp7psxxCvBISaneU4XmFPSMlejSl5sc=
+github.com/nyaosorg/go-windows-su v0.2.1/go.mod h1:fWKxSCXwGuDuW6ne0kLp/Cj0joXNDDw01G3LseQJYS0=
 github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c h1:+mdjkGKdHQG3305AYmdv1U2eRNDiU2ErMBj1gwrq8eQ=
 github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c/go.mod h1:7rwL4CYBLnjLxUqIJNnCWiEdr3bn6IUYi15bNlnbCCU=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
@@ -166,6 +168,7 @@ github.com/rivo/uniseg v0.4.7 h1:WUdvkW8uEhrYfLC4ZzdpI2ztxP1I582+49Oc5Mq64VQ=
 github.com/rivo/uniseg v0.4.7/go.mod h1:FN3SvrM+Zdj16jyLfmOkMNblXMcoc8DfTHruCPUcx88=
 github.com/russross/blackfriday/v2 v2.1.0 h1:JIOH55/0cWyOuilr9/qlrm0BSXldqnqwMsf35Ld67mk=
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
+github.com/shurcooL/sanitized_anchor_name v1.0.0/go.mod h1:1NzhyTcUVG4SuEtjjoZeVRXNmyL/1OwPU0+IJeTBvfc=
 github.com/skeema/knownhosts v1.3.0 h1:AM+y0rI04VksttfwjkSTNQorvGqmwATnvnAHpSgc0LY=
 github.com/skeema/knownhosts v1.3.0/go.mod h1:sPINvnADmT/qYH1kfv+ePMmOBTH6Tbl7b5LvTDjFK7M=
 github.com/smeinecke/go-socks5 v0.0.0-20180316091040-4880db608f18 h1:X0clpAT5iPusO45xn6fl4mxQE7xU0x+9Lbc6eg8li8Q=

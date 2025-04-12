@@ -1107,7 +1107,8 @@ Host ` + SSHJ + ` :
 				return
 			}
 			go holdR()
-			client(signer, signers, local(hh, p, repo)+sshj+sshJ(JumpHost, u, hh, p))
+			client(signer, signers, "",
+				local(hh, p, repo)+sshj+sshJ(JumpHost, u, hh, p))
 			args.Destination = JumpHost
 			for {
 				// Перезапуск ssh-клиента для ssh-j
@@ -1160,13 +1161,13 @@ Host ` + SSHJ + ` :
 	// Клиенты
 	dj := ""
 	if djh != "" && djp != "" {
-		client(signer, signers,
+		dj = net.JoinHostPort(djh, djp)
+		client(signer, signers, dj,
 			local(djh, djp, repo)+
 				sshj+sshJ(JumpHost, u, djh, djp),
 			repo, SSHJ)
-		dj = net.JoinHostPort(djh, djp)
 	} else {
-		client(signer, signers,
+		client(signer, signers, "",
 			sshj+sshJ(JumpHost, u, "", p),
 			repo, SSHJ)
 	}

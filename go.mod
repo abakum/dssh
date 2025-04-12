@@ -99,6 +99,7 @@ require (
 	github.com/muesli/termenv v0.15.2 // indirect
 	github.com/ncruces/jason v0.4.0 // indirect
 	github.com/ncruces/zenity v0.10.10 // indirect
+	github.com/nyaosorg/go-windows-su v0.2.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pkg/sftp v1.13.6 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect

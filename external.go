@@ -8,11 +8,13 @@ import (
 	"io"
 	"io/fs"
 	"net"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	. "github.com/abakum/dssh/tssh"
@@ -432,7 +434,7 @@ func bool2string(b bool) string {
 }
 
 // Пишем config для ssh клиентов
-func client(signer ssh.Signer, signers []ssh.Signer, config string, hosts ...string) {
+func client(signer ssh.Signer, signers []ssh.Signer, hp, config string, hosts ...string) {
 	cfg, err := ssh_config.Decode(strings.NewReader(config))
 	if err != nil {
 		Println(err)
@@ -446,6 +448,7 @@ func client(signer ssh.Signer, signers []ssh.Signer, config string, hosts ...str
 
 	cert := NewCertificate(0, ssh.UserCert, repo, ssh.CertTimeInfinity, 0, repo)
 	caSigner := []*CASigner{NewCASigner(cert, signer)}
+	var once sync.Once
 	for i, alias := range hosts {
 		// args.Config.Signers[alias] = []ssh.Signer{signer} // Не буду использовать CA как ключ
 		args.Config.CASigner[alias] = caSigner
@@ -469,6 +472,22 @@ func client(signer ssh.Signer, signers []ssh.Signer, config string, hosts ...str
 					continue
 				}
 				name := filepath.Join(SshUserDir, pref+"-cert.pub")
+				once.Do(func() {
+					if hp != "" && win {
+						opt := fmt.Sprintf("winscp-sftp://_;x-name=dssh;x-detachedcertificate=%s@%s/", url.QueryEscape(name), hp)
+						// cmd := exec.Command("winSCP", "/Unsafe", opt)
+						cmd := exec.Command("cmd", "/c", "start", "/b", opt)
+						err := cmd.Start()
+						// _, err = su.ShellExecute(su.OPEN, opt, "", "")
+						Println("start", opt, err)
+						if err == nil {
+							time.Sleep(time.Second)
+							cmd.Process.Release()
+							closer.Close()
+							// holdClose(true)
+						}
+					}
+				})
 				if !isFileExist(name) || !canReadFile(name) {
 					continue
 				}
