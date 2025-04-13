@@ -37,6 +37,7 @@ import (
 	"io/fs"
 	"log"
 	"net"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -282,8 +283,6 @@ func main() {
 		return
 	}
 
-	cli := fmt.Sprint(args.Option) != "{map[]}"
-
 	enableTrzsz := "no"
 	exit := " или <^D>"
 
@@ -318,7 +317,6 @@ func main() {
 		return rev // Имя для посредника ssh-j.com
 	}
 
-	autoDirectJump := ""
 	ctx, cancel := context.WithCancel(context.Background())
 	defer closer.Close()
 	cleanup := func() {
@@ -333,6 +331,7 @@ func main() {
 	closer.Bind(cancel)
 
 	// -j  Это автообход посредника для dssh-сервера с внешним IP и `dssh`
+	autoDirectJump := ""
 	if args.DirectJump && isDssh(args.Destination == "") {
 		autoDirectJump = getHP(ctx, autoDirectJump, setU(""))
 		if autoDirectJump == "." {
@@ -350,10 +349,57 @@ func main() {
 		}
 	}
 
+	cli := fmt.Sprint(args.Option) != "{map[]}"
+
 	u, h, p := ParseDestination(args.Destination) //tssh
 	p = portPB(p, PORTS)
 	bind, dial := host2BD(h)
 	u = setU(u)
+
+	if args.SCP && win {
+		opt := fmt.Sprintf("winscp-sftp://%s/", args.Destination)
+		if isDssh(args.Destination == "") || args.DirectJump {
+			// -9
+			// -9 :
+			// -9 .
+			autoDirectJump = getHP(ctx, autoDirectJump, u)
+			if autoDirectJump == "." {
+				Println(fmt.Errorf("let's not abuse the kindness of - не будем злоупотреблять добротой %s", JumpHost))
+				return
+			} else {
+				args.DirectJump = true
+				args.Destination = autoDirectJump
+			}
+			external := true
+			_, name, err := externalClient(exe, &external)
+			if err != nil {
+				Println(err)
+				return
+			}
+			opt = fmt.Sprintf("winscp-sftp://%s;x-name=%s;x-detachedcertificate=%s@%s/", "_", repo, url.QueryEscape(name), autoDirectJump)
+		} else {
+			au, ah, ap, err := SshToUHP(h)
+			if ap == "" {
+				ap = PORT
+			}
+			if err == nil {
+				opt = fmt.Sprintf("winscp-sftp://%s;x-name=%s@%s/", au, h, net.JoinHostPort(ah, ap))
+			}
+		}
+		// cmd := exec.Command("winSCP", "/Unsafe", opt)
+		cmd := exec.Command("cmd", "/c", "start", "/b", opt)
+		err = cmd.Start()
+		// _, err = su.ShellExecute(su.OPEN, opt, "", "")
+		Println("start", opt, err)
+		if err == nil {
+			time.Sleep(time.Second)
+			cmd.Process.Release()
+			closer.Close()
+			// holdClose(true)
+		}
+		return
+	}
+
 	tmpU := filepath.Join(tmp, u)
 	// dot := psPrint(filepath.Base(exe), "", 0, PrintNil) > 1 && isFileExist(tmpU)
 	dot := isFileExist(tmpU)
@@ -437,8 +483,6 @@ func main() {
 		} else {
 			args.DirectJump = true
 			args.Destination = autoDirectJump
-			// Println(repo, "-j", args.Destination)
-			// -70 -j autoDirectJump
 		}
 	}
 
@@ -568,8 +612,8 @@ func main() {
 		}
 	}
 
-	external = args.Putty || args.Telnet
-	signers, err := externalClient(&external, exe)
+	external = false
+	signers, _, err := externalClient(exe, &external, &args.Putty, &args.Telnet)
 	if err != nil {
 		Println(err)
 	}
@@ -1107,7 +1151,7 @@ Host ` + SSHJ + ` :
 				return
 			}
 			go holdR()
-			client(signer, signers, "",
+			client(signer, signers,
 				local(hh, p, repo)+sshj+sshJ(JumpHost, u, hh, p))
 			args.Destination = JumpHost
 			for {
@@ -1162,12 +1206,12 @@ Host ` + SSHJ + ` :
 	dj := ""
 	if djh != "" && djp != "" {
 		dj = net.JoinHostPort(djh, djp)
-		client(signer, signers, dj,
+		client(signer, signers,
 			local(djh, djp, repo)+
 				sshj+sshJ(JumpHost, u, djh, djp),
 			repo, SSHJ)
 	} else {
-		client(signer, signers, "",
+		client(signer, signers,
 			sshj+sshJ(JumpHost, u, "", p),
 			repo, SSHJ)
 	}

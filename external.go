@@ -8,13 +8,11 @@ import (
 	"io"
 	"io/fs"
 	"net"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	. "github.com/abakum/dssh/tssh"
@@ -73,8 +71,11 @@ func isDssh(or bool) bool {
 	return false
 }
 
-func externalClient(external *bool, exe string) (signers []ssh.Signer, err error) {
-	if isDssh(false) && *external {
+func externalClient(exe string, externals ...*bool) (signers []ssh.Signer, name string, err error) {
+	for _, e := range externals[1:] {
+		*externals[0] = *externals[0] || *e
+	}
+	if isDssh(args.DirectJump) && *externals[0] {
 		s := "-u"
 		if args.Telnet {
 			s = "-Z"
@@ -84,18 +85,21 @@ func externalClient(external *bool, exe string) (signers []ssh.Signer, err error
 		conn, err = pageant.NewConn()
 		if err != nil {
 			err = fmt.Errorf("requires a ssh-agent - для запуска %s нужен агент ключей %v", s, err)
-			args.Putty = false
-			args.Telnet = false
-			*external = false
+			for _, e := range externals {
+				*e = false
+			}
+			// args.Putty = false
+			// args.Telnet = false
+			// *externals[0] = false
 			return
 		}
 		defer conn.Close()
 		signers, err = agent.NewClient(conn).Signers()
 		if err != nil || len(signers) < 1 {
 			err = fmt.Errorf("requires at least one key from the ssh-agent - для запуска %s нужен хотя бы один ключ от агента ключей", s)
-			args.Putty = false
-			args.Telnet = false
-			*external = false
+			for _, e := range externals {
+				*e = false
+			}
 			return
 		}
 		run := func(s, cert string) (err error) {
@@ -119,9 +123,9 @@ func externalClient(external *bool, exe string) (signers []ssh.Signer, err error
 		}
 		err = run(s, filepath.Join(SshUserDir, repo))
 		if err != nil {
-			args.Putty = false
-			args.Telnet = false
-			*external = false
+			for _, e := range externals {
+				*e = false
+			}
 			return
 		}
 		for _, sig := range signers {
@@ -129,11 +133,12 @@ func externalClient(external *bool, exe string) (signers []ssh.Signer, err error
 			if !ok {
 				continue
 			}
-			err = run(s, filepath.Join(SshUserDir, pref+"-cert.pub"))
+			name = filepath.Join(SshUserDir, pref+"-cert.pub")
+			err = run(s, name)
 			if err != nil {
-				args.Putty = false
-				args.Telnet = false
-				*external = false
+				for _, e := range externals {
+					*e = false
+				}
 				return
 			}
 		}
@@ -416,7 +421,27 @@ func SshToPutty() (err error) {
 		}
 	}
 	return
+}
 
+func SshToUHP(alias string) (u, h, p string, err error) {
+	bs, err := os.ReadFile(Cfg)
+	if err != nil {
+		return
+	}
+	cfg, err := ssh_config.DecodeBytes(bs)
+	if err != nil {
+		return
+	}
+	for _, host := range cfg.Hosts {
+		for _, pattern := range host.Patterns {
+			s := pattern.String()
+			if s == alias {
+				return ssh_config.Get(s, "User"), ssh_config.Get(s, "HostName"), ssh_config.Get(s, "Port"), nil
+			}
+		}
+	}
+	err = fmt.Errorf("not found alias %s", alias)
+	return
 }
 
 func yes(s string) string {
@@ -434,7 +459,7 @@ func bool2string(b bool) string {
 }
 
 // Пишем config для ssh клиентов
-func client(signer ssh.Signer, signers []ssh.Signer, hp, config string, hosts ...string) {
+func client(signer ssh.Signer, signers []ssh.Signer, config string, hosts ...string) {
 	cfg, err := ssh_config.Decode(strings.NewReader(config))
 	if err != nil {
 		Println(err)
@@ -448,7 +473,6 @@ func client(signer ssh.Signer, signers []ssh.Signer, hp, config string, hosts ..
 
 	cert := NewCertificate(0, ssh.UserCert, repo, ssh.CertTimeInfinity, 0, repo)
 	caSigner := []*CASigner{NewCASigner(cert, signer)}
-	var once sync.Once
 	for i, alias := range hosts {
 		// args.Config.Signers[alias] = []ssh.Signer{signer} // Не буду использовать CA как ключ
 		args.Config.CASigner[alias] = caSigner
@@ -472,22 +496,6 @@ func client(signer ssh.Signer, signers []ssh.Signer, hp, config string, hosts ..
 					continue
 				}
 				name := filepath.Join(SshUserDir, pref+"-cert.pub")
-				once.Do(func() {
-					if hp != "" && win {
-						opt := fmt.Sprintf("winscp-sftp://_;x-name=dssh;x-detachedcertificate=%s@%s/", url.QueryEscape(name), hp)
-						// cmd := exec.Command("winSCP", "/Unsafe", opt)
-						cmd := exec.Command("cmd", "/c", "start", "/b", opt)
-						err := cmd.Start()
-						// _, err = su.ShellExecute(su.OPEN, opt, "", "")
-						Println("start", opt, err)
-						if err == nil {
-							time.Sleep(time.Second)
-							cmd.Process.Release()
-							closer.Close()
-							// holdClose(true)
-						}
-					}
-				})
 				if !isFileExist(name) || !canReadFile(name) {
 					continue
 				}
