@@ -282,7 +282,7 @@ func main() {
 		Tssh(&args)
 		return
 	}
-
+	cli := fmt.Sprint(args.Option) != "{map[]}"
 	enableTrzsz := "no"
 	exit := " или <^D>"
 
@@ -349,7 +349,7 @@ func main() {
 		}
 	}
 
-	cli := fmt.Sprint(args.Option) != "{map[]}"
+	// cli := fmt.Sprint(args.Option) != "{map[]}"
 
 	u, h, p := ParseDestination(args.Destination) //tssh
 	p = portPB(p, PORTS)
