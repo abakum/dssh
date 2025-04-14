@@ -423,10 +423,8 @@ func main() {
 		// _, err = su.ShellExecute(su.OPEN, opt, "", "")
 		Println(cmd, err)
 		if err == nil {
-			time.Sleep(time.Second)
-			cmd.Process.Release()
-			closer.Close()
-			// holdClose(true)
+			defer cmd.Process.Release()
+			holdClose(true)
 		}
 		return
 	}
