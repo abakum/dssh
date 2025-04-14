@@ -349,48 +349,79 @@ func main() {
 		}
 	}
 
-	// cli := fmt.Sprint(args.Option) != "{map[]}"
+	u, h, pd := ParseDestination(args.Destination) //tssh
 
-	u, h, p := ParseDestination(args.Destination) //tssh
-	p = portPB(p, PORTS)
+	p := portPB(pd, PORTS)
 	bind, dial := host2BD(h)
 	u = setU(u)
 
-	if args.SCP && win {
-		opt := fmt.Sprintf("winscp-sftp://%s/", args.Destination)
-		if isDssh(args.Destination == "") || args.DirectJump {
+	if args.SCP {
+		ou := u
+		if ou != "" {
+			ou += "@"
+		}
+		op := pd
+		if op != "" {
+			op = ":" + op
+		}
+		// Не алиас
+		opt := fmt.Sprintf("sftp://%s%s%s/", ou, dial, op)
+		if win && (isDssh(args.Destination == "") || args.DirectJump && args.Destination != "") {
+			// -9j
 			// -9
 			// -9 :
 			// -9 .
-			autoDirectJump = getHP(ctx, autoDirectJump, u)
-			if autoDirectJump == "." {
-				Println(fmt.Errorf("let's not abuse the kindness of - не будем злоупотреблять добротой %s", JumpHost))
-				return
+			if isDssh(args.Destination == "") {
+				autoDirectJump = getHP(ctx, autoDirectJump, u)
+				if autoDirectJump == "." {
+					args.Destination = JoinHostPort(LH, PORTS)
+				} else {
+					args.Destination = autoDirectJump
+				}
 			} else {
-				args.DirectJump = true
-				args.Destination = autoDirectJump
+				args.Destination = net.JoinHostPort(dial, p)
 			}
-			external := true
-			_, name, err := externalClient(exe, &external)
+			args.DirectJump = true
+			_, name, err := externalClient(exe, &args.DirectJump)
 			if err != nil {
 				Println(err)
 				return
 			}
-			opt = fmt.Sprintf("winscp-sftp://%s;x-name=%s;x-detachedcertificate=%s@%s/", "_", repo, url.QueryEscape(name), autoDirectJump)
+			opt = fmt.Sprintf("winscp-sftp://%s;x-name=%s;x-detachedcertificate=%s@%s/", u, repo, url.QueryEscape(name), args.Destination)
 		} else {
+			// alias
 			au, ah, ap, err := SshToUHP(h)
-			if ap == "" {
-				ap = PORT
-			}
 			if err == nil {
-				opt = fmt.Sprintf("winscp-sftp://%s;x-name=%s@%s/", au, h, net.JoinHostPort(ah, ap))
+				if au == "" {
+					au = u
+				}
+				if au != "" {
+					au += "@"
+				}
+				if ap != "" {
+					ap = ":" + ap
+				}
+				opt = fmt.Sprintf("sftp://%s%s%s/", au, ah, ap)
 			}
 		}
-		// cmd := exec.Command("winSCP", "/Unsafe", opt)
-		cmd := exec.Command("cmd", "/c", "start", "/b", opt)
+		bin := "start"
+		var cmd *exec.Cmd
+		if win {
+			// cmd = exec.Command("winSCP.exe", "/Unsafe", opt)
+			cmd = exec.Command("cmd", "/c", bin, "/b", opt)
+		} else {
+			bin = "filezilla"
+			_, err := exec.LookPath(bin)
+			if err == nil {
+				cmd = exec.Command(bin, "-l", "interactive", opt)
+			} else {
+				bin = "xdg-open"
+				cmd = exec.Command(bin, opt)
+			}
+		}
 		err = cmd.Start()
 		// _, err = su.ShellExecute(su.OPEN, opt, "", "")
-		Println("start", opt, err)
+		Println(cmd, err)
 		if err == nil {
 			time.Sleep(time.Second)
 			cmd.Process.Release()
