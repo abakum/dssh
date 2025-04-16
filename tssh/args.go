@@ -105,7 +105,7 @@ type SshArgs struct {
 	Share      bool `arg:"-s,--share" help:"share local console"`
 	Use        bool `arg:"-0,--use" help:"use remote console"`
 	VNC        int  `arg:"-7,--vnc" placeholder:"vncViewerListenPort" help:"port of reverse vnc-client from 'vncviewer -listen [vncViewerListenPort]'" default:"-1"`
-	SCP        bool `arg:"-9,--scp" help:"start winSCP"`
+	Sftp       bool `arg:"-9,--sftp" help:"start WinSCP or FileZilla"`
 }
 
 func (SshArgs) Description() string {

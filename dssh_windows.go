@@ -4,12 +4,15 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"syscall"
 
+	su "github.com/nyaosorg/go-windows-su"
 	"github.com/xlab/closer"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
@@ -90,4 +93,16 @@ func ConsoleCP() {
 	setConsoleOutputCP(CP_UTF8)
 	closer.Bind(func() { setConsoleCP(inCP) })
 	closer.Bind(func() { setConsoleOutputCP(outCP) })
+}
+
+func sftp(ctx context.Context, u, hp string) {
+	opt := fmt.Sprintf("sftp://%s@%s/", u, hp)
+	_, err := su.ShellExecute(su.OPEN, opt, "", "")
+	Println("start", opt, err)
+	// if err == nil {
+	// 	established(ctx, hp, true, Println)
+	// 	if ctx.Err() == nil {
+	// 		closer.Close()
+	// 	}
+	// }
 }

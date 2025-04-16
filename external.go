@@ -423,7 +423,7 @@ func SshToPutty() (err error) {
 	return
 }
 
-func SshToUHP(alias string) (u, h, p string, err error) {
+func SshToUHPJ(alias string) (u, h, p, j string, err error) {
 	bs, err := os.ReadFile(Cfg)
 	if err != nil {
 		return
@@ -436,7 +436,11 @@ func SshToUHP(alias string) (u, h, p string, err error) {
 		for _, pattern := range host.Patterns {
 			s := pattern.String()
 			if s == alias {
-				return ssh_config.Get(s, "User"), ssh_config.Get(s, "HostName"), ssh_config.Get(s, "Port"), nil
+				return ssh_config.Get(s, "User"),
+					ssh_config.Get(s, "HostName"),
+					ssh_config.Get(s, "Port"),
+					ssh_config.Get(s, "ProxyJump"),
+					nil
 			}
 		}
 	}

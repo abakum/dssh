@@ -99,6 +99,7 @@ const (
 	PORTW    = 8000
 	PORTS    = 2200
 	PORTV    = 5500
+	PORTC    = 2290
 	LockFile = "lockfile"
 	SEP      = ","
 	Enter    = "<Enter>"
@@ -332,6 +333,11 @@ func main() {
 
 	// -j  Это автообход посредника для dssh-сервера с внешним IP и `dssh`
 	autoDirectJump := ""
+
+	if args.Sftp && isDssh(args.Destination == "") {
+		// Пытаемся напрямую но без фанатизма в отличии от -7
+		args.DirectJump = true
+	}
 	if args.DirectJump && isDssh(args.Destination == "") {
 		autoDirectJump = getHP(ctx, autoDirectJump, setU(""))
 		if autoDirectJump == "." {
@@ -352,82 +358,11 @@ func main() {
 	u, h, pd := ParseDestination(args.Destination) //tssh
 
 	p := portPB(pd, PORTS)
+	// if pd == "" && !isDssh(args.Destination == "" || args.DirectJump) {
+	// p = PORT
+	// }
 	bind, dial := host2BD(h)
 	u = setU(u)
-
-	if args.SCP {
-		ou := u
-		if ou != "" {
-			ou += "@"
-		}
-		op := pd
-		if op != "" {
-			op = ":" + op
-		}
-		// Не алиас
-		opt := fmt.Sprintf("sftp://%s%s%s/", ou, dial, op)
-		if win && (isDssh(args.Destination == "") || args.DirectJump && args.Destination != "") {
-			// -9j
-			// -9
-			// -9 :
-			// -9 .
-			if isDssh(args.Destination == "") {
-				autoDirectJump = getHP(ctx, autoDirectJump, u)
-				if autoDirectJump == "." {
-					args.Destination = JoinHostPort(LH, PORTS)
-				} else {
-					args.Destination = autoDirectJump
-				}
-			} else {
-				args.Destination = net.JoinHostPort(dial, p)
-			}
-			args.DirectJump = true
-			_, name, err := externalClient(exe, &args.DirectJump)
-			if err != nil {
-				Println(err)
-				return
-			}
-			opt = fmt.Sprintf("winscp-sftp://%s;x-name=%s;x-detachedcertificate=%s@%s/", u, repo, url.QueryEscape(name), args.Destination)
-		} else {
-			// alias
-			au, ah, ap, err := SshToUHP(h)
-			if err == nil {
-				if au == "" {
-					au = u
-				}
-				if au != "" {
-					au += "@"
-				}
-				if ap != "" {
-					ap = ":" + ap
-				}
-				opt = fmt.Sprintf("sftp://%s%s%s/", au, ah, ap)
-			}
-		}
-		bin := "start"
-		var cmd *exec.Cmd
-		if win {
-			// cmd = exec.Command("winSCP.exe", "/Unsafe", opt)
-			cmd = exec.Command("cmd", "/c", bin, "/b", opt)
-		} else {
-			bin = "filezilla"
-			_, err := exec.LookPath(bin)
-			if err == nil {
-				cmd = exec.Command(bin, "-l", "interactive", opt)
-			} else {
-				bin = "xdg-open"
-				cmd = exec.Command(bin, opt)
-			}
-		}
-		err = cmd.Start()
-		// _, err = su.ShellExecute(su.OPEN, opt, "", "")
-		Println(cmd, err)
-		if err == nil {
-			defer cmd.Process.Release()
-			holdClose(true)
-		}
-		return
-	}
 
 	tmpU := filepath.Join(tmp, u)
 	// dot := psPrint(filepath.Base(exe), "", 0, PrintNil) > 1 && isFileExist(tmpU)
@@ -1430,6 +1365,54 @@ Host ` + SSHJ + ` :
 		args.Command = repo
 	}
 
+	if args.Sftp {
+		lhp := JoinHostPort(LH, PORTC)
+		if h == "" {
+			h = LH
+		}
+		if pd == "" {
+			if !isDssh(args.DirectJump) {
+				p = PORT
+			}
+		} else {
+			p = pd
+		}
+		// Алиас
+		au, ah, ap, _, err := SshToUHPJ(h)
+		if err == nil {
+			if au != "" {
+				u = au
+			}
+			if ah != "" {
+				h = ah
+			}
+			if ap != "" {
+				p = ap
+			}
+			if p == "" {
+				p = PORT
+			}
+		}
+		if win && isDssh(args.DirectJump && args.Destination != "") {
+			// -9j
+			// -9
+			// -9 :
+			// -9 .
+			if args.DirectJump {
+				ok := true
+				_, name, err := externalClient(exe, &ok)
+				if err == nil {
+					u += ";x-detachedcertificate=" + url.QueryEscape(name)
+				}
+			} else {
+				h, p = LH, strconv.Itoa(PORTS)
+			}
+		}
+		s4 := lhp + ":" + net.JoinHostPort(h, p)
+		Println("-L", s4)
+		args.LocalForward.UnmarshalText([]byte(s4))
+		go sftp(ctx, u, lhp)
+	}
 	code := Tssh(&args)
 	if args.Background {
 		Println("tssh started in background with code:", code)
@@ -1996,6 +1979,19 @@ func isHP(hostport string) (ok bool) {
 	}
 	conn.Close()
 	return true
+}
+func dPort(host string) (portC string) {
+	portC = strconv.Itoa(PORTC)
+	ln, err := net.Listen("tcp4", net.JoinHostPort(host, "0"))
+	if err == nil {
+		hostport := ln.Addr().String()
+		ln.Close()
+		_, p, err := net.SplitHostPort(hostport)
+		if err == nil {
+			return p
+		}
+	}
+	return
 }
 
 func PrintNil(v ...any) {
