@@ -71,7 +71,7 @@ func isDssh(or bool) bool {
 	return false
 }
 
-func externalClient(exe string, externals ...*bool) (signers []ssh.Signer, name string, err error) {
+func externalClient(exe string, externals ...*bool) (signers []ssh.Signer, certPub string, err error) {
 	for _, e := range externals[1:] {
 		*externals[0] = *externals[0] || *e
 	}
@@ -133,9 +133,10 @@ func externalClient(exe string, externals ...*bool) (signers []ssh.Signer, name 
 			if !ok {
 				continue
 			}
-			name = filepath.Join(SshUserDir, pref+"-cert.pub")
-			err = run(s, name)
+			certPub = filepath.Join(SshUserDir, pref+"-cert.pub")
+			err = run(s, certPub)
 			if err != nil {
+				certPub = ""
 				for _, e := range externals {
 					*e = false
 				}
@@ -499,11 +500,13 @@ func client(signer ssh.Signer, signers []ssh.Signer, config string, hosts ...str
 				if !ok {
 					continue
 				}
-				name := filepath.Join(SshUserDir, pref+"-cert.pub")
-				if !isFileExist(name) || !canReadFile(name) {
+				certPub := filepath.Join(SshUserDir, pref+"-cert.pub")
+				if !isFileExist(certPub) || !canReadFile(certPub) {
 					continue
 				}
-				Conf(filepath.Join(Sessions, alias), EQ, map[string]string{"DetachedCertificate": name})
+				Conf(filepath.Join(Sessions, alias), EQ, map[string]string{
+					"DetachedCertificate": certPub,
+				})
 				// PuTTY может принять только один сертифицикат
 				break
 			}

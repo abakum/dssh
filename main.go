@@ -513,8 +513,8 @@ func main() {
 	}
 
 	BSnw := ser != "" || args.Baud != "" || portT > 0 || portW > 0
-
-	if !loc && Win7 && !(args.DisableTTY || args.NoCommand || Cygwin || external || BSnw || portV > 0) {
+	noAutoPutty := args.DisableTTY || args.NoCommand || Cygwin || external || BSnw || portV > 0 || args.Sftp
+	if !loc && Win7 && !noAutoPutty {
 		s := PUTTY
 		_, err := exec.LookPath(s)
 		args.Putty = err == nil
@@ -587,7 +587,7 @@ func main() {
 	}
 
 	external = false
-	signers, _, err := externalClient(exe, &external, &args.Putty, &args.Telnet)
+	signers, certPub, err := externalClient(exe, &external, &args.Putty, &args.Telnet)
 	if err != nil {
 		Println(err)
 	}
@@ -1408,10 +1408,22 @@ Host ` + SSHJ + ` :
 			// -9 :
 			// -9 .
 			if args.DirectJump {
-				ok := true
-				_, name, err := externalClient(exe, &ok)
-				if err == nil {
-					u += ";x-DetachedCertificate=" + url.QueryEscape(name)
+				if certPub == "" {
+					// Может удастся съэкономить
+					ok := true
+					_, certPub, err = externalClient(exe, &ok)
+					if err != nil {
+						certPub = ""
+					}
+				}
+				if certPub != "" {
+					u += ";x-DetachedCertificate=" + url.QueryEscape(certPub)
+					// Security~>Load Authorities from PuTTY
+					// Безопасность~>Загрузить центры сертификации из PuTTY
+					WinSCP := `SOFTWARE\Martin Prikryl\WinSCP 2`
+					Conf(filepath.Join(WinSCP, "Configuration", "Interface"), EQ, map[string]string{
+						"SshHostCAsFromPuTTY": "1",
+					})
 				}
 			} else {
 				h, p = LH, strconv.Itoa(PORTS)
