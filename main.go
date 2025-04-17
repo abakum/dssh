@@ -331,6 +331,11 @@ func main() {
 	closer.Bind(cleanup)
 	closer.Bind(cancel)
 
+	if args.ProxyJump != "" && isDssh(args.Destination == "") && !args.DirectJump {
+		args.DirectJump = true
+		args.Destination = ":"
+	}
+
 	// -j  Это автообход посредника для dssh-сервера с внешним IP и `dssh`
 	autoDirectJump := ""
 
@@ -338,13 +343,20 @@ func main() {
 		// Пытаемся напрямую но без фанатизма в отличии от -7
 		args.DirectJump = true
 	}
-	if args.DirectJump && isDssh(args.Destination == "") {
+	// if args.DirectJump && isDssh(args.Destination == "") {
+	if args.DirectJump && args.Destination == "" {
 		autoDirectJump = getHP(ctx, autoDirectJump, setU(""))
 		if autoDirectJump == "." {
 			Println(fmt.Errorf("auto -j failed - без посредника не обойтись"))
-			// -j ~> .
-			// -j :~> :
-			args.DirectJump = false
+			if args.ProxyJump != "" {
+				Println(fmt.Sprintf("try over jump host - пробуем через посредника %q", args.ProxyJump))
+				// -jJX ~> -jJX .
+				// -jJX :~> -jJX :
+			} else {
+				args.DirectJump = false
+				// -j ~> .
+				// -j :~> :
+			}
 			if args.Destination == "" {
 				args.Destination = autoDirectJump
 			}
@@ -358,9 +370,7 @@ func main() {
 	u, h, pd := ParseDestination(args.Destination) //tssh
 
 	p := portPB(pd, PORTS)
-	// if pd == "" && !isDssh(args.Destination == "" || args.DirectJump) {
-	// p = PORT
-	// }
+
 	bind, dial := host2BD(h)
 	u = setU(u)
 
@@ -437,7 +447,7 @@ func main() {
 		// -70 .
 		autoDirectJump = getHP(ctx, autoDirectJump, u)
 		if autoDirectJump == "." {
-			Println(fmt.Errorf("let's not abuse the kindness of - не будем злоупотреблять добротой %s", JumpHost))
+			Println(fmt.Errorf("let's not abuse the kindness of - не будем злоупотреблять добротой %q", JumpHost))
 			vncDirect = false
 			args.Destination = "_"
 			loc = true
@@ -1367,18 +1377,18 @@ Host ` + SSHJ + ` :
 
 	if args.Sftp {
 		lhp := JoinHostPort(LH, PORTC)
+		_, h, pd := ParseDestination(args.Destination)
 		if h == "" {
 			h = LH
 		}
-		if pd == "" {
-			if !isDssh(args.DirectJump) {
-				p = PORT
-			}
-		} else {
-			p = pd
+		p = portPB(pd, PORTS)
+		if pd == "" && !isDssh(args.DirectJump) {
+			p = PORT
 		}
 		// Алиас
 		au, ah, ap, _, err := SshToUHPJ(h)
+		// Println("args.Destination, h, p, args.DirectJump, isDssh(false), au, ah, ap, err--------------")
+		// Println(args.Destination, h, p, args.DirectJump, isDssh(false), au, ah, ap, err)
 		if err == nil {
 			if au != "" {
 				u = au
@@ -1394,15 +1404,14 @@ Host ` + SSHJ + ` :
 			}
 		}
 		if win && isDssh(args.DirectJump && args.Destination != "") {
-			// -9j
-			// -9
+			// -9j x
 			// -9 :
 			// -9 .
 			if args.DirectJump {
 				ok := true
 				_, name, err := externalClient(exe, &ok)
 				if err == nil {
-					u += ";x-detachedcertificate=" + url.QueryEscape(name)
+					u += ";x-DetachedCertificate=" + url.QueryEscape(name)
 				}
 			} else {
 				h, p = LH, strconv.Itoa(PORTS)
@@ -1411,7 +1420,13 @@ Host ` + SSHJ + ` :
 		s4 := lhp + ":" + net.JoinHostPort(h, p)
 		Println("-L", s4)
 		args.LocalForward.UnmarshalText([]byte(s4))
-		go sftp(ctx, u, lhp)
+		if args.Destination == SSHJ {
+			Println(fmt.Errorf("let's not abuse the kindness of - не будем злоупотреблять добротой %q", JumpHost))
+			// Println(fmt.Errorf("please don't abuse the kindness of - пожалуйста не злоупотребляйте добротой %q", JumpHost))
+		} else {
+			go sftp(ctx, u, lhp)
+		}
+		// go sftp(ctx, u, lhp)
 	}
 	code := Tssh(&args)
 	if args.Background {
