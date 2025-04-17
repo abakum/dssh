@@ -1386,7 +1386,7 @@ Host ` + SSHJ + ` :
 			p = PORT
 		}
 		// Алиас
-		au, ah, ap, _, err := SshToUHPJ(h)
+		au, ah, ap, aj, err := SshToUHPJ(h)
 		// Println("args.Destination, h, p, args.DirectJump, isDssh(false), au, ah, ap, err--------------")
 		// Println(args.Destination, h, p, args.DirectJump, isDssh(false), au, ah, ap, err)
 		if err == nil {
@@ -1403,7 +1403,9 @@ Host ` + SSHJ + ` :
 				p = PORT
 			}
 		}
-		if win && isDssh(args.DirectJump && args.Destination != "") {
+		direct := args.ProxyJump == "" && aj == ""
+		isD := win && isDssh(args.DirectJump && args.Destination != "")
+		if isD {
 			// -9j x
 			// -9 :
 			// -9 .
@@ -1428,17 +1430,23 @@ Host ` + SSHJ + ` :
 			} else {
 				h, p = LH, strconv.Itoa(PORTS)
 			}
+		} else if direct {
+			// !isD
+			// Без посредников
+			go sftp(ctx, u, net.JoinHostPort(h, p))
 		}
-		s4 := lhp + ":" + net.JoinHostPort(h, p)
-		Println("-L", s4)
-		args.LocalForward.UnmarshalText([]byte(s4))
-		if args.Destination == SSHJ {
-			Println(fmt.Errorf("let's not abuse the kindness of - не будем злоупотреблять добротой %q", JumpHost))
-			// Println(fmt.Errorf("please don't abuse the kindness of - пожалуйста не злоупотребляйте добротой %q", JumpHost))
-		} else {
-			go sftp(ctx, u, lhp)
+		if !direct || isD {
+			s4 := lhp + ":" + net.JoinHostPort(h, p)
+			Println("-L", s4)
+			args.LocalForward.UnmarshalText([]byte(s4))
+			if args.Destination == SSHJ {
+				Println(fmt.Errorf("let's not abuse the kindness of - не будем злоупотреблять добротой %q", JumpHost))
+				// Println(fmt.Errorf("please don't abuse the kindness of - пожалуйста не злоупотребляйте добротой %q", JumpHost))
+			} else {
+				go sftp(ctx, u, lhp)
+			}
+			// go sftp(ctx, u, lhp)
 		}
-		// go sftp(ctx, u, lhp)
 	}
 	code := Tssh(&args)
 	if args.Background {
