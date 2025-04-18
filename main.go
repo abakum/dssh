@@ -340,7 +340,7 @@ func main() {
 	// -j  Это автообход посредника для dssh-сервера с внешним IP и `dssh`
 	autoDirectJump := ""
 
-	if args.Sftp && isDssh(args.Destination == "") {
+	if (args.Sftp || args.Scp) && isDssh(args.Destination == "") {
 		// Пытаемся напрямую но без фанатизма в отличии от -7
 		args.DirectJump = true
 	}
@@ -514,7 +514,7 @@ func main() {
 	}
 
 	BSnw := ser != "" || args.Baud != "" || portT > 0 || portW > 0
-	noAutoPutty := loc || args.DisableTTY || args.NoCommand || Cygwin || external || BSnw || portV > 0 || args.Sftp
+	noAutoPutty := loc || args.DisableTTY || args.NoCommand || Cygwin || external || BSnw || portV > 0 || args.Sftp || args.Scp
 	if Win7 && !noAutoPutty {
 		s := PUTTY
 		_, err := exec.LookPath(s)
@@ -1376,8 +1376,8 @@ Host ` + SSHJ + ` :
 		args.Command = repo
 	}
 
-	sftpStart := func() {
-		if !args.Sftp {
+	sxStart := func() {
+		if !(args.Sftp || args.Scp) {
 			return
 		}
 		if args.Destination == SSHJ {
@@ -1409,7 +1409,15 @@ Host ` + SSHJ + ` :
 				p = PORT
 			}
 		}
-		if win && isDssh(args.DirectJump && args.Destination != "") {
+		if !win {
+			lhp := net.JoinHostPort(LH, dPort(LH))
+			s4 := lhp + ":" + net.JoinHostPort(h, p)
+			Println("-L", s4)
+			args.LocalForward.UnmarshalText([]byte(s4))
+			go sx(ctx, u, lhp)
+			return
+		}
+		if isDssh(args.DirectJump && args.Destination != "") {
 			// -9j x
 			// -9 :
 			// -9 .
@@ -1441,14 +1449,15 @@ Host ` + SSHJ + ` :
 				s4 := lhp + ":" + net.JoinHostPort(h, p)
 				Println("-L", s4)
 				args.LocalForward.UnmarshalText([]byte(s4))
-				go sftp(ctx, u, lhp)
+				go sx(ctx, u, lhp)
 				return
 			}
 		} else if args.ProxyJump == "" && aj == "" {
 			// Без посредников
-			go sftp(ctx, u, net.JoinHostPort(h, p))
+			go sx(ctx, u, net.JoinHostPort(h, p))
 			return
 		}
+		// Сохраняет хосты в кэше
 		dp := dPort(LH)
 		s4 := net.JoinHostPort(LH, dp)
 		Println("-D", s4)
@@ -1460,9 +1469,9 @@ Host ` + SSHJ + ` :
 		}
 
 		u += fmt.Sprintf(";x-ProxyMethod=%d;x-ProxyHost=%s;x-ProxyPort=%s", SOCKS, LH, dp)
-		go sftp(ctx, u, net.JoinHostPort(h, p))
+		go sx(ctx, u, net.JoinHostPort(h, p))
 	}
-	sftpStart()
+	sxStart()
 
 	code := Tssh(&args)
 	if args.Background {

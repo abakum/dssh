@@ -91,23 +91,23 @@ func isWin7() bool { return false }
 func ConsoleCP() {
 	setRaw(&once)
 }
-func sftp(ctx context.Context, u, hp string) {
-	opt := fmt.Sprintf("sftp://%s@%s/", u, hp)
+func sx(ctx context.Context, u, hp string) {
+	x := "sftp"
+	if args.Scp {
+		x = "scp"
+	}
+	opt := fmt.Sprintf("%s://%s@%s/", x, u, hp)
 	bin, err := exec.LookPath("filezilla")
 	var cmd *exec.Cmd
-	if err == nil {
-		cmd = exec.Command(bin, "-l", "interactive", opt)
+	if err == nil && args.Sftp {
+		cmd = exec.CommandContext(ctx, bin, "-l", "interactive", opt)
 	} else {
 		bin = "xdg-open"
-		cmd = exec.Command(bin, opt)
+		cmd = exec.CommandContext(ctx, bin, opt)
 	}
 	cmd.Start()
 	Println(cmd, err)
 	if err == nil {
 		closer.Bind(func() { cmd.Process.Release() })
-		// 	established(ctx, hp, true, Println)
-		// 	if ctx.Err() == nil {
-		// 		closer.Close()
-		// 	}
 	}
 }

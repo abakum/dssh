@@ -95,14 +95,12 @@ func ConsoleCP() {
 	closer.Bind(func() { setConsoleOutputCP(outCP) })
 }
 
-func sftp(ctx context.Context, u, hp string) {
-	opt := fmt.Sprintf("sftp://%s@%s/", u, hp)
+func sx(_ context.Context, u, hp string) {
+	x := "sftp"
+	if args.Scp {
+		x = "scp"
+	}
+	opt := fmt.Sprintf("%s://%s@%s/", x, u, hp)
 	_, err := su.ShellExecute(su.OPEN, opt, "", "")
 	Println("start", opt, err)
-	// if err == nil {
-	// 	established(ctx, hp, true, Println)
-	// 	if ctx.Err() == nil {
-	// 		closer.Close()
-	// 	}
-	// }
 }
