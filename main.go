@@ -131,6 +131,7 @@ var (
 	listen         = strconv.Itoa(PORTS)
 	tt             *time.Timer
 	eips           []string
+	errAbuse       = fmt.Errorf("let's not abuse the kindness of - не будем злоупотреблять добротой %q", JumpHost)
 )
 
 //go:generate go run github.com/abakum/version
@@ -447,7 +448,7 @@ func main() {
 		// -70 .
 		autoDirectJump = getHP(ctx, autoDirectJump, u)
 		if autoDirectJump == "." {
-			Println(fmt.Errorf("let's not abuse the kindness of - не будем злоупотреблять добротой %q", JumpHost))
+			Println(errAbuse)
 			vncDirect = false
 			args.Destination = "_"
 			loc = true
@@ -513,8 +514,8 @@ func main() {
 	}
 
 	BSnw := ser != "" || args.Baud != "" || portT > 0 || portW > 0
-	noAutoPutty := args.DisableTTY || args.NoCommand || Cygwin || external || BSnw || portV > 0 || args.Sftp
-	if !loc && Win7 && !noAutoPutty {
+	noAutoPutty := loc || args.DisableTTY || args.NoCommand || Cygwin || external || BSnw || portV > 0 || args.Sftp
+	if Win7 && !noAutoPutty {
 		s := PUTTY
 		_, err := exec.LookPath(s)
 		args.Putty = err == nil
@@ -1375,8 +1376,10 @@ Host ` + SSHJ + ` :
 		args.Command = repo
 	}
 
-	if args.Sftp {
-		lhp := JoinHostPort(LH, PORTC)
+	sftpStart := func() {
+		if !args.Sftp {
+			return
+		}
 		_, h, pd := ParseDestination(args.Destination)
 		if h == "" {
 			h = LH
@@ -1387,8 +1390,6 @@ Host ` + SSHJ + ` :
 		}
 		// Алиас
 		au, ah, ap, aj, err := SshToUHPJ(h)
-		// Println("args.Destination, h, p, args.DirectJump, isDssh(false), au, ah, ap, err--------------")
-		// Println(args.Destination, h, p, args.DirectJump, isDssh(false), au, ah, ap, err)
 		if err == nil {
 			if au != "" {
 				u = au
@@ -1403,9 +1404,7 @@ Host ` + SSHJ + ` :
 				p = PORT
 			}
 		}
-		direct := args.ProxyJump == "" && aj == ""
-		isD := win && isDssh(args.DirectJump && args.Destination != "")
-		if isD {
+		if win && isDssh(args.DirectJump && args.Destination != "") {
 			// -9j x
 			// -9 :
 			// -9 .
@@ -1430,24 +1429,37 @@ Host ` + SSHJ + ` :
 			} else {
 				h, p = LH, strconv.Itoa(PORTS)
 			}
-		} else if direct {
-			// !isD
+		} else if args.ProxyJump == "" && aj == "" {
 			// Без посредников
 			go sftp(ctx, u, net.JoinHostPort(h, p))
+			return
 		}
-		if !direct || isD {
-			s4 := lhp + ":" + net.JoinHostPort(h, p)
-			Println("-L", s4)
-			args.LocalForward.UnmarshalText([]byte(s4))
-			if args.Destination == SSHJ {
-				Println(fmt.Errorf("let's not abuse the kindness of - не будем злоупотреблять добротой %q", JumpHost))
-				// Println(fmt.Errorf("please don't abuse the kindness of - пожалуйста не злоупотребляйте добротой %q", JumpHost))
-			} else {
-				go sftp(ctx, u, lhp)
-			}
-			// go sftp(ctx, u, lhp)
+		if args.Destination == SSHJ {
+			Println(errAbuse)
+			// Println(fmt.Errorf("please don't abuse the kindness of - пожалуйста не злоупотребляйте добротой %q", JumpHost))
+			return
 		}
+		// lhp := JoinHostPort(LH,PORTC)
+		// s4 := lhp + ":" + net.JoinHostPort(h, p)
+		// Println("-L", s4)
+		// args.LocalForward.UnmarshalText([]byte(s4))
+		// go sftp(ctx, u, lhp)
+
+		dp := dPort(LH)
+		s4 := net.JoinHostPort(LH, dp)
+		Println("-D", s4)
+		args.DynamicForward.UnmarshalText([]byte(s4))
+
+		SOCKS := 1 // socks4
+		if args.Socks5 {
+			SOCKS++
+		}
+
+		u += fmt.Sprintf(";x-ProxyMethod=%d;x-ProxyHost=%s;x-ProxyPort=%s", SOCKS, LH, dp)
+		go sftp(ctx, u, net.JoinHostPort(h, p))
 	}
+	sftpStart()
+
 	code := Tssh(&args)
 	if args.Background {
 		Println("tssh started in background with code:", code)
