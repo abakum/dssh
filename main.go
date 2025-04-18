@@ -1380,6 +1380,11 @@ Host ` + SSHJ + ` :
 		if !args.Sftp {
 			return
 		}
+		if args.Destination == SSHJ {
+			// Println(fmt.Errorf("please don't abuse the kindness of - пожалуйста не злоупотребляйте добротой %q", JumpHost))
+			Println(errAbuse)
+			return
+		}
 		_, h, pd := ParseDestination(args.Destination)
 		if h == "" {
 			h = LH
@@ -1429,22 +1434,21 @@ Host ` + SSHJ + ` :
 			} else {
 				h, p = LH, strconv.Itoa(PORTS)
 			}
+			if h == LH {
+				// Иногда то что не работает с -D работает с -L
+				// lhp := JoinHostPort(LH, PORTC)
+				lhp := net.JoinHostPort(LH, dPort(LH))
+				s4 := lhp + ":" + net.JoinHostPort(h, p)
+				Println("-L", s4)
+				args.LocalForward.UnmarshalText([]byte(s4))
+				go sftp(ctx, u, lhp)
+				return
+			}
 		} else if args.ProxyJump == "" && aj == "" {
 			// Без посредников
 			go sftp(ctx, u, net.JoinHostPort(h, p))
 			return
 		}
-		if args.Destination == SSHJ {
-			Println(errAbuse)
-			// Println(fmt.Errorf("please don't abuse the kindness of - пожалуйста не злоупотребляйте добротой %q", JumpHost))
-			return
-		}
-		// lhp := JoinHostPort(LH,PORTC)
-		// s4 := lhp + ":" + net.JoinHostPort(h, p)
-		// Println("-L", s4)
-		// args.LocalForward.UnmarshalText([]byte(s4))
-		// go sftp(ctx, u, lhp)
-
 		dp := dPort(LH)
 		s4 := net.JoinHostPort(LH, dp)
 		Println("-D", s4)
