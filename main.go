@@ -1409,15 +1409,7 @@ Host ` + SSHJ + ` :
 				p = PORT
 			}
 		}
-		if !win {
-			lhp := net.JoinHostPort(LH, dPort(LH))
-			s4 := lhp + ":" + net.JoinHostPort(h, p)
-			Println("-L", s4)
-			args.LocalForward.UnmarshalText([]byte(s4))
-			go sx(ctx, u, lhp)
-			return
-		}
-		if isDssh(args.DirectJump && args.Destination != "") {
+		if win && isDssh(args.DirectJump && args.Destination != "") {
 			// -9j x
 			// -9 :
 			// -9 .
@@ -1469,7 +1461,7 @@ Host ` + SSHJ + ` :
 		}
 
 		u += fmt.Sprintf(";x-ProxyMethod=%d;x-ProxyHost=%s;x-ProxyPort=%s", SOCKS, LH, dp)
-		go sx(ctx, u, net.JoinHostPort(h, p))
+		time.AfterFunc(time.Second, func() { sx(ctx, u, net.JoinHostPort(h, p)) })
 	}
 	sxStart()
 

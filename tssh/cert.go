@@ -364,7 +364,6 @@ func (f *Config) UnmarshalText(b []byte) error {
 
 // Пишем файл name если его содержимое отличается от data.
 // Дата и время файла меняется только если меняется его содержимое.
-// На всякий случай старое содержимое пишем в .old
 func writeFile(name string, data []byte, perm fs.FileMode) error {
 	old, err := os.ReadFile(name)
 	if err != nil || !bytes.EqualFold(old, data) {

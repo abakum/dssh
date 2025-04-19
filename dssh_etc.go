@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/abakum/winssh"
@@ -97,9 +98,25 @@ func sx(ctx context.Context, u, hp string) {
 		x = "scp"
 	}
 	opt := fmt.Sprintf("%s://%s@%s/", x, u, hp)
-	bin, err := exec.LookPath("filezilla")
+	bin, err := exec.LookPath(fileZillaBin)
 	var cmd *exec.Cmd
 	if err == nil && args.Sftp {
+		ucd, err := os.UserHomeDir()
+		if err != nil {
+			return
+		}
+		fz := filepath.Join(ucd, ".config", fileZillaBin, fileZillaXml)
+		uhp := strings.Split(u, ";")
+		l := len(uhp)
+		if l > 3 {
+			err = replaceHPT(fz, x2v(uhp[l-2]), x2v(uhp[l-1]), "2")
+		} else {
+			err = replaceHPT(fz, "", "", "0")
+		}
+		if err != nil {
+			return
+		}
+		opt = fmt.Sprintf("%s://%s@%s/", x, uhp[0], hp)
 		cmd = exec.CommandContext(ctx, bin, "-l", "interactive", opt)
 	} else {
 		bin = "xdg-open"
@@ -107,7 +124,9 @@ func sx(ctx context.Context, u, hp string) {
 	}
 	cmd.Start()
 	Println(cmd, err)
-	if err == nil {
-		closer.Bind(func() { cmd.Process.Release() })
+	if err != nil {
+		return
 	}
+	closer.Bind(func() { cmd.Process.Release() })
+
 }

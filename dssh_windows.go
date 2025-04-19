@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 
 	su "github.com/nyaosorg/go-windows-su"
@@ -95,12 +96,44 @@ func ConsoleCP() {
 	closer.Bind(func() { setConsoleOutputCP(outCP) })
 }
 
-func sx(_ context.Context, u, hp string) {
+func sx(ctx context.Context, u, hp string) {
 	x := "sftp"
 	if args.Scp {
 		x = "scp"
 	}
 	opt := fmt.Sprintf("%s://%s@%s/", x, u, hp)
 	_, err := su.ShellExecute(su.OPEN, opt, "", "")
+	// err := fmt.Errorf("test")
 	Println("start", opt, err)
+	if err == nil {
+		return
+	}
+	bin, err := exec.LookPath(fileZillaBin)
+	if err != nil {
+		// return
+		bin = `c:\Program Files\FileZilla FTP Client\filezilla.exe`
+	}
+	ucd, err := os.UserConfigDir()
+	if err != nil {
+		return
+	}
+	fz := filepath.Join(ucd, fileZillaBin, fileZillaXml)
+	uhp := strings.Split(u, ";")
+	l := len(uhp)
+	if l > 3 {
+		err = replaceHPT(fz, x2v(uhp[l-2]), x2v(uhp[l-1]), "2")
+	} else {
+		err = replaceHPT(fz, "", "", "0")
+	}
+	if err != nil {
+		return
+	}
+	opt = fmt.Sprintf("%s://%s@%s/", x, uhp[0], hp)
+	cmd := exec.CommandContext(ctx, bin, "-l", "interactive", opt)
+	err = cmd.Start()
+	Println(cmd, err)
+	if err != nil {
+		return
+	}
+	closer.Bind(func() { cmd.Process.Release() })
 }
