@@ -14,7 +14,6 @@ import (
 	"strings"
 
 	"github.com/abakum/winssh"
-	"github.com/xlab/closer"
 )
 
 const win = false
@@ -97,36 +96,17 @@ func sx(ctx context.Context, u, hp string) {
 	if args.Scp {
 		x = "scp"
 	}
-	opt := fmt.Sprintf("%s://%s@%s/", x, u, hp)
 	bin, err := exec.LookPath(fileZillaBin)
-	var cmd *exec.Cmd
 	if err == nil && args.Sftp {
-		ucd, err := os.UserHomeDir()
-		if err != nil {
-			return
+		uhd, err := os.UserHomeDir()
+		if err == nil {
+			u, err := uhp2u(u, filepath.Join(uhd, ".config", fileZillaBin, fileZillaXml))
+			if err == nil {
+				cmdStart(exec.CommandContext(ctx, bin, "-l", "interactive", fmt.Sprintf("%s://%s@%s/", x, u, hp)))
+				return
+			}
 		}
-		fz := filepath.Join(ucd, ".config", fileZillaBin, fileZillaXml)
-		uhp := strings.Split(u, ";")
-		l := len(uhp)
-		if l > 3 {
-			err = replaceHPT(fz, x2v(uhp[l-2]), x2v(uhp[l-1]), "2")
-		} else {
-			err = replaceHPT(fz, "", "", "0")
-		}
-		if err != nil {
-			return
-		}
-		opt = fmt.Sprintf("%s://%s@%s/", x, uhp[0], hp)
-		cmd = exec.CommandContext(ctx, bin, "-l", "interactive", opt)
-	} else {
-		bin = "xdg-open"
-		cmd = exec.CommandContext(ctx, bin, opt)
 	}
-	cmd.Start()
-	Println(cmd, err)
-	if err != nil {
-		return
-	}
-	closer.Bind(func() { cmd.Process.Release() })
-
+	u, _ = uhp2u(u, "")
+	cmdStart(exec.CommandContext(ctx, "xdg-open", fmt.Sprintf("%s://%s@%s/", x, u, hp)))
 }

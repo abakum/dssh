@@ -4,7 +4,10 @@ import (
 	"encoding/xml"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
+
+	"github.com/xlab/closer"
 )
 
 const (
@@ -68,23 +71,29 @@ func replaceHPT(filePath, h, p, t string) (err error) {
 		s  = "Setting"
 		m  = `<%s name="%s">%s</%s>`
 	)
-	f := string(file)
-	for _, set := range fileZilla.Settings.Setting {
-		replace := func(f, text string) string {
-			if text == "" || set.Text == text {
-				return f
-			}
-			return strings.Replace(f,
-				fmt.Sprintf(m, s, set.Name, set.Text, s),
-				fmt.Sprintf(m, s, set.Name, text, s), 1)
+	replace := func(f *string, k, o, n string) {
+		if n == "" || o == n {
+			return
 		}
-		switch set.Name {
+		from := fmt.Sprintf(m, s, k, o, s)
+		if o == "" {
+			// <Setting name="Proxy host" />
+			from = fmt.Sprintf(`<%s name="%s" />`, s, k)
+		}
+		Println(k, "=", n)
+		*f = strings.Replace(*f,
+			from,
+			fmt.Sprintf(m, s, k, n, s), 1)
+	}
+	f := string(file)
+	for _, proxy := range fileZilla.Settings.Setting {
+		switch proxy.Name {
 		case ph:
-			f = replace(f, h)
+			replace(&f, proxy.Name, proxy.Text, h)
 		case pp:
-			f = replace(f, p)
+			replace(&f, proxy.Name, proxy.Text, p)
 		case pt:
-			f = replace(f, t)
+			replace(&f, proxy.Name, proxy.Text, t)
 		}
 	}
 
@@ -97,4 +106,28 @@ func x2v(s string) string {
 		return s[i+1:]
 	}
 	return ""
+}
+
+func uhp2u(uhp, fz string) (u string, err error) {
+	a := strings.Split(uhp, ";")
+	u = a[0]
+	if fz == "" {
+		return
+	}
+	l := len(a)
+	if l > 3 {
+		err = replaceHPT(fz, x2v(a[l-2]), x2v(a[l-1]), "2")
+	} else {
+		err = replaceHPT(fz, "", "", "0")
+	}
+	return
+}
+
+func cmdStart(cmd *exec.Cmd) {
+	err := cmd.Start()
+	PrintLn(3, cmd, err)
+	if err != nil {
+		return
+	}
+	closer.Bind(func() { cmd.Process.Release() })
 }
