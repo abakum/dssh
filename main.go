@@ -1380,7 +1380,7 @@ Host ` + SSHJ + ` :
 		if !(args.Sftp || args.Scp) {
 			return
 		}
-		if args.Destination == SSHJ {
+		if args.Destination == SSHJ && !(args.Sftp && args.Scp) {
 			// Println(fmt.Errorf("please don't abuse the kindness of - пожалуйста не злоупотребляйте добротой %q", JumpHost))
 			Println(errAbuse)
 			return

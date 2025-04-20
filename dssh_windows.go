@@ -99,6 +99,9 @@ func sx(ctx context.Context, u, hp string) {
 	x := "sftp"
 	if args.Scp {
 		x = "scp"
+		if args.Sftp {
+			x = "ssh"
+		}
 	}
 	opt := fmt.Sprintf("%s://%s@%s/", x, u, hp)
 	_, err := su.ShellExecute(su.OPEN, opt, "", "")
