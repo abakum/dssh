@@ -83,6 +83,10 @@ func NewParser(config arg.Config, dests ...interface{}) (*Parser, error) {
 }
 
 const (
+	orWin7   = false
+	andPutty = true
+	andSsh   = true
+
 	ALL      = "0.0.0.0"
 	LH       = "127.0.0.1"
 	FILEMODE = 0644
@@ -119,11 +123,12 @@ var (
 	imag       string       // Имя исполняемого файла `dssh` его можно изменить чтоб не указывать имя для посредника.
 	// win        = runtime.GOOS == "windows"
 	Cygwin = isatty.IsCygwinTerminal(os.Stdin.Fd())
-	Win7   = isWin7() // Windows 7 не поддерживает ENABLE_VIRTUAL_TERMINAL_INPUT и ENABLE_VIRTUAL_TERMINAL_PROCESSING
+	Win7   = orWin7 || isWin7() // Windows 7 не поддерживает ENABLE_VIRTUAL_TERMINAL_INPUT и ENABLE_VIRTUAL_TERMINAL_PROCESSING
 	once,
 	SP bool
 	ZerroNewWindow = os.Getenv("SSH_CONNECTION") != ""
 	tmp            = filepath.Join(os.TempDir(), repo)
+	_              = os.MkdirAll(tmp, DIRMODE)
 	ips            = ser2net.Ints()
 	EED            = Enter + "~."
 	EEDE           = EED
@@ -514,15 +519,15 @@ func main() {
 	}
 
 	BSnw := ser != "" || args.Baud != "" || portT > 0 || portW > 0
-	noAutoPutty := loc || args.DisableTTY || args.NoCommand || Cygwin || external || BSnw || portV > 0 || args.Sftp || args.Scp
-	if Win7 && !noAutoPutty {
-		s := PUTTY
+	noAutoOpen := loc || args.DisableTTY || args.NoCommand || Cygwin || external || BSnw || portV > 0 || args.Sftp || args.Scp
+	if Win7 && !noAutoOpen {
+		s := SSH
 		_, err := exec.LookPath(s)
-		args.Putty = err == nil
-		if !args.Putty { //
-			s = SSH
-			_, err := exec.LookPath(s)
-			args.Telnet = err == nil
+		args.Telnet = err == nil && andSsh
+		if !args.Telnet {
+			s = PUTTY
+			_, err = exec.LookPath(s)
+			args.Putty = err == nil && andPutty
 		}
 		external = args.Putty || args.Telnet
 		if external {
@@ -530,12 +535,19 @@ func main() {
 		}
 
 	}
+
 	if args.Command != "" && args.Putty && !args.Unix {
 		Println(fmt.Errorf("for run will use - для запуска %q будем использовать plink", args.Command))
 		args.Unix = true
 	}
 	if Win7 && !(Cygwin || external) {
-		Println(fmt.Errorf("try to use - в Windows 7 попробуй использовать `-88`"))
+		sh := "sh"
+		switch goos(args.Destination) {
+		case "windows":
+			sh = "cmd"
+		}
+
+		Println(fmt.Errorf("try to use - в Windows 7 попробуй использовать `%s -8%d -0H%s %s`", repo, 0, sh, args.Destination))
 	}
 
 	djh := ""
@@ -971,7 +983,6 @@ Host ` + SSHJ + ` :
 	// Сервис.
 	if args.Daemon || !cli && daemon {
 		args.Daemon = true
-		os.MkdirAll(tmp, DIRMODE)
 		if os.WriteFile(tmpU, []byte{}, FILEMODE) == nil {
 			closer.Bind(func() { os.Remove(tmpU) })
 		}
@@ -1380,7 +1391,7 @@ Host ` + SSHJ + ` :
 		if !(args.Sftp || args.Scp) {
 			return
 		}
-		if args.Destination == SSHJ && !(args.Sftp && args.Scp) {
+		if args.Destination == SSHJ {
 			// Println(fmt.Errorf("please don't abuse the kindness of - пожалуйста не злоупотребляйте добротой %q", JumpHost))
 			Println(errAbuse)
 			return
@@ -1389,9 +1400,9 @@ Host ` + SSHJ + ` :
 		if h == "" {
 			h = LH
 		}
-		p = portPB(pd, PORTS)
+		p = portPB(pd, PORTS) //dssh
 		if pd == "" && !isDssh(args.DirectJump) {
-			p = PORT
+			p = PORT //sshd
 		}
 		// Алиас
 		au, ah, ap, aj, err := SshToUHPJ(h)
@@ -1434,22 +1445,11 @@ Host ` + SSHJ + ` :
 			} else {
 				h, p = LH, strconv.Itoa(PORTS)
 			}
-			if h == LH {
-				// Иногда то что не работает с -D работает с -L
-				// lhp := JoinHostPort(LH, PORTC)
-				lhp := net.JoinHostPort(LH, dPort(LH))
-				s4 := lhp + ":" + net.JoinHostPort(h, p)
-				Println("-L", s4)
-				args.LocalForward.UnmarshalText([]byte(s4))
-				go sx(ctx, u, lhp)
-				return
-			}
 		} else if args.ProxyJump == "" && aj == "" {
 			// Без посредников
 			go sx(ctx, u, net.JoinHostPort(h, p))
 			return
 		}
-		// Сохраняет хосты в кэше
 		dp := dPort(LH)
 		s4 := net.JoinHostPort(LH, dp)
 		Println("-D", s4)
@@ -1460,6 +1460,9 @@ Host ` + SSHJ + ` :
 			SOCKS++
 		}
 
+		if h == LH {
+			u += ";x-ProxyLocalhost=1"
+		}
 		u += fmt.Sprintf(";x-ProxyMethod=%d;x-ProxyHost=%s;x-ProxyPort=%s", SOCKS, LH, dp)
 		time.AfterFunc(time.Second, func() { sx(ctx, u, net.JoinHostPort(h, p)) })
 	}
@@ -1484,9 +1487,18 @@ Host ` + SSHJ + ` :
 
 // Какая ОС на sshd
 func goos(dest string) (s string) {
+	antiLoop := filepath.Join(tmp, "goos")
+	if isDssh(dest == "") || isFileExist(antiLoop) {
+		return
+	}
 	echo := exec.Command(repo, "-T", dest, "echo", "~")
 	echo.Stdin = os.Stdin
 	setRaw(&once)
+
+	if os.WriteFile(antiLoop, []byte{}, FILEMODE) == nil {
+		defer os.Remove(antiLoop)
+	}
+
 	output, err := echo.Output()
 	if err != nil {
 		Println(echo, output, err)
