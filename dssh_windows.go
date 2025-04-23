@@ -100,27 +100,95 @@ func sx(ctx context.Context, u, hp string) {
 	if args.Scp {
 		x = "scp"
 		if args.Sftp {
+			// -39
+			// -93
 			x = "ssh"
 		}
 	}
 	opt := fmt.Sprintf("%s://%s@%s/", x, u, hp)
-	_, err := su.ShellExecute(su.OPEN, opt, "", "")
-	// err := fmt.Errorf(fileZillaBin)
-	Println("start", opt, err)
-	if err == nil {
+
+	err := fmt.Errorf("not found handler - не найден обработчик %q", x)
+	if tryWinSCP {
+		_, err = su.ShellExecute(su.OPEN, opt, "", "")
+		Println("start", opt, err)
+		if err == nil {
+			return
+		}
+	}
+
+	bin := ""
+	if x == "ssh" && tryPuTTY {
+		bin = PUTTY
+		opt := []string{}
+		if args.LoginName != "" {
+			opt = append(opt, "-l", args.LoginName)
+		}
+		if args.Port > 0 {
+			opt = append(opt, "-P", strconv.Itoa(args.Port))
+		}
+		opt = append(opt, "@"+args.Destination)
+		cmd := exec.CommandContext(ctx, bin, opt...)
+		cmdStart(cmd)
 		return
 	}
-	bin, err := exec.LookPath(fileZillaBin)
-	if err != nil {
-		bin = filepath.Join(os.Getenv("ProgramFiles"), "FileZilla FTP Client", fileZillaBin)
+	// scp
+	// sftp
+	if x == "scp" {
+		Println(err)
+		x = "sftp"
 	}
-	ucd, err := os.UserConfigDir()
-	if err != nil {
-		return
+
+	if tryFileZilla {
+		bin, err = exec.LookPath(fileZillaBin)
+		if err != nil {
+			bin = filepath.Join(os.Getenv("ProgramFiles"), "FileZilla FTP Client", fileZillaBin)
+			bin, err = exec.LookPath(bin)
+		}
+		if err == nil {
+			ucd := ""
+			ucd, err = os.UserConfigDir()
+			if err == nil {
+				u, err = uhp2u(u, filepath.Join(ucd, fileZillaBin, fileZillaXml))
+				if err == nil {
+					cmdStart(exec.CommandContext(ctx, bin, "-l", "interactive", fmt.Sprintf("%s://%s@%s/", x, u, hp)))
+					return
+				}
+			}
+		}
 	}
-	u, err = uhp2u(u, filepath.Join(ucd, fileZillaBin, fileZillaXml))
-	if err != nil {
-		return
+	if tryOpenSSH {
+		bin, err = exec.LookPath(x)
+		if err == nil {
+			opt := []string{}
+			if args.ProxyJump != "" {
+				opt = append(opt, "-J", args.ProxyJump)
+			}
+			for _, v := range args.Option.Marshal() {
+				opt = append(opt, "-o", v)
+			}
+
+			cmd := exec.CommandContext(ctx, bin, append(opt, args.Destination)...)
+			createNewConsole(cmd)
+			cmdStart(cmd)
+			return
+		}
 	}
-	cmdStart(exec.CommandContext(ctx, bin, "-l", "interactive", fmt.Sprintf("%s://%s@%s/", x, u, hp)))
+	if tryPuTTY {
+		bin, err = exec.LookPath("p" + x)
+		if err == nil {
+			opt := []string{}
+			if args.LoginName != "" {
+				opt = append(opt, "-l", args.LoginName)
+			}
+			if args.Port > 0 {
+				opt = append(opt, "-P", strconv.Itoa(args.Port))
+			}
+			opt = append(opt, "-load", args.Destination)
+			cmd := exec.CommandContext(ctx, bin, opt...)
+			createNewConsole(cmd)
+			cmdStart(cmd)
+			return
+		}
+	}
+	Println(err)
 }

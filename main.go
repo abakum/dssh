@@ -83,10 +83,6 @@ func NewParser(config arg.Config, dests ...interface{}) (*Parser, error) {
 }
 
 const (
-	orWin7   = false
-	andPutty = true
-	andSsh   = true
-
 	ALL      = "0.0.0.0"
 	LH       = "127.0.0.1"
 	FILEMODE = 0644
@@ -103,7 +99,7 @@ const (
 	PORTW    = 8000
 	PORTS    = 2200
 	PORTV    = 5500
-	PORTC    = 2290
+	PORTC    = 1080
 	LockFile = "lockfile"
 	SEP      = ","
 	Enter    = "<Enter>"
@@ -112,6 +108,12 @@ const (
 )
 
 var (
+	tryWin7      = os.Getenv("tryWin7") == "1"
+	tryPuTTY     = os.Getenv("tryPuTTY") != "0"
+	tryOpenSSH   = os.Getenv("tryOpenSSH") != "0"
+	tryWinSCP    = os.Getenv("tryWinSCP") != "0"
+	tryFileZilla = os.Getenv("tryFileZilla") != "0"
+
 	_          = encryptedfs.ENC
 	_          = version.Ver
 	SshUserDir = winssh.UserHomeDirs(".ssh")
@@ -123,7 +125,7 @@ var (
 	imag       string       // Имя исполняемого файла `dssh` его можно изменить чтоб не указывать имя для посредника.
 	// win        = runtime.GOOS == "windows"
 	Cygwin = isatty.IsCygwinTerminal(os.Stdin.Fd())
-	Win7   = orWin7 || isWin7() // Windows 7 не поддерживает ENABLE_VIRTUAL_TERMINAL_INPUT и ENABLE_VIRTUAL_TERMINAL_PROCESSING
+	Win7   = tryWin7 || isWin7() // Windows 7 не поддерживает ENABLE_VIRTUAL_TERMINAL_INPUT и ENABLE_VIRTUAL_TERMINAL_PROCESSING
 	once,
 	SP bool
 	ZerroNewWindow = os.Getenv("SSH_CONNECTION") != ""
@@ -523,11 +525,11 @@ func main() {
 	if Win7 && !noAutoOpen {
 		s := SSH
 		_, err := exec.LookPath(s)
-		args.Telnet = err == nil && andSsh
+		args.Telnet = err == nil && tryOpenSSH
 		if !args.Telnet {
 			s = PUTTY
 			_, err = exec.LookPath(s)
-			args.Putty = err == nil && andPutty
+			args.Putty = err == nil && tryPuTTY
 		}
 		external = args.Putty || args.Telnet
 		if external {
@@ -2046,6 +2048,7 @@ func isHP(hostport string) (ok bool) {
 }
 func dPort(host string) (portC string) {
 	portC = strconv.Itoa(PORTC)
+	return
 	ln, err := net.Listen("tcp4", net.JoinHostPort(host, "0"))
 	if err == nil {
 		hostport := ln.Addr().String()

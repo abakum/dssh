@@ -161,6 +161,13 @@ func (o *sshOption) getAll(option string) []string {
 	return o.options[strings.ToLower(option)]
 }
 
+func (o *sshOption) Marshal() (kv []string) {
+	for k, v := range o.options {
+		kv = append(kv, k+"="+strings.Join(v, " "))
+	}
+	return
+}
+
 func (v *multiStr) UnmarshalText(b []byte) error {
 	v.values = append(v.values, string(b))
 	return nil
