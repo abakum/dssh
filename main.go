@@ -128,7 +128,7 @@ var (
 	Win7   = tryWin7 || isWin7() // Windows 7 не поддерживает ENABLE_VIRTUAL_TERMINAL_INPUT и ENABLE_VIRTUAL_TERMINAL_PROCESSING
 	once,
 	SP bool
-	ZerroNewWindow = os.Getenv("SSH_CONNECTION") != ""
+	ZerroNewWindow = os.Getenv("SSH_CONNECTION") != "" && os.Getenv("DISPLAY") == ""
 	tmp            = filepath.Join(os.TempDir(), repo)
 	_              = os.MkdirAll(tmp, DIRMODE)
 	ips            = ser2net.Ints()
@@ -1229,7 +1229,7 @@ Host ` + SSHJ + ` :
 				// dssh -u :
 				switch bin {
 				case PUTTY:
-					opt = "@" + args.Destination
+					opt = fmt.Sprintln("-load", args.Destination)
 				case PLINK:
 					opt = fmt.Sprintln("-no-antispoof", "-load", args.Destination)
 				case TELNET, BUSYBOX:

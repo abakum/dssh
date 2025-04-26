@@ -126,7 +126,7 @@ func sx(ctx context.Context, u, hp string) {
 		if args.Port > 0 {
 			opt = append(opt, "-P", strconv.Itoa(args.Port))
 		}
-		opt = append(opt, "@"+args.Destination)
+		opt = append(opt, "-load", args.Destination)
 		cmd := exec.CommandContext(ctx, bin, opt...)
 		cmdStart(cmd)
 		return

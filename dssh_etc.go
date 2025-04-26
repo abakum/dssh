@@ -108,5 +108,22 @@ func sx(ctx context.Context, u, hp string) {
 		}
 	}
 	u, _ = uhp2u(u, "")
+	// XDG_UTILS_DEBUG_LEVEL=999 xdg-mime query default x-scheme-handler/sftp
+	// gio mime x-scheme-handler/sftp
+	// gio mime x-scheme-handler/sftp filezilla.desktop
+
+	// /usr/share/applications/filezilla.desktop
+	// Exec=filezilla -l interactive %U
+	// MimeType=x-scheme-handler/sftp;
+
+	// gio mime x-scheme-handler/ssh
+	// gio mime x-scheme-handler/ssh putty.desktop
+	// Exec=bash -c 'putty -load ${0//ssh:\/\//}' %u
+	// MimeType=x-scheme-handler/ssh;
+	// echo a://b|awk '{split($0,a,"://"); print a[2]}'
+
+	// если не в /usr/share/applications/ а в ~/.local/share/applications
+	// update-desktop-database ~/.local/share/applications
+
 	cmdStart(exec.CommandContext(ctx, "xdg-open", fmt.Sprintf("%s://%s@%s/", x, u, hp)))
 }
